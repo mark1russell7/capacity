@@ -2,7 +2,8 @@
  * Performance and capacity models. A law gives one measure of a subject, for example the CPU time
  * of one request, as a function of its load variables. A workload gives the load: the classes of
  * requests with their rates. The package examines a law and a workload, and it gives the value of
- * a law at a load point, with an interval.
+ * a law at a load point, with an interval. The catalog of forms gives the math of a law as data,
+ * with its slope and the start values of its fit.
  *
  * An instance type gives the resources of one copy of a service. A limit is a ceiling on one
  * measure, with headroom. The package gives the share of each limit that a value takes.
@@ -30,6 +31,20 @@ export type {
 export { DEFAULT_LEVEL, LAW_FORMAT, MAX_VARIABLES, leastCount } from "./law.ts";
 export { SLUG } from "./names.ts";
 export { checkLaw } from "./check.ts";
+export type { Binding, CatalogForm, Grid, Points, Shape, Start, Term } from "./forms.ts";
+export {
+  FORMS,
+  FORM_VARIABLE,
+  catalogForm,
+  constantIdsOf,
+  formOf,
+  formSlopes,
+  formValues,
+  gridOf,
+  programOf,
+  slopeOf,
+  startOf,
+} from "./forms.ts";
 export type { ConstantInterval, LawValue, LevelOptions, LoadPoint, Range } from "./value.ts";
 export { constantIntervals, lawValue } from "./value.ts";
 export type {
