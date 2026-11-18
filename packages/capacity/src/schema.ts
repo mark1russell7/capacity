@@ -4,6 +4,8 @@ import { z } from "zod";
 import { checkLaw } from "./check.ts";
 import { LAW_FORMAT, type Law, type LawProblem } from "./law.ts";
 import { LAW_DOMAINS } from "./program.ts";
+import { checkWorkload } from "./workload-check.ts";
+import { WORKLOAD_FORMAT, type Workload, type WorkloadProblem } from "./workload.ts";
 
 /** This function tells if a value from JSON is a Vex expression. */
 const isProgram = (value: unknown): boolean => {
@@ -54,5 +56,38 @@ export const readLaw = (data: unknown): Result<Law, readonly LawProblem[]> => {
     return err(shape.error.issues.map((issue) => ({ code: "shape", path: issue.path.join("."), message: issue.message })));
   }
   const problems = checkLaw(shape.data);
+  return problems.length > 0 ? err(problems) : ok(shape.data);
+};
+
+const amountSchema = z.strictObject({ value: z.number(), unit: z.string() });
+const amountsSchema = z.record(z.string(), amountSchema);
+
+/**
+ * This schema accepts the shape of a workload file: each field with its type, and no other field.
+ * It does not examine what the fields mean. The function `checkWorkload` does that.
+ */
+export const workloadSchema: z.ZodType<Workload> = z.strictObject({
+  format: z.literal(WORKLOAD_FORMAT),
+  id: z.string(),
+  title: z.string(),
+  classes: z.array(z.strictObject({ id: z.string(), rate: amountSchema, request: amountsSchema })),
+  levels: amountsSchema,
+  source: z.discriminatedUnion("kind", [
+    z.strictObject({ kind: z.literal("plan"), note: z.string() }),
+    z.strictObject({ kind: z.literal("metrics"), origin: z.string(), from: z.string(), to: z.string() }),
+  ]),
+});
+
+/**
+ * This function reads a workload from the data of a workload file. It gives the workload when the
+ * data has the shape of a workload and `checkWorkload` finds no problem. If not, it gives each
+ * problem.
+ */
+export const readWorkload = (data: unknown): Result<Workload, readonly WorkloadProblem[]> => {
+  const shape = workloadSchema.safeParse(data);
+  if (!shape.success) {
+    return err(shape.error.issues.map((issue) => ({ code: "shape", path: issue.path.join("."), message: issue.message })));
+  }
+  const problems = checkWorkload(shape.data);
   return problems.length > 0 ? err(problems) : ok(shape.data);
 };

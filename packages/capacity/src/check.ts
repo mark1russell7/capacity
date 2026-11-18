@@ -1,14 +1,10 @@
 import { isCanonicalUnit, isQuantity } from "@mark1russell7/quantity";
 import { deps, parse } from "@mark1russell7/vex";
 import { DEFAULT_LEVEL, LAW_FORMAT, MAX_VARIABLES, leastCount, type Law, type LawProblem, type Variable } from "./law.ts";
+import { NAME, SLUG, finite, isUtc, repeated } from "./names.ts";
 import { LAW_DOMAINS, recordOf, valuesOf } from "./program.ts";
 
-/** An id of a law, a subject, a measure, a form or a condition: lower-case words joined by `.`, `-` or `/`. */
-const SLUG = /^[a-z0-9]+(?:[./-][a-z0-9]+)*$/;
-/** A name that a program reads: a variable or a constant. */
-const NAME = /^[a-z][A-Za-z0-9]*$/;
 const COMMIT = /^[0-9a-f]{40}$/;
-const DATE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/;
 
 /** This function gives the middle of the range of a variable, on its scale. */
 const middleOf = (variable: Variable): number =>
@@ -22,12 +18,6 @@ const cornersOf = (variables: readonly Variable[]): readonly (readonly number[])
   }
   return [...corners, variables.map(middleOf)];
 };
-
-const finite = (value: number): boolean => typeof value === "number" && Number.isFinite(value);
-
-/** This function gives the first value that a list has two times, or undefined. */
-const repeated = (values: readonly string[]): string | undefined =>
-  values.find((value, index) => values.indexOf(value) !== index);
 
 /**
  * This function examines a law and gives each problem that it finds. A law with no problem gives
@@ -174,7 +164,7 @@ export const checkLaw = (law: Law): readonly LawProblem[] => {
     const path = `evidence.runs[${index}]`;
     if (!run.url.startsWith("https://")) add("evidence", `${path}.url`, `The address "${run.url}" does not start with "https://".`);
     if (!COMMIT.test(run.commit)) add("evidence", `${path}.commit`, `The commit "${run.commit}" is not 40 hexadecimal digits.`);
-    if (!DATE.test(run.date) || !Number.isFinite(Date.parse(run.date))) {
+    if (!isUtc(run.date)) {
       add("evidence", `${path}.date`, `The date "${run.date}" is not a UTC time, for example "2026-11-18T14:00:00Z".`);
     }
   });
