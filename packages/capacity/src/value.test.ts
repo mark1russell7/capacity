@@ -16,7 +16,7 @@ describe("lawValue", () => {
     const law = sampleLaw();
     expect(valueOf(law, 1000).value).toBeCloseTo(0.09, 12);
     expect(valueOf(law, 3000).value).toBeCloseTo(0.135, 12);
-    expect(valueOf(law, 1000).unit).toBe("ms/{request}");
+    expect(valueOf(law, 1000).unit).toBe("{core}·ms/{request}");
   });
 
   it("gives the interval of the values of the replicates, as plain arithmetic gives them", () => {

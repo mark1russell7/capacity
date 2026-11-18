@@ -6,52 +6,74 @@
 
 ## . (build/index.d.ts): names
 
-type Amounts: build/workload.chunk.d.ts#Amounts
-type ConditionValue: build/workload.chunk.d.ts#ConditionValue
-type Constant: build/workload.chunk.d.ts#Constant
+type AmountCeiling: build/instance.chunk.d.ts#AmountCeiling
+type Amounts: build/instance.chunk.d.ts#Amounts
+type Ceiling: build/instance.chunk.d.ts#Ceiling
+type ConditionValue: build/instance.chunk.d.ts#ConditionValue
+type Constant: build/instance.chunk.d.ts#Constant
 type ConstantInterval: build/index.d.ts#ConstantInterval
-DEFAULT_LEVEL: build/workload.chunk.d.ts#DEFAULT_LEVEL
-type Demand: build/workload.chunk.d.ts#Demand
-type Evidence: build/workload.chunk.d.ts#Evidence
-type Fit: build/workload.chunk.d.ts#Fit
-type FitError: build/workload.chunk.d.ts#FitError
-type Form: build/workload.chunk.d.ts#Form
-LAW_FORMAT: build/workload.chunk.d.ts#LAW_FORMAT
-type Law: build/workload.chunk.d.ts#Law
-type LawProblem: build/workload.chunk.d.ts#LawProblem
+DEFAULT_LEVEL: build/instance.chunk.d.ts#DEFAULT_LEVEL
+type Demand: build/instance.chunk.d.ts#Demand
+type Evidence: build/instance.chunk.d.ts#Evidence
+type Fit: build/instance.chunk.d.ts#Fit
+type FitError: build/instance.chunk.d.ts#FitError
+type Form: build/instance.chunk.d.ts#Form
+INSTANCE_FORMAT: build/instance.chunk.d.ts#INSTANCE_FORMAT
+type Instance: build/instance.chunk.d.ts#Instance
+type InstanceProblem: build/instance.chunk.d.ts#InstanceProblem
+type InstanceProblemCode: build/instance.chunk.d.ts#InstanceProblemCode
+type InstanceType: build/instance.chunk.d.ts#InstanceType
+LAW_FORMAT: build/instance.chunk.d.ts#LAW_FORMAT
+LIMITS_FORMAT: build/instance.chunk.d.ts#LIMITS_FORMAT
+type Law: build/instance.chunk.d.ts#Law
+type LawProblem: build/instance.chunk.d.ts#LawProblem
 type LawValue: build/index.d.ts#LawValue
 type LevelOptions: build/index.d.ts#LevelOptions
+type Limit: build/instance.chunk.d.ts#Limit
+type LimitProblem: build/instance.chunk.d.ts#LimitProblem
+type LimitProblemCode: build/instance.chunk.d.ts#LimitProblemCode
+type LimitSet: build/instance.chunk.d.ts#LimitSet
+type LimitUse: build/index.d.ts#LimitUse
 type LoadPoint: build/index.d.ts#LoadPoint
-type Loser: build/workload.chunk.d.ts#Loser
-MAX_VARIABLES: build/workload.chunk.d.ts#MAX_VARIABLES
-type Measure: build/workload.chunk.d.ts#Measure
-type MetricsSource: build/workload.chunk.d.ts#MetricsSource
-NO_DEMAND: build/workload.chunk.d.ts#NO_DEMAND
+type Loser: build/instance.chunk.d.ts#Loser
+MAX_VARIABLES: build/instance.chunk.d.ts#MAX_VARIABLES
+type Measure: build/instance.chunk.d.ts#Measure
+type MetricsSource: build/instance.chunk.d.ts#MetricsSource
+NO_DEMAND: build/instance.chunk.d.ts#NO_DEMAND
 type Observation: build/index.d.ts#Observation
 type ObservedClass: build/index.d.ts#ObservedClass
-type PlanSource: build/workload.chunk.d.ts#PlanSource
-type Problem: build/workload.chunk.d.ts#Problem
-type ProblemCode: build/workload.chunk.d.ts#ProblemCode
-RATE: build/workload.chunk.d.ts#RATE
+type PlanSource: build/instance.chunk.d.ts#PlanSource
+type Problem: build/instance.chunk.d.ts#Problem
+type ProblemCode: build/instance.chunk.d.ts#ProblemCode
+RATE: build/instance.chunk.d.ts#RATE
+RESOURCE_UNITS: build/instance.chunk.d.ts#RESOURCE_UNITS
 type Range: build/index.d.ts#Range
-type ResidualKind: build/workload.chunk.d.ts#ResidualKind
-type Run: build/workload.chunk.d.ts#Run
-type Scale: build/workload.chunk.d.ts#Scale
+type ResidualKind: build/instance.chunk.d.ts#ResidualKind
+type ResourceCeiling: build/instance.chunk.d.ts#ResourceCeiling
+type Run: build/instance.chunk.d.ts#Run
+type Scale: build/instance.chunk.d.ts#Scale
 type ShareOptions: build/index.d.ts#ShareOptions
-type Variable: build/workload.chunk.d.ts#Variable
-WORKLOAD_FORMAT: build/workload.chunk.d.ts#WORKLOAD_FORMAT
-type Workload: build/workload.chunk.d.ts#Workload
-type WorkloadClass: build/workload.chunk.d.ts#WorkloadClass
+type Variable: build/instance.chunk.d.ts#Variable
+WORKLOAD_FORMAT: build/instance.chunk.d.ts#WORKLOAD_FORMAT
+type Workload: build/instance.chunk.d.ts#Workload
+type WorkloadClass: build/instance.chunk.d.ts#WorkloadClass
 type WorkloadName: build/index.d.ts#WorkloadName
-type WorkloadProblem: build/workload.chunk.d.ts#WorkloadProblem
-type WorkloadProblemCode: build/workload.chunk.d.ts#WorkloadProblemCode
-type WorkloadSource: build/workload.chunk.d.ts#WorkloadSource
+type WorkloadProblem: build/instance.chunk.d.ts#WorkloadProblem
+type WorkloadProblemCode: build/instance.chunk.d.ts#WorkloadProblemCode
+type WorkloadSource: build/instance.chunk.d.ts#WorkloadSource
+checkInstance: build/index.d.ts#checkInstance
 checkLaw: build/index.d.ts#checkLaw
+checkLimits: build/index.d.ts#checkLimits
 checkWorkload: build/index.d.ts#checkWorkload
 constantIntervals: build/index.d.ts#constantIntervals
 demandProblems: build/index.d.ts#demandProblems
+instanceProblems: build/index.d.ts#instanceProblems
 lawValue: build/index.d.ts#lawValue
-leastCount: build/workload.chunk.d.ts#leastCount
+leastCount: build/instance.chunk.d.ts#leastCount
+limitAmount: build/index.d.ts#limitAmount
+limitProblems: build/index.d.ts#limitProblems
+limitUse: build/index.d.ts#limitUse
+limitUses: build/index.d.ts#limitUses
 loadPointOf: build/index.d.ts#loadPointOf
 mergeDemands: build/index.d.ts#mergeDemands
 observedWorkload: build/index.d.ts#observedWorkload
@@ -61,8 +83,13 @@ totalRate: build/index.d.ts#totalRate
 
 ## ./schema (build/schema.d.ts): names
 
+instanceSchema: build/schema.d.ts#instanceSchema
 lawSchema: build/schema.d.ts#lawSchema
+limitSchema: build/schema.d.ts#limitSchema
+limitsSchema: build/schema.d.ts#limitsSchema
+readInstance: build/schema.d.ts#readInstance
 readLaw: build/schema.d.ts#readLaw
+readLimits: build/schema.d.ts#readLimits
 readWorkload: build/schema.d.ts#readWorkload
 workloadSchema: build/schema.d.ts#workloadSchema
 
@@ -89,6 +116,16 @@ interface LawValue {
 ### build/index.d.ts#LevelOptions
 interface LevelOptions {
   readonly level?: number;
+}
+
+### build/index.d.ts#LimitUse
+interface LimitUse {
+  readonly limit: string;
+  readonly measure: string;
+  readonly value: Quantity;
+  readonly amount: Quantity;
+  readonly use: number;
+  readonly holds: boolean;
 }
 
 ### build/index.d.ts#LoadPoint
@@ -127,8 +164,14 @@ interface WorkloadName {
   readonly title: string;
 }
 
+### build/index.d.ts#checkInstance
+export declare const checkInstance: (type: InstanceType) => readonly InstanceProblem[];
+
 ### build/index.d.ts#checkLaw
 export declare const checkLaw: (law: Law) => readonly LawProblem[];
+
+### build/index.d.ts#checkLimits
+export declare const checkLimits: (set: LimitSet) => readonly LimitProblem[];
 
 ### build/index.d.ts#checkWorkload
 export declare const checkWorkload: (workload: Workload) => readonly WorkloadProblem[];
@@ -139,8 +182,23 @@ export declare const constantIntervals: (law: Law, options?: LevelOptions) => Re
 ### build/index.d.ts#demandProblems
 export declare const demandProblems: (demand: Demand) => readonly WorkloadProblem[];
 
+### build/index.d.ts#instanceProblems
+export declare const instanceProblems: (instance: Instance) => readonly InstanceProblem[];
+
 ### build/index.d.ts#lawValue
 export declare const lawValue: (law: Law, point: LoadPoint, options?: LevelOptions) => Result<LawValue, LawProblem>;
+
+### build/index.d.ts#limitAmount
+export declare const limitAmount: (limit: Limit, instance: Instance) => Result<Quantity, LimitProblem>;
+
+### build/index.d.ts#limitProblems
+export declare const limitProblems: (limit: Limit, path?: string) => readonly LimitProblem[];
+
+### build/index.d.ts#limitUse
+export declare const limitUse: (limit: Limit, instance: Instance, value: Quantity) => Result<LimitUse, LimitProblem>;
+
+### build/index.d.ts#limitUses
+export declare const limitUses: (limits: readonly Limit[], instance: Instance, values: Amounts) => Result<readonly LimitUse[], LimitProblem>;
 
 ### build/index.d.ts#loadPointOf
 export declare const loadPointOf: (demand: Demand, id: string, law: Law, given?: Amounts) => Result<LoadPoint, WorkloadProblem>;
@@ -160,45 +218,42 @@ export declare const shareOf: (demand: Demand, instances: number, options?: Shar
 ### build/index.d.ts#totalRate
 export declare const totalRate: (demand: Demand, unit: string) => Result<Quantity, WorkloadProblem>;
 
-### build/schema.d.ts#lawSchema
-export declare const lawSchema: z.ZodType<Law>;
+### build/instance.chunk.d.ts#AmountCeiling
+interface AmountCeiling {
+  readonly kind: "amount";
+  readonly amount: Quantity;
+}
 
-### build/schema.d.ts#readLaw
-export declare const readLaw: (data: unknown) => Result<Law, readonly LawProblem[]>;
-
-### build/schema.d.ts#readWorkload
-export declare const readWorkload: (data: unknown) => Result<Workload, readonly WorkloadProblem[]>;
-
-### build/schema.d.ts#workloadSchema
-export declare const workloadSchema: z.ZodType<Workload>;
-
-### build/workload.chunk.d.ts#Amounts
+### build/instance.chunk.d.ts#Amounts
 type Amounts = Readonly<Record<string, Quantity>>;
 
-### build/workload.chunk.d.ts#ConditionValue
+### build/instance.chunk.d.ts#Ceiling
+type Ceiling = AmountCeiling | ResourceCeiling;
+
+### build/instance.chunk.d.ts#ConditionValue
 type ConditionValue = string | number | boolean | Quantity;
 
-### build/workload.chunk.d.ts#Constant
+### build/instance.chunk.d.ts#Constant
 interface Constant {
   readonly id: string;
   readonly value: number;
 }
 
-### build/workload.chunk.d.ts#DEFAULT_LEVEL
+### build/instance.chunk.d.ts#DEFAULT_LEVEL
 declare const DEFAULT_LEVEL = .95;
 
-### build/workload.chunk.d.ts#Demand
+### build/instance.chunk.d.ts#Demand
 interface Demand {
   readonly classes: readonly WorkloadClass[];
   readonly levels: Amounts;
 }
 
-### build/workload.chunk.d.ts#Evidence
+### build/instance.chunk.d.ts#Evidence
 interface Evidence {
   readonly runs: readonly Run[];
 }
 
-### build/workload.chunk.d.ts#Fit
+### build/instance.chunk.d.ts#Fit
 interface Fit {
   readonly method: string;
   readonly residual: ResidualKind;
@@ -206,22 +261,46 @@ interface Fit {
   readonly losers: readonly Loser[];
 }
 
-### build/workload.chunk.d.ts#FitError
+### build/instance.chunk.d.ts#FitError
 interface FitError {
   readonly mae: number;
   readonly rmse: number;
 }
 
-### build/workload.chunk.d.ts#Form
+### build/instance.chunk.d.ts#Form
 interface Form {
   readonly id: string;
   readonly program: Expr;
 }
 
-### build/workload.chunk.d.ts#LAW_FORMAT
+### build/instance.chunk.d.ts#INSTANCE_FORMAT
+declare const INSTANCE_FORMAT = "capacity-instance/1";
+
+### build/instance.chunk.d.ts#Instance
+interface Instance {
+  readonly resources: Amounts;
+}
+
+### build/instance.chunk.d.ts#InstanceProblem
+type InstanceProblem = Problem<InstanceProblemCode>;
+
+### build/instance.chunk.d.ts#InstanceProblemCode
+type InstanceProblemCode = "shape" | "format" | "id" | "amount" | "unit" | "resource";
+
+### build/instance.chunk.d.ts#InstanceType
+interface InstanceType extends Instance {
+  readonly format: typeof INSTANCE_FORMAT;
+  readonly id: string;
+  readonly title: string;
+}
+
+### build/instance.chunk.d.ts#LAW_FORMAT
 declare const LAW_FORMAT = "capacity-law/1";
 
-### build/workload.chunk.d.ts#Law
+### build/instance.chunk.d.ts#LIMITS_FORMAT
+declare const LIMITS_FORMAT = "capacity-limits/1";
+
+### build/instance.chunk.d.ts#Law
 interface Law {
   readonly format: typeof LAW_FORMAT;
   readonly id: string;
@@ -237,25 +316,47 @@ interface Law {
   readonly evidence: Evidence;
 }
 
-### build/workload.chunk.d.ts#LawProblem
+### build/instance.chunk.d.ts#LawProblem
 type LawProblem = Problem<ProblemCode>;
 
-### build/workload.chunk.d.ts#Loser
+### build/instance.chunk.d.ts#Limit
+interface Limit {
+  readonly id: string;
+  readonly measure: string;
+  readonly ceiling: Ceiling;
+  readonly headroom: number;
+}
+
+### build/instance.chunk.d.ts#LimitProblem
+type LimitProblem = Problem<LimitProblemCode>;
+
+### build/instance.chunk.d.ts#LimitProblemCode
+type LimitProblemCode = "shape" | "format" | "id" | "measure" | "amount" | "unit" | "resource" | "headroom";
+
+### build/instance.chunk.d.ts#LimitSet
+interface LimitSet {
+  readonly format: typeof LIMITS_FORMAT;
+  readonly id: string;
+  readonly title: string;
+  readonly limits: readonly Limit[];
+}
+
+### build/instance.chunk.d.ts#Loser
 interface Loser {
   readonly form: string;
   readonly error: FitError;
 }
 
-### build/workload.chunk.d.ts#MAX_VARIABLES
+### build/instance.chunk.d.ts#MAX_VARIABLES
 declare const MAX_VARIABLES = 8;
 
-### build/workload.chunk.d.ts#Measure
+### build/instance.chunk.d.ts#Measure
 interface Measure {
   readonly id: string;
   readonly unit: string;
 }
 
-### build/workload.chunk.d.ts#MetricsSource
+### build/instance.chunk.d.ts#MetricsSource
 interface MetricsSource {
   readonly kind: "metrics";
   readonly origin: string;
@@ -263,42 +364,51 @@ interface MetricsSource {
   readonly to: string;
 }
 
-### build/workload.chunk.d.ts#NO_DEMAND
+### build/instance.chunk.d.ts#NO_DEMAND
 declare const NO_DEMAND: Demand;
 
-### build/workload.chunk.d.ts#PlanSource
+### build/instance.chunk.d.ts#PlanSource
 interface PlanSource {
   readonly kind: "plan";
   readonly note: string;
 }
 
-### build/workload.chunk.d.ts#Problem
+### build/instance.chunk.d.ts#Problem
 interface Problem<Code extends string> {
   readonly code: Code;
   readonly path: string;
   readonly message: string;
 }
 
-### build/workload.chunk.d.ts#ProblemCode
+### build/instance.chunk.d.ts#ProblemCode
 type ProblemCode = "shape" | "format" | "id" | "unit" | "range" | "condition" | "program" | "read" | "constant" | "replicates" | "value" | "fit" | "evidence" | "point" | "level";
 
-### build/workload.chunk.d.ts#RATE
+### build/instance.chunk.d.ts#RATE
 declare const RATE = "rate";
 
-### build/workload.chunk.d.ts#ResidualKind
+### build/instance.chunk.d.ts#RESOURCE_UNITS
+declare const RESOURCE_UNITS: Readonly<Record<string, string>>;
+
+### build/instance.chunk.d.ts#ResidualKind
 type ResidualKind = "absolute" | "relative";
 
-### build/workload.chunk.d.ts#Run
+### build/instance.chunk.d.ts#ResourceCeiling
+interface ResourceCeiling {
+  readonly kind: "resource";
+  readonly resource: string;
+}
+
+### build/instance.chunk.d.ts#Run
 interface Run {
   readonly url: string;
   readonly commit: string;
   readonly date: string;
 }
 
-### build/workload.chunk.d.ts#Scale
+### build/instance.chunk.d.ts#Scale
 type Scale = "linear" | "log";
 
-### build/workload.chunk.d.ts#Variable
+### build/instance.chunk.d.ts#Variable
 interface Variable {
   readonly id: string;
   readonly unit: string;
@@ -307,10 +417,10 @@ interface Variable {
   readonly scale: Scale;
 }
 
-### build/workload.chunk.d.ts#WORKLOAD_FORMAT
+### build/instance.chunk.d.ts#WORKLOAD_FORMAT
 declare const WORKLOAD_FORMAT = "capacity-workload/1";
 
-### build/workload.chunk.d.ts#Workload
+### build/instance.chunk.d.ts#Workload
 interface Workload extends Demand {
   readonly format: typeof WORKLOAD_FORMAT;
   readonly id: string;
@@ -318,21 +428,48 @@ interface Workload extends Demand {
   readonly source: WorkloadSource;
 }
 
-### build/workload.chunk.d.ts#WorkloadClass
+### build/instance.chunk.d.ts#WorkloadClass
 interface WorkloadClass {
   readonly id: string;
   readonly rate: Quantity;
   readonly request: Amounts;
 }
 
-### build/workload.chunk.d.ts#WorkloadProblem
+### build/instance.chunk.d.ts#WorkloadProblem
 type WorkloadProblem = Problem<WorkloadProblemCode>;
 
-### build/workload.chunk.d.ts#WorkloadProblemCode
+### build/instance.chunk.d.ts#WorkloadProblemCode
 type WorkloadProblemCode = "shape" | "format" | "id" | "rate" | "amount" | "unit" | "class" | "source" | "factor" | "variable";
 
-### build/workload.chunk.d.ts#WorkloadSource
+### build/instance.chunk.d.ts#WorkloadSource
 type WorkloadSource = PlanSource | MetricsSource;
 
-### build/workload.chunk.d.ts#leastCount
+### build/instance.chunk.d.ts#leastCount
 declare const leastCount: (level: number) => number;
+
+### build/schema.d.ts#instanceSchema
+export declare const instanceSchema: z.ZodType<InstanceType>;
+
+### build/schema.d.ts#lawSchema
+export declare const lawSchema: z.ZodType<Law>;
+
+### build/schema.d.ts#limitSchema
+export declare const limitSchema: z.ZodType<Limit>;
+
+### build/schema.d.ts#limitsSchema
+export declare const limitsSchema: z.ZodType<LimitSet>;
+
+### build/schema.d.ts#readInstance
+export declare const readInstance: (data: unknown) => Result<InstanceType, readonly InstanceProblem[]>;
+
+### build/schema.d.ts#readLaw
+export declare const readLaw: (data: unknown) => Result<Law, readonly LawProblem[]>;
+
+### build/schema.d.ts#readLimits
+export declare const readLimits: (data: unknown) => Result<LimitSet, readonly LimitProblem[]>;
+
+### build/schema.d.ts#readWorkload
+export declare const readWorkload: (data: unknown) => Result<Workload, readonly WorkloadProblem[]>;
+
+### build/schema.d.ts#workloadSchema
+export declare const workloadSchema: z.ZodType<Workload>;

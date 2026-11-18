@@ -12,7 +12,10 @@ export type Scale = "linear" | "log";
 
 /**
  * A measure is the quantity that a law gives. Its unit is a canonical unit of
- * `@mark1russell7/quantity`, for example `ms/{request}` or `MiB`.
+ * `@mark1russell7/quantity`, for example `{core}·ms/{request}` or `MiB`.
+ *
+ * CPU time is in core-seconds. Thus a request rate times a CPU cost of one request converts to
+ * `{core}`. That unit is the unit of the CPU of an instance.
  */
 export interface Measure {
   readonly id: string;
