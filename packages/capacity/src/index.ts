@@ -4,6 +4,9 @@
  * requests with their rates. The package examines a law and a workload, and it gives the value of
  * a law at a load point, with an interval.
  *
+ * An instance type gives the resources of one copy of a service. A limit is a ceiling on one
+ * measure, with headroom. The package gives the share of each limit that a value takes.
+ *
  * @packageDocumentation
  */
 export type {
@@ -45,3 +48,20 @@ export type { ShareOptions } from "./demand.ts";
 export { loadPointOf, mergeDemands, scaleDemand, shareOf, totalRate } from "./demand.ts";
 export type { Observation, ObservedClass, WorkloadName } from "./observe.ts";
 export { observedWorkload } from "./observe.ts";
+export type {
+  AmountCeiling,
+  Ceiling,
+  Instance,
+  InstanceProblem,
+  InstanceProblemCode,
+  InstanceType,
+  Limit,
+  LimitProblem,
+  LimitProblemCode,
+  LimitSet,
+  ResourceCeiling,
+} from "./instance.ts";
+export { INSTANCE_FORMAT, LIMITS_FORMAT, RESOURCE_UNITS } from "./instance.ts";
+export { checkInstance, checkLimits, instanceProblems, limitProblems } from "./instance-check.ts";
+export type { LimitUse } from "./limit.ts";
+export { limitAmount, limitUse, limitUses } from "./limit.ts";

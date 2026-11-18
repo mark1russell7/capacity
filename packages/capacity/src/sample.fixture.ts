@@ -23,7 +23,7 @@ export const sampleLaw = (): Law => ({
   id: "node-http/reply/cpu",
   title: "The CPU time of one request of a bare Node HTTP server",
   subject: "node-http",
-  measure: { id: "cpu", unit: "ms/{request}" },
+  measure: { id: "cpu", unit: "{core}·ms/{request}" },
   variables: [{ id: "rate", unit: "{request}/s", min: 100, max: 4000, scale: "log" }],
   conditions: {
     class: "reply",

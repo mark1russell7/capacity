@@ -2,7 +2,17 @@ import { err, ok, type Result } from "@mark1russell7/optional";
 import { parse, type Expr } from "@mark1russell7/vex";
 import { z } from "zod";
 import { checkLaw } from "./check.ts";
-import { LAW_FORMAT, type Law, type LawProblem } from "./law.ts";
+import { checkInstance, checkLimits } from "./instance-check.ts";
+import {
+  INSTANCE_FORMAT,
+  LIMITS_FORMAT,
+  type InstanceProblem,
+  type InstanceType,
+  type Limit,
+  type LimitProblem,
+  type LimitSet,
+} from "./instance.ts";
+import { LAW_FORMAT, type Law, type LawProblem, type Problem } from "./law.ts";
 import { LAW_DOMAINS } from "./program.ts";
 import { checkWorkload } from "./workload-check.ts";
 import { WORKLOAD_FORMAT, type Workload, type WorkloadProblem } from "./workload.ts";
@@ -12,6 +22,21 @@ const isProgram = (value: unknown): boolean => {
   const text = JSON.stringify(value);
   return text !== undefined && parse(text, LAW_DOMAINS).ok;
 };
+
+/**
+ * This function makes the reader of a record. The reader examines the shape of the data with the
+ * schema, then it examines the meaning with `check`. It gives the record, or each problem.
+ */
+const reader =
+  <T, Code extends string>(schema: z.ZodType<T>, check: (record: T) => readonly Problem<Code>[]) =>
+  (data: unknown): Result<T, readonly Problem<Code | "shape">[]> => {
+    const shape = schema.safeParse(data);
+    if (!shape.success) {
+      return err(shape.error.issues.map((issue) => ({ code: "shape", path: issue.path.join("."), message: issue.message })));
+    }
+    const problems = check(shape.data);
+    return problems.length > 0 ? err(problems) : ok(shape.data);
+  };
 
 const fitErrorSchema = z.strictObject({ mae: z.number(), rmse: z.number() });
 
@@ -50,14 +75,7 @@ export const lawSchema: z.ZodType<Law> = z.strictObject({
  * This function reads a law from the data of a law file. It gives the law when the data has the
  * shape of a law and `checkLaw` finds no problem. If not, it gives each problem.
  */
-export const readLaw = (data: unknown): Result<Law, readonly LawProblem[]> => {
-  const shape = lawSchema.safeParse(data);
-  if (!shape.success) {
-    return err(shape.error.issues.map((issue) => ({ code: "shape", path: issue.path.join("."), message: issue.message })));
-  }
-  const problems = checkLaw(shape.data);
-  return problems.length > 0 ? err(problems) : ok(shape.data);
-};
+export const readLaw: (data: unknown) => Result<Law, readonly LawProblem[]> = reader(lawSchema, checkLaw);
 
 const amountSchema = z.strictObject({ value: z.number(), unit: z.string() });
 const amountsSchema = z.record(z.string(), amountSchema);
@@ -83,11 +101,50 @@ export const workloadSchema: z.ZodType<Workload> = z.strictObject({
  * data has the shape of a workload and `checkWorkload` finds no problem. If not, it gives each
  * problem.
  */
-export const readWorkload = (data: unknown): Result<Workload, readonly WorkloadProblem[]> => {
-  const shape = workloadSchema.safeParse(data);
-  if (!shape.success) {
-    return err(shape.error.issues.map((issue) => ({ code: "shape", path: issue.path.join("."), message: issue.message })));
-  }
-  const problems = checkWorkload(shape.data);
-  return problems.length > 0 ? err(problems) : ok(shape.data);
-};
+export const readWorkload: (data: unknown) => Result<Workload, readonly WorkloadProblem[]> = reader(workloadSchema, checkWorkload);
+
+/**
+ * This schema accepts the shape of an instance file: each field with its type, and no other field.
+ * It does not examine what the fields mean. The function `checkInstance` does that.
+ */
+export const instanceSchema: z.ZodType<InstanceType> = z.strictObject({
+  format: z.literal(INSTANCE_FORMAT),
+  id: z.string(),
+  title: z.string(),
+  resources: amountsSchema,
+});
+
+/**
+ * This function reads an instance type from the data of an instance file. It gives the instance
+ * type when the data has the shape of one and `checkInstance` finds no problem. If not, it gives
+ * each problem.
+ */
+export const readInstance: (data: unknown) => Result<InstanceType, readonly InstanceProblem[]> = reader(instanceSchema, checkInstance);
+
+/** This schema accepts the shape of one limit: each field with its type, and no other field. */
+export const limitSchema: z.ZodType<Limit> = z.strictObject({
+  id: z.string(),
+  measure: z.string(),
+  ceiling: z.discriminatedUnion("kind", [
+    z.strictObject({ kind: z.literal("amount"), amount: amountSchema }),
+    z.strictObject({ kind: z.literal("resource"), resource: z.string() }),
+  ]),
+  headroom: z.number(),
+});
+
+/**
+ * This schema accepts the shape of a limits file: each field with its type, and no other field.
+ * It does not examine what the fields mean. The function `checkLimits` does that.
+ */
+export const limitsSchema: z.ZodType<LimitSet> = z.strictObject({
+  format: z.literal(LIMITS_FORMAT),
+  id: z.string(),
+  title: z.string(),
+  limits: z.array(limitSchema),
+});
+
+/**
+ * This function reads a limit set from the data of a limits file. It gives the limit set when the
+ * data has the shape of one and `checkLimits` finds no problem. If not, it gives each problem.
+ */
+export const readLimits: (data: unknown) => Result<LimitSet, readonly LimitProblem[]> = reader(limitsSchema, checkLimits);

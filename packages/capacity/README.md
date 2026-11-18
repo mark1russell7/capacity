@@ -1,15 +1,15 @@
 # @mark1russell7/capacity
 
-This package has the performance and capacity models. A law gives one measure of a subject as a function of its load variables, with an interval. A workload gives the load.
+This package has the performance and capacity models. A law gives one measure of a subject as a function of its load variables, with an interval. A workload gives the load. An instance type gives the resources of one instance, and a limit set gives the ceilings.
 
-**State: CAP-1 and CAP-7 of the [roadmap](../../docs/ROADMAP.md).** The catalog of forms, the composition of laws, the knee and the scale rule come next. The package stays private until its first npm release (CAP-8).
+**State: CAP-1, CAP-5 and CAP-7 of the [roadmap](../../docs/ROADMAP.md).** The catalog of forms, the composition of laws, the knee and the scale rule come next. The package stays private until its first npm release (CAP-8).
 
 ## Entries
 
 | Entry | What it has |
 | --- | --- |
-| `@mark1russell7/capacity` | The law record and the workload record, their checks, the value of a law, and the algebra of demands. A browser can import it. |
-| `@mark1russell7/capacity/schema` | The schemas of a law file and a workload file, with `readLaw` and `readWorkload`. This entry needs `zod`. |
+| `@mark1russell7/capacity` | The records of a law, a workload, an instance type and a limit set, with their checks. It also has the value of a law, the algebra of demands and the use of a limit. A browser can import it. |
+| `@mark1russell7/capacity/schema` | The schema of each file, with `readLaw`, `readWorkload`, `readInstance` and `readLimits`. This entry needs `zod`. |
 
 The package holds the models and the rules. It measures nothing, and it reads no file.
 
@@ -22,7 +22,7 @@ A law is plain data, thus a law file is JSON. Its format is `capacity-law/1`.
 | `id` | The id of the law, for example `node-http/reply/cpu`. |
 | `title` | One line that tells a person what the law gives. |
 | `subject` | The id of the server that the runs measured. |
-| `measure` | The quantity that the law gives: an id and a unit, for example `cpu` in `ms/{request}`. |
+| `measure` | The quantity that the law gives: an id and a unit, for example `cpu` in `{core}·ms/{request}`. |
 | `variables` | The load variables. Each has an id, a unit, a range and a scale (`linear` or `log`). |
 | `conditions` | Each fact that stays constant in the measurement: the Node version, the CPU model, the limits of the container. |
 | `form` | The math of the law: an id and a Vex program. |
@@ -33,7 +33,13 @@ A law is plain data, thus a law file is JSON. Its format is `capacity-law/1`.
 
 A law holds for the ranges of its variables and for its conditions. A value outside a range is an extrapolation, and the answer says so.
 
-The units are canonical units of `@mark1russell7/quantity`. A request rate is in `{request}/s`. A cost of one request has a unit with `{request}` below the line, for example `ms/{request}` or `B/{request}`.
+The units are canonical units of `@mark1russell7/quantity`. A request rate is in `{request}/s`. A cost of one request has a unit with `{request}` below the line, for example `{core}·ms/{request}` or `B/{request}`.
+
+### CPU time is in core-seconds
+
+A CPU cost of one request is in `{core}·ms/{request}`. A request rate times that cost is in `{core}·ms/s`, and that unit converts to `{core}`.
+
+Thus the CPU use of a load compares with the CPU of an instance, and no special rule is necessary. The unit `ms/s` counts nothing in particular, thus it does not convert to `{core}`.
 
 ### The form is a program
 
@@ -71,7 +77,7 @@ import { readLaw } from "@mark1russell7/capacity/schema";
 const law = readLaw(JSON.parse(text));
 if (law.tag === "ok") {
   const answer = lawValue(law.value, { rate: 3000 });
-  // answer.value: { value: 0.135, unit: "ms/{request}", level: 0.95,
+  // answer.value: { value: 0.135, unit: "{core}·ms/{request}", level: 0.95,
   //   interval: { low: 0.1339, high: 0.1359 }, run: { low: 0.1276, high: 0.1424 }, outside: [] }
 }
 ```
@@ -239,6 +245,134 @@ The rate of a class is its count, divided by the seconds of the window. Thus it 
 - A plan has a note. The window of a metrics source goes from a UTC time to a later UTC time.
 
 A workload with no class is correct: an app can have no request.
+
+## An instance type
+
+An instance type is one size of a machine or a container: the amount of each resource of one instance. It is plain data, thus an instance file is JSON. Its format is `capacity-instance/1`.
+
+| Field | What it is |
+| --- | --- |
+| `id` | The id of the instance type, for example `container/small`. |
+| `title` | One line that tells a person what the instance type is. |
+| `resources` | The amount of each resource, by its name. Each amount is above 0. |
+
+```json
+{
+  "format": "capacity-instance/1",
+  "id": "container/small",
+  "title": "A container with 2 cores and 4 GiB of memory",
+  "resources": {
+    "cpu": { "value": 2, "unit": "{core}" },
+    "memory": { "value": 4, "unit": "GiB" },
+    "network": { "value": 1, "unit": "Gbit/s" }
+  }
+}
+```
+
+Three names have one meaning in each instance. A resource with one of these names is in a unit that converts to the unit of this table:
+
+| Resource | Unit | What it is |
+| --- | --- | --- |
+| `cpu` | `{core}` | The CPU time that the instance gives in a unit of time. |
+| `memory` | `B` | The memory of the instance. |
+| `network` | `bit/s` | The rate of the network of the instance. |
+
+An instance can have more resources, for example `disk`. No resource is necessary by name: a limit names the resource that it reads.
+
+An instance is the resources with no name, as a demand is the load of a workload with no name. `loadPointOf` takes the resources as `given`, for a law that has a resource as a variable.
+
+## Limits
+
+A limit is a ceiling on one measure, with headroom. A limit set is a list of limits with a name. It is plain data, thus a limits file is JSON. Its format is `capacity-limits/1`.
+
+| Field | What it is |
+| --- | --- |
+| `id` | The id of the limit, for example `cpu`. |
+| `measure` | The id of the measure that the limit holds, for example `cpu` or `latency.p99`. |
+| `ceiling` | The amount that the measure does not pass: a fixed amount, or a resource of the instance. |
+| `headroom` | The share of the ceiling that stays free: 0 or more, and below 1. |
+
+```json
+{
+  "format": "capacity-limits/1",
+  "id": "web/default",
+  "title": "The limits of a web service",
+  "limits": [
+    { "id": "cpu", "measure": "cpu", "ceiling": { "kind": "resource", "resource": "cpu" }, "headroom": 0.3 },
+    { "id": "memory", "measure": "memory", "ceiling": { "kind": "resource", "resource": "memory" }, "headroom": 0.2 },
+    { "id": "sent", "measure": "network.tx", "ceiling": { "kind": "resource", "resource": "network" }, "headroom": 0.5 },
+    {
+      "id": "latency",
+      "measure": "latency.p99",
+      "ceiling": { "kind": "amount", "amount": { "value": 200, "unit": "ms" } },
+      "headroom": 0.1
+    }
+  ]
+}
+```
+
+The amount of a limit is its ceiling, times 1 less the headroom. On the instance above, the limit `cpu` has the amount 1.4 cores, and the limit `latency` has the amount 180 ms.
+
+A ceiling that is a resource follows the instance: a larger instance gives a larger amount. A ceiling that is a fixed amount is equal on each instance.
+
+A limit set names no instance. Thus one limit set serves each instance type.
+
+### What an instance type and a limit do not have
+
+- An instance type does not have a price. No query reads a price at this time.
+- A limit does not name a request class. The query that reads the limit gives the value of each measure.
+- A limit is not a floor: no limit keeps a measure above an amount.
+
+## The use of a limit
+
+| Function | What it gives |
+| --- | --- |
+| `limitAmount(limit, instance)` | The amount of a limit on an instance: the ceiling less the headroom. |
+| `limitUse(limit, instance, value)` | The share of that amount that a value takes, and if the limit holds. |
+| `limitUses(limits, instance, values)` | The use of each limit, from the largest use to the smallest. |
+
+```ts
+import { limitUses } from "@mark1russell7/capacity";
+
+// 900 requests in each second, with 0.5 core-milliseconds for each request.
+const uses = limitUses(limits.limits, instance, {
+  cpu: { value: 450, unit: "{core}·ms/s" },
+  memory: { value: 2.88, unit: "GiB" },
+  "network.tx": { value: 50, unit: "Mbit/s" },
+  "latency.p99": { value: 45, unit: "ms" },
+});
+// uses.value[0]: { limit: "memory", measure: "memory", value: { value: 2.88, unit: "GiB" },
+//   amount: { value: 3.2, unit: "GiB" }, use: 0.9, holds: true }
+```
+
+- A use is the value, divided by the amount of the limit. A limit holds when its use is 1 or less.
+- The first use of `limitUses` is the limit that binds: the limit nearest to its amount, or the furthest above it.
+- The value converts to the unit of the ceiling. A value in a unit of a different kind is a problem.
+- A limit with no value is a problem, not a limit that holds.
+- Two limits with equal uses keep the order of the list.
+
+Property tests hold the laws of the use on generated limits, instances and values, with amounts in different units:
+
+- The use follows a scale of the value, and the inverse of a scale of the ceiling.
+- The use does not change with the unit of the value, or with the unit of the ceiling.
+- The use, times 1 less the headroom, is the value divided by the ceiling.
+- A larger instance divides the use of each resource ceiling, and it does not change the use of a fixed ceiling.
+- The order of the limits does not change the use of a limit.
+
+Two controls show that these tests find a wrong use: one use that does not read the units, and one that keeps no headroom.
+
+## The check of an instance type and a limit set
+
+`checkInstance(type)` and `checkLimits(set)` give each problem, with a code and the path of the field. `readInstance(data)` and `readLimits(data)` examine the shape of the data first.
+
+- Each id is lower-case words. The name of a resource starts with a lower-case letter, and it has only letters and digits.
+- An instance has one resource or more. Each resource is a finite amount above 0, in a canonical unit.
+- The resources `cpu`, `memory` and `network` convert to their units.
+- A headroom is 0 or more, and below 1.
+- A fixed ceiling is a finite amount above 0, in a canonical unit.
+- Two limits do not have one id. Two limits can hold one measure.
+
+A limit set with no limit is correct. `instanceProblems(instance)` and `limitProblems(limit)` examine an instance and a limit that are not in a file.
 
 ## The homes of the parts
 
