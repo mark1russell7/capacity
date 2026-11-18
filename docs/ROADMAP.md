@@ -88,7 +88,7 @@ The other laws of layer 1 and the laws of layer 2 follow. They tell where the co
 
 | ID | Item | Status | Priority | Size | Needs | Summary |
 | --- | --- | --- | --- | --- | --- | --- |
-| CAP-18 | The subjects of bare Node | active | P0 | S |  | A subject is a small server of `node:http` with its request classes as data: a reply of n bytes, work of d milliseconds, a wait of d milliseconds, and a body of n bytes. Thus each load variable can move alone. |
+| CAP-18 | The subjects of bare Node | done | P0 | S |  | A subject is a small server of `node:http` with its request classes as data: a body of n bytes, an allocation of n bytes, work of d microseconds of CPU time, a wait of d milliseconds, and a reply of n bytes. A flag sets the live heap. Thus each load variable can move alone. |
 | CAP-19 | The floor of each measure | later | P0 | S | CAP-16 | An idle process gives the base of each measure. A/A pairs give the noise floor of each measure on each CPU model of the CI runners. Each law states its noise. |
 | CAP-20 | Laws of the request rate | later | P0 | M | CAP-1, CAP-19 | CPU time, memory and latency against the request rate, up to and past the limit of one core. The knee is the rate where the latency leaves its floor. |
 | CAP-21 | Laws of the request size | later | P1 | M | CAP-20 | CPU time and memory for each byte of a request and of a reply, and the network bytes on the wire for each byte of payload. The knees are at the sizes of the buffers. |
