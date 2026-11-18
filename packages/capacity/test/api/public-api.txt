@@ -51,6 +51,7 @@ type Range: build/index.d.ts#Range
 type ResidualKind: build/instance.chunk.d.ts#ResidualKind
 type ResourceCeiling: build/instance.chunk.d.ts#ResourceCeiling
 type Run: build/instance.chunk.d.ts#Run
+SLUG: build/index.d.ts#SLUG
 type Scale: build/instance.chunk.d.ts#Scale
 type ShareOptions: build/index.d.ts#ShareOptions
 type Variable: build/instance.chunk.d.ts#Variable
@@ -152,6 +153,9 @@ interface Range {
   readonly low: number;
   readonly high: number;
 }
+
+### build/index.d.ts#SLUG
+export declare const SLUG: RegExp;
 
 ### build/index.d.ts#ShareOptions
 interface ShareOptions {

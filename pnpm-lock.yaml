@@ -265,13 +265,20 @@ importers:
         version: 4.6.7
 
   packages/lab:
+    dependencies:
+      '@mark1russell7/capacity':
+        specifier: workspace:*
+        version: link:../capacity
+      '@mark1russell7/quantity':
+        specifier: ^0.4.2
+        version: 0.4.2(zod@4.6.7)
+      '@mark1russell7/rigor-chaos':
+        specifier: ^0.3.4
+        version: 0.3.4
     devDependencies:
       '@mark1russell7/cue':
         specifier: ^2.0.0
         version: 2.1.4
-      '@mark1russell7/quantity':
-        specifier: ^0.4.2
-        version: 0.4.2(zod@4.6.7)
       '@types/node':
         specifier: ^26.6.5
         version: 26.6.6
@@ -590,6 +597,10 @@ packages:
 
   '@mark1russell7/rational@0.1.3':
     resolution: {integrity: sha512-S28nfQFfRax40wbV9UTw711ZwnVB3rCW/SPpAuJtyKBh/zFbQx69+qnAeLF7u2B9GccaY75nIMZtN8mvgSRA1Q==}
+    engines: {node: '>=22'}
+
+  '@mark1russell7/rigor-chaos@0.3.4':
+    resolution: {integrity: sha512-8Od9qR9rS4jbYfEKKrRpaOqx7vMb2I9s9+DMK9bBYx3JI25qGeDa15bU0MyrtrfNZOtRLknXzjbKMbE9/aXXkA==}
     engines: {node: '>=22'}
 
   '@mark1russell7/rigor-generators@0.1.19':
@@ -2025,6 +2036,11 @@ snapshots:
       zod: 4.6.7
 
   '@mark1russell7/rational@0.1.3': {}
+
+  '@mark1russell7/rigor-chaos@0.3.4':
+    dependencies:
+      '@mark1russell7/rigor-generators': 0.2.0
+      '@mark1russell7/rigor-statistics': 0.2.12
 
   '@mark1russell7/rigor-generators@0.1.19': {}
 

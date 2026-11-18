@@ -1,8 +1,49 @@
 # @capacity/lab
 
-This package has the subjects of the measurement: the programs that a run measures, and the request classes that a run sends to them.
+This package has the subjects of the measurement: the programs that a run measures, and the request classes that a run sends to them. It also has the cases: each case is one measurement as data.
 
-**State: CAP-18 of the [roadmap](../../docs/ROADMAP.md).** The package has the bare subject of layer 1. The measurement cell (CAP-10) comes next. The package is private: it is a tool of this repository.
+**State: CAP-18 and a part of CAP-10 of the [roadmap](../../docs/ROADMAP.md).** The package has the bare subject of layer 1 and the case record. The cell of a case and the record of its measures come next. The package is private: it is a tool of this repository.
+
+## The cases
+
+A case is one measurement as data: a subject, the resources of its container, and the demand that the driver sends to it. A case file is this record as JSON, with the format `capacity-case/1`.
+
+```json
+{
+  "format": "capacity-case/1",
+  "id": "node-http/work-500us",
+  "title": "500 us of work at 200 requests each second",
+  "subject": "node-http",
+  "instance": { "resources": { "cpu": { "value": 1, "unit": "{core}" }, "memory": { "value": 268435456, "unit": "B" } } },
+  "demand": {
+    "classes": [{ "id": "work", "rate": { "value": 200, "unit": "{request}/s" }, "request": { "work": { "value": 0.5, "unit": "ms" } } }],
+    "levels": { "heap": { "value": 67108864, "unit": "B" } }
+  },
+  "duration": { "value": 30, "unit": "s" },
+  "arrivals": { "arrivals": "poisson", "seed": "work-500us" },
+  "keepAlive": true,
+  "runs": 5
+}
+```
+
+The case uses the records of `@mark1russell7/capacity`. Thus a measurement and a law use one model of the load.
+
+| Field | What it is |
+| --- | --- |
+| `subject` | The name of a subject of `SUBJECTS`, for example `node-http`. |
+| `instance` | An instance of `@mark1russell7/capacity`. Its `cpu` and its `memory` are the limits of the container of the subject. |
+| `demand` | A demand of `@mark1russell7/capacity`. Each class is one stream of the driver, at the rate of the class. |
+| `duration` | The time of the schedule of each run, up to 600 s. |
+| `arrivals` | The arrivals of each stream: `uniform`, or `poisson` with a seed. They are the options of a schedule of `@mark1russell7/rigor-chaos`. |
+| `keepAlive` | With `true`, the driver keeps its connections open between requests. With `false`, each request opens a new connection. |
+| `runs` | The count of the runs that the record counts, from 1 to 20. One warm-up run comes before them. |
+
+- **The variables of a request** are the fields of a request class. Each amount converts to the unit of its field, and it is a whole number in that unit. Thus `0.5 ms` of `work` is `500 us`. A field that the request does not name is 0. `requestClassOf` gives the request class.
+- **The levels of a demand** are the amounts that the subject holds. The level `heap` is the live heap of the subject, in bytes: the flag `--ballast`. `caseLevel` gives a level in its unit.
+- **The check.** `caseProblems` gives each problem of a case, with its path. It uses `instanceProblems` and `demandProblems` of `@mark1russell7/capacity`. Then it examines what the lab can do:
+  - The lab limits the CPU and the memory of a container, and not the network. An instance with `network` is a problem.
+  - The driver holds no open connection with no request. A level `connections` is a problem.
+  - Each class has a rate above 0.
 
 ## The request classes
 

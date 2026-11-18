@@ -13,10 +13,14 @@
   },
   "devDependencies": {
     "@mark1russell7/cue": "^2.0.0",
-    "@mark1russell7/quantity": "^0.4.2",
     "@types/node": "^26.6.5",
     "@vitest/coverage-v8": "^5.0.3",
     "typescript": "^7.0.2",
     "vitest": "^5.0.3"
+  },
+  "dependencies": {
+    "@mark1russell7/capacity": "workspace:*",
+    "@mark1russell7/quantity": "^0.4.2",
+    "@mark1russell7/rigor-chaos": "^0.3.4"
   }
 }
