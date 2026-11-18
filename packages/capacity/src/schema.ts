@@ -2,6 +2,7 @@ import { err, ok, type Result } from "@mark1russell7/optional";
 import { parse, type Expr } from "@mark1russell7/vex";
 import { z } from "zod";
 import { checkLaw } from "./check.ts";
+import { COMPOSITION_FORMAT, checkComposition, type Composition, type CompositionProblem } from "./composition.ts";
 import { checkInstance, checkLimits } from "./instance-check.ts";
 import {
   INSTANCE_FORMAT,
@@ -76,6 +77,41 @@ export const lawSchema: z.ZodType<Law> = z.strictObject({
  * shape of a law and `checkLaw` finds no problem. If not, it gives each problem.
  */
 export const readLaw: (data: unknown) => Result<Law, readonly LawProblem[]> = reader(lawSchema, checkLaw);
+
+const factorSchema = z.number().optional();
+
+/**
+ * This schema accepts the shape of a composition file: each field with its type, and no other
+ * field. It does not examine what the fields mean. The function `checkComposition` does that.
+ */
+export const compositionSchema: z.ZodType<Composition> = z.strictObject({
+  format: z.literal(COMPOSITION_FORMAT),
+  id: z.string(),
+  title: z.string(),
+  subject: z.string(),
+  measure: z.strictObject({ id: z.string(), unit: z.string() }),
+  terms: z.array(
+    z.union([
+      z.strictObject({
+        law: z.string(),
+        over: z.union([z.literal("instance"), z.literal("each"), z.array(z.string())]),
+        load: z.enum(["class", "total"]).optional(),
+        factor: factorSchema,
+      }),
+      z.strictObject({ composition: z.string(), factor: factorSchema }),
+    ]),
+  ),
+});
+
+/**
+ * This function reads a composition from the data of a composition file. It gives the composition
+ * when the data has the shape of one and `checkComposition` finds no problem. If not, it gives each
+ * problem.
+ */
+export const readComposition: (data: unknown) => Result<Composition, readonly CompositionProblem[]> = reader(
+  compositionSchema,
+  checkComposition,
+);
 
 const amountSchema = z.strictObject({ value: z.number(), unit: z.string() });
 const amountsSchema = z.record(z.string(), amountSchema);

@@ -20,7 +20,7 @@
   },
   "dependencies": {
     "@mark1russell7/capacity": "workspace:*",
-    "@mark1russell7/quantity": "^0.4.2",
+    "@mark1russell7/quantity": "^0.4.3",
     "@mark1russell7/rigor-chaos": "^0.3.4"
   }
 }

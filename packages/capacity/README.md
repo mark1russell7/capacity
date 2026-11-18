@@ -2,14 +2,14 @@
 
 This package has the performance and capacity models. A law gives one measure of a subject as a function of its load variables, with an interval. A workload gives the load. An instance type gives the resources of one instance, and a limit set gives the ceilings.
 
-**State: CAP-1, CAP-2, CAP-5 and CAP-7 of the [roadmap](../../docs/ROADMAP.md).** The composition of laws, the knee and the scale rule come next. The package stays private until its first npm release (CAP-8).
+**State: CAP-1, CAP-2, CAP-3, CAP-5 and CAP-7 of the [roadmap](../../docs/ROADMAP.md).** The knee and the scale rule come next. The package stays private until its first npm release (CAP-8).
 
 ## Entries
 
 | Entry | What it has |
 | --- | --- |
-| `@mark1russell7/capacity` | The records of a law, a workload, an instance type and a limit set, with their checks. It also has the value of a law, the catalog of forms, the algebra of demands and the use of a limit. A browser can import it. |
-| `@mark1russell7/capacity/schema` | The schema of each file, with `readLaw`, `readWorkload`, `readInstance` and `readLimits`. This entry needs `zod`. |
+| `@mark1russell7/capacity` | The records of a law, a workload, a composition, an instance type and a limit set, with their checks. It also has the value of a law and of a composition, the catalog of forms, the algebra of demands and the use of a limit. A browser can import it. |
+| `@mark1russell7/capacity/schema` | The schema of each file, with `readLaw`, `readWorkload`, `readComposition`, `readInstance` and `readLimits`. This entry needs `zod`. |
 
 The package holds the models and the rules. It measures nothing, and it reads no file.
 
@@ -211,7 +211,8 @@ A demand is the classes and the levels of a workload, with no name and no source
 | `mergeDemands(first, second)` | The sum of two demands. The rates of one class add, and the levels add. |
 | `shareOf(demand, instances, options)` | The demand on one of `instances` equal instances. A level in `options.whole` does not divide. |
 | `totalRate(demand, unit)` | The sum of the rates of the classes, in `unit`. |
-| `loadPointOf(demand, id, law, given)` | The load point of one class for a law. |
+| `loadPointOf(demand, id, law, given, options)` | The load point of one class for a law. With `options.load` set to `"total"`, the variable `rate` is the total rate. |
+| `instancePointOf(demand, law, given)` | The load point of the instance for a law: the total rate and the levels, with no request. |
 
 No operation changes the variables of a request: more clients do not make a request larger.
 
@@ -283,6 +284,84 @@ The rate of a class is its count, divided by the seconds of the window. Thus it 
 - A plan has a note. The window of a metrics source goes from a UTC time to a later UTC time.
 
 A workload with no class is correct: an app can have no request.
+
+## The composition of laws
+
+A composition gives one measure of a subject as a sum of laws over a demand. Layer 1 is the CPU of a bare Node server. Layer 2 is layer 1 plus the cost of the service runner.
+
+```json
+{
+  "format": "capacity-composition/1",
+  "id": "runner/cpu",
+  "title": "The CPU of a server on the service runner",
+  "subject": "runner",
+  "measure": { "id": "cpu", "unit": "{core}" },
+  "terms": [
+    { "composition": "node-http/cpu" },
+    { "law": "runner/reply/cpu", "over": "each" }
+  ]
+}
+```
+
+Each term gives parts, and the value is the sum of the parts.
+
+| Term | Its parts |
+| --- | --- |
+| `{ "law": id, "over": "each" }` | One part for each class of the demand, at the load point of the class |
+| `{ "law": id, "over": ["read", "write"] }` | One part for each class in the list |
+| `{ "law": id, "over": "instance" }` | One part at the load point of the instance, for example the memory of the process |
+| `{ "composition": id }` | The value of the composition `id` over the same demand |
+
+Each term can have a `factor`, a finite number other than 0. A law term over classes can have `"load": "total"`. Then the variable `rate` of the law is the total rate, not the rate of the class. Use it when the cost of one request changes with the load of the whole process. The garbage collection is an example.
+
+### The units tell the weight of a part
+
+The weight of a part is the number that multiplies the value of its law. The quotient of the unit of the composition and the unit of the law decides it.
+
+- A quotient with no dimension needs no rate. A law in `MiB` gives `GiB` times `1/1024`.
+- A quotient that is a rate needs the rate of the part. A law in `{core}·ms/{request}` gives `{core}` times the rate of its class in `{request}/ms`.
+- A different quotient is a problem. CPU time does not give memory, and a rate of `{event}/s` does not give a count of requests.
+
+The unit of a composition is canonical. It is not a level, for example `dB`, and not an absolute temperature, because the values of these units do not add.
+
+### Each interval goes through the sum
+
+```ts
+import { compositionValue } from "@mark1russell7/capacity";
+
+const cpu = compositionValue(layer2, { laws, compositions: [layer1] }, workload, { level: 0.95 });
+// cpu.value.value: the CPU of the instance, in {core}
+// cpu.value.parts: the part of each term and each class, with its weight
+```
+
+- Replicate `i` of the composition is the sum of row `i` of each law, each times its weight. Thus the interval is the share `level` of these sums. The count of rows is the least count of the laws that the composition reads.
+- The range `run` is the interval plus the change from the interval to the run of each part. This sum is exact when the noise of the parts moves together. For independent noise it is wider than the true range, thus it is on the safe side for a limit.
+- A factor less than 0 changes the ends of each range of its part.
+- The value is an extrapolation, with `extrapolated` true, when a part reads a variable outside the range of its law.
+
+Row `i` of each law is one draw of the doubt of that law. Laws from separate fits have independent rows.
+
+The sum has the laws of a linear map, and property tests hold each of them:
+
+- A factor on each term scales the value, the interval, the run and the replicates. A factor less than 0 turns each range.
+- The order of the terms does not change the value.
+- A nested composition gives the value of its terms in line, times its factor.
+- A composition of constant costs scales with the demand, and the sum of two demands gives the sum of the values.
+
+### The check of a composition
+
+`checkComposition(composition)` gives each problem of a composition, with a code and the path of the field. `readComposition(data)` examines the shape of the data first.
+
+- Each id is lower-case words, and the title is not empty.
+- A composition has one term or more. A list of classes is not empty, and it has each class one time.
+- A term over the instance does not read the rate of a class.
+- A composition does not name itself.
+
+`compositionValue` also finds these problems:
+
+- A missing law or composition, and a cycle of compositions.
+- Two records with one id.
+- A law with too few replicates for the level. Each problem of a part has the path of its term in front, for example `terms[0].write.rate`.
 
 ## An instance type
 

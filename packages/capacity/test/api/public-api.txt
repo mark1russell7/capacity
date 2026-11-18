@@ -9,11 +9,19 @@
 type AmountCeiling: build/instance.chunk.d.ts#AmountCeiling
 type Amounts: build/instance.chunk.d.ts#Amounts
 type Binding: build/index.d.ts#Binding
+COMPOSITION_FORMAT: build/instance.chunk.d.ts#COMPOSITION_FORMAT
+type Catalog: build/instance.chunk.d.ts#Catalog
 type CatalogForm: build/index.d.ts#CatalogForm
 type Ceiling: build/instance.chunk.d.ts#Ceiling
+type Composition: build/instance.chunk.d.ts#Composition
+type CompositionOptions: build/instance.chunk.d.ts#CompositionOptions
+type CompositionProblem: build/instance.chunk.d.ts#CompositionProblem
+type CompositionProblemCode: build/instance.chunk.d.ts#CompositionProblemCode
+type CompositionTerm: build/instance.chunk.d.ts#CompositionTerm
+type CompositionValue: build/instance.chunk.d.ts#CompositionValue
 type ConditionValue: build/instance.chunk.d.ts#ConditionValue
 type Constant: build/instance.chunk.d.ts#Constant
-type ConstantInterval: build/index.d.ts#ConstantInterval
+type ConstantInterval: build/instance.chunk.d.ts#ConstantInterval
 DEFAULT_LEVEL: build/instance.chunk.d.ts#DEFAULT_LEVEL
 type Demand: build/instance.chunk.d.ts#Demand
 type Evidence: build/instance.chunk.d.ts#Evidence
@@ -31,36 +39,44 @@ type InstanceType: build/instance.chunk.d.ts#InstanceType
 LAW_FORMAT: build/instance.chunk.d.ts#LAW_FORMAT
 LIMITS_FORMAT: build/instance.chunk.d.ts#LIMITS_FORMAT
 type Law: build/instance.chunk.d.ts#Law
+type LawPart: build/instance.chunk.d.ts#LawPart
 type LawProblem: build/instance.chunk.d.ts#LawProblem
-type LawValue: build/index.d.ts#LawValue
-type LevelOptions: build/index.d.ts#LevelOptions
+type LawTerm: build/instance.chunk.d.ts#LawTerm
+type LawValue: build/instance.chunk.d.ts#LawValue
+type LevelOptions: build/instance.chunk.d.ts#LevelOptions
 type Limit: build/instance.chunk.d.ts#Limit
 type LimitProblem: build/instance.chunk.d.ts#LimitProblem
 type LimitProblemCode: build/instance.chunk.d.ts#LimitProblemCode
 type LimitSet: build/instance.chunk.d.ts#LimitSet
 type LimitUse: build/index.d.ts#LimitUse
-type LoadPoint: build/index.d.ts#LoadPoint
+type Load: build/instance.chunk.d.ts#Load
+type LoadPoint: build/instance.chunk.d.ts#LoadPoint
 type Loser: build/instance.chunk.d.ts#Loser
 MAX_VARIABLES: build/instance.chunk.d.ts#MAX_VARIABLES
 type Measure: build/instance.chunk.d.ts#Measure
 type MetricsSource: build/instance.chunk.d.ts#MetricsSource
 NO_DEMAND: build/instance.chunk.d.ts#NO_DEMAND
+type NestedPart: build/instance.chunk.d.ts#NestedPart
+type NestedTerm: build/instance.chunk.d.ts#NestedTerm
 type Observation: build/index.d.ts#Observation
 type ObservedClass: build/index.d.ts#ObservedClass
+type Over: build/instance.chunk.d.ts#Over
+type PartValue: build/instance.chunk.d.ts#PartValue
 type PlanSource: build/instance.chunk.d.ts#PlanSource
+type PointOptions: build/instance.chunk.d.ts#PointOptions
 type Points: build/index.d.ts#Points
 type Problem: build/instance.chunk.d.ts#Problem
 type ProblemCode: build/instance.chunk.d.ts#ProblemCode
 RATE: build/instance.chunk.d.ts#RATE
 RESOURCE_UNITS: build/instance.chunk.d.ts#RESOURCE_UNITS
-type Range: build/index.d.ts#Range
+type Range: build/instance.chunk.d.ts#Range
 type ResidualKind: build/instance.chunk.d.ts#ResidualKind
 type ResourceCeiling: build/instance.chunk.d.ts#ResourceCeiling
 type Run: build/instance.chunk.d.ts#Run
 SLUG: build/index.d.ts#SLUG
 type Scale: build/instance.chunk.d.ts#Scale
 type Shape: build/index.d.ts#Shape
-type ShareOptions: build/index.d.ts#ShareOptions
+type ShareOptions: build/instance.chunk.d.ts#ShareOptions
 type Start: build/index.d.ts#Start
 type Term: build/index.d.ts#Term
 type Variable: build/instance.chunk.d.ts#Variable
@@ -72,40 +88,46 @@ type WorkloadProblem: build/instance.chunk.d.ts#WorkloadProblem
 type WorkloadProblemCode: build/instance.chunk.d.ts#WorkloadProblemCode
 type WorkloadSource: build/instance.chunk.d.ts#WorkloadSource
 catalogForm: build/index.d.ts#catalogForm
+checkComposition: build/instance.chunk.d.ts#checkComposition
 checkInstance: build/index.d.ts#checkInstance
 checkLaw: build/index.d.ts#checkLaw
 checkLimits: build/index.d.ts#checkLimits
 checkWorkload: build/index.d.ts#checkWorkload
+compositionValue: build/instance.chunk.d.ts#compositionValue
 constantIdsOf: build/index.d.ts#constantIdsOf
-constantIntervals: build/index.d.ts#constantIntervals
+constantIntervals: build/instance.chunk.d.ts#constantIntervals
 demandProblems: build/index.d.ts#demandProblems
 formOf: build/index.d.ts#formOf
 formSlopes: build/index.d.ts#formSlopes
 formValues: build/index.d.ts#formValues
 gridOf: build/index.d.ts#gridOf
+instancePointOf: build/instance.chunk.d.ts#instancePointOf
 instanceProblems: build/index.d.ts#instanceProblems
-lawValue: build/index.d.ts#lawValue
+isLawTerm: build/instance.chunk.d.ts#isLawTerm
+lawValue: build/instance.chunk.d.ts#lawValue
 leastCount: build/instance.chunk.d.ts#leastCount
 limitAmount: build/index.d.ts#limitAmount
 limitProblems: build/index.d.ts#limitProblems
 limitUse: build/index.d.ts#limitUse
 limitUses: build/index.d.ts#limitUses
-loadPointOf: build/index.d.ts#loadPointOf
-mergeDemands: build/index.d.ts#mergeDemands
+loadPointOf: build/instance.chunk.d.ts#loadPointOf
+mergeDemands: build/instance.chunk.d.ts#mergeDemands
 observedWorkload: build/index.d.ts#observedWorkload
 programOf: build/index.d.ts#programOf
-scaleDemand: build/index.d.ts#scaleDemand
-shareOf: build/index.d.ts#shareOf
+scaleDemand: build/instance.chunk.d.ts#scaleDemand
+shareOf: build/instance.chunk.d.ts#shareOf
 slopeOf: build/index.d.ts#slopeOf
 startOf: build/index.d.ts#startOf
-totalRate: build/index.d.ts#totalRate
+totalRate: build/instance.chunk.d.ts#totalRate
 
 ## ./schema (build/schema.d.ts): names
 
+compositionSchema: build/schema.d.ts#compositionSchema
 instanceSchema: build/schema.d.ts#instanceSchema
 lawSchema: build/schema.d.ts#lawSchema
 limitSchema: build/schema.d.ts#limitSchema
 limitsSchema: build/schema.d.ts#limitsSchema
+readComposition: build/schema.d.ts#readComposition
 readInstance: build/schema.d.ts#readInstance
 readLaw: build/schema.d.ts#readLaw
 readLimits: build/schema.d.ts#readLimits
@@ -128,14 +150,6 @@ interface CatalogForm {
   readonly shapes: readonly Shape[];
 }
 
-### build/index.d.ts#ConstantInterval
-interface ConstantInterval {
-  readonly id: string;
-  readonly value: number;
-  readonly level: number;
-  readonly interval: Range;
-}
-
 ### build/index.d.ts#FORMS
 export declare const FORMS: readonly CatalogForm[];
 
@@ -151,21 +165,6 @@ type Grid = {
   readonly power: number;
 };
 
-### build/index.d.ts#LawValue
-interface LawValue {
-  readonly value: number;
-  readonly unit: string;
-  readonly level: number;
-  readonly interval: Range;
-  readonly run: Range;
-  readonly outside: readonly string[];
-}
-
-### build/index.d.ts#LevelOptions
-interface LevelOptions {
-  readonly level?: number;
-}
-
 ### build/index.d.ts#LimitUse
 interface LimitUse {
   readonly limit: string;
@@ -175,9 +174,6 @@ interface LimitUse {
   readonly use: number;
   readonly holds: boolean;
 }
-
-### build/index.d.ts#LoadPoint
-type LoadPoint = Readonly<Record<string, number>>;
 
 ### build/index.d.ts#Observation
 interface Observation {
@@ -201,12 +197,6 @@ interface Points {
   readonly y: readonly number[];
 }
 
-### build/index.d.ts#Range
-interface Range {
-  readonly low: number;
-  readonly high: number;
-}
-
 ### build/index.d.ts#SLUG
 export declare const SLUG: RegExp;
 
@@ -214,11 +204,6 @@ export declare const SLUG: RegExp;
 interface Shape {
   readonly id: string;
   readonly grid: Grid;
-}
-
-### build/index.d.ts#ShareOptions
-interface ShareOptions {
-  readonly whole?: readonly string[];
 }
 
 ### build/index.d.ts#Start
@@ -258,9 +243,6 @@ export declare const checkWorkload: (workload: Workload) => readonly WorkloadPro
 ### build/index.d.ts#constantIdsOf
 export declare const constantIdsOf: (form: CatalogForm) => readonly string[];
 
-### build/index.d.ts#constantIntervals
-export declare const constantIntervals: (law: Law, options?: LevelOptions) => Result<readonly ConstantInterval[], LawProblem>;
-
 ### build/index.d.ts#demandProblems
 export declare const demandProblems: (demand: Demand) => readonly WorkloadProblem[];
 
@@ -279,9 +261,6 @@ export declare const gridOf: (grid: Grid, xs: readonly number[]) => readonly num
 ### build/index.d.ts#instanceProblems
 export declare const instanceProblems: (instance: Instance) => readonly InstanceProblem[];
 
-### build/index.d.ts#lawValue
-export declare const lawValue: (law: Law, point: LoadPoint, options?: LevelOptions) => Result<LawValue, LawProblem>;
-
 ### build/index.d.ts#limitAmount
 export declare const limitAmount: (limit: Limit, instance: Instance) => Result<Quantity, LimitProblem>;
 
@@ -294,32 +273,17 @@ export declare const limitUse: (limit: Limit, instance: Instance, value: Quantit
 ### build/index.d.ts#limitUses
 export declare const limitUses: (limits: readonly Limit[], instance: Instance, values: Amounts) => Result<readonly LimitUse[], LimitProblem>;
 
-### build/index.d.ts#loadPointOf
-export declare const loadPointOf: (demand: Demand, id: string, law: Law, given?: Amounts) => Result<LoadPoint, WorkloadProblem>;
-
-### build/index.d.ts#mergeDemands
-export declare const mergeDemands: (first: Demand, second: Demand) => Result<Demand, WorkloadProblem>;
-
 ### build/index.d.ts#observedWorkload
 export declare const observedWorkload: (observation: Observation, name: WorkloadName) => Result<Workload, readonly WorkloadProblem[]>;
 
 ### build/index.d.ts#programOf
 export declare const programOf: (form: CatalogForm, binding: Binding) => Expr;
 
-### build/index.d.ts#scaleDemand
-export declare const scaleDemand: (demand: Demand, by: number) => Result<Demand, WorkloadProblem>;
-
-### build/index.d.ts#shareOf
-export declare const shareOf: (demand: Demand, instances: number, options?: ShareOptions) => Result<Demand, WorkloadProblem>;
-
 ### build/index.d.ts#slopeOf
 export declare const slopeOf: (form: CatalogForm, binding: Binding) => Expr;
 
 ### build/index.d.ts#startOf
 export declare const startOf: (form: CatalogForm, points: Points) => Result<Start, string>;
-
-### build/index.d.ts#totalRate
-export declare const totalRate: (demand: Demand, unit: string) => Result<Quantity, WorkloadProblem>;
 
 ### build/instance.chunk.d.ts#AmountCeiling
 interface AmountCeiling {
@@ -330,8 +294,53 @@ interface AmountCeiling {
 ### build/instance.chunk.d.ts#Amounts
 type Amounts = Readonly<Record<string, Quantity>>;
 
+### build/instance.chunk.d.ts#COMPOSITION_FORMAT
+declare const COMPOSITION_FORMAT = "capacity-composition/1";
+
+### build/instance.chunk.d.ts#Catalog
+interface Catalog {
+  readonly laws: readonly Law[];
+  readonly compositions?: readonly Composition[];
+}
+
 ### build/instance.chunk.d.ts#Ceiling
 type Ceiling = AmountCeiling | ResourceCeiling;
+
+### build/instance.chunk.d.ts#Composition
+interface Composition {
+  readonly format: typeof COMPOSITION_FORMAT;
+  readonly id: string;
+  readonly title: string;
+  readonly subject: string;
+  readonly measure: Measure;
+  readonly terms: readonly CompositionTerm[];
+}
+
+### build/instance.chunk.d.ts#CompositionOptions
+interface CompositionOptions extends LevelOptions {
+  readonly given?: Amounts;
+}
+
+### build/instance.chunk.d.ts#CompositionProblem
+type CompositionProblem = Problem<CompositionProblemCode>;
+
+### build/instance.chunk.d.ts#CompositionProblemCode
+type CompositionProblemCode = ProblemCode | WorkloadProblemCode | "term" | "law" | "composition";
+
+### build/instance.chunk.d.ts#CompositionTerm
+type CompositionTerm = LawTerm | NestedTerm;
+
+### build/instance.chunk.d.ts#CompositionValue
+interface CompositionValue {
+  readonly value: number;
+  readonly unit: string;
+  readonly level: number;
+  readonly interval: Range;
+  readonly run: Range;
+  readonly replicates: readonly number[];
+  readonly parts: readonly PartValue[];
+  readonly extrapolated: boolean;
+}
 
 ### build/instance.chunk.d.ts#ConditionValue
 type ConditionValue = string | number | boolean | Quantity;
@@ -340,6 +349,14 @@ type ConditionValue = string | number | boolean | Quantity;
 interface Constant {
   readonly id: string;
   readonly value: number;
+}
+
+### build/instance.chunk.d.ts#ConstantInterval
+interface ConstantInterval {
+  readonly id: string;
+  readonly value: number;
+  readonly level: number;
+  readonly interval: Range;
 }
 
 ### build/instance.chunk.d.ts#DEFAULT_LEVEL
@@ -419,8 +436,39 @@ interface Law {
   readonly evidence: Evidence;
 }
 
+### build/instance.chunk.d.ts#LawPart
+interface LawPart extends PartBase {
+  readonly kind: "law";
+  readonly law: string;
+  readonly class: string | null;
+  readonly outside: readonly string[];
+}
+
 ### build/instance.chunk.d.ts#LawProblem
 type LawProblem = Problem<ProblemCode>;
+
+### build/instance.chunk.d.ts#LawTerm
+interface LawTerm {
+  readonly law: string;
+  readonly over: Over;
+  readonly load?: Load | undefined;
+  readonly factor?: number | undefined;
+}
+
+### build/instance.chunk.d.ts#LawValue
+interface LawValue {
+  readonly value: number;
+  readonly unit: string;
+  readonly level: number;
+  readonly interval: Range;
+  readonly run: Range;
+  readonly outside: readonly string[];
+}
+
+### build/instance.chunk.d.ts#LevelOptions
+interface LevelOptions {
+  readonly level?: number;
+}
 
 ### build/instance.chunk.d.ts#Limit
 interface Limit {
@@ -443,6 +491,12 @@ interface LimitSet {
   readonly title: string;
   readonly limits: readonly Limit[];
 }
+
+### build/instance.chunk.d.ts#Load
+type Load = "class" | "total";
+
+### build/instance.chunk.d.ts#LoadPoint
+type LoadPoint = Readonly<Record<string, number>>;
 
 ### build/instance.chunk.d.ts#Loser
 interface Loser {
@@ -470,10 +524,34 @@ interface MetricsSource {
 ### build/instance.chunk.d.ts#NO_DEMAND
 declare const NO_DEMAND: Demand;
 
+### build/instance.chunk.d.ts#NestedPart
+interface NestedPart extends PartBase {
+  readonly kind: "composition";
+  readonly composition: string;
+  readonly parts: readonly PartValue[];
+}
+
+### build/instance.chunk.d.ts#NestedTerm
+interface NestedTerm {
+  readonly composition: string;
+  readonly factor?: number | undefined;
+}
+
+### build/instance.chunk.d.ts#Over
+type Over = "instance" | "each" | readonly string[];
+
+### build/instance.chunk.d.ts#PartValue
+type PartValue = LawPart | NestedPart;
+
 ### build/instance.chunk.d.ts#PlanSource
 interface PlanSource {
   readonly kind: "plan";
   readonly note: string;
+}
+
+### build/instance.chunk.d.ts#PointOptions
+interface PointOptions {
+  readonly load?: Load;
 }
 
 ### build/instance.chunk.d.ts#Problem
@@ -491,6 +569,12 @@ declare const RATE = "rate";
 
 ### build/instance.chunk.d.ts#RESOURCE_UNITS
 declare const RESOURCE_UNITS: Readonly<Record<string, string>>;
+
+### build/instance.chunk.d.ts#Range
+interface Range {
+  readonly low: number;
+  readonly high: number;
+}
 
 ### build/instance.chunk.d.ts#ResidualKind
 type ResidualKind = "absolute" | "relative";
@@ -510,6 +594,11 @@ interface Run {
 
 ### build/instance.chunk.d.ts#Scale
 type Scale = "linear" | "log";
+
+### build/instance.chunk.d.ts#ShareOptions
+interface ShareOptions {
+  readonly whole?: readonly string[];
+}
 
 ### build/instance.chunk.d.ts#Variable
 interface Variable {
@@ -547,8 +636,44 @@ type WorkloadProblemCode = "shape" | "format" | "id" | "rate" | "amount" | "unit
 ### build/instance.chunk.d.ts#WorkloadSource
 type WorkloadSource = PlanSource | MetricsSource;
 
+### build/instance.chunk.d.ts#checkComposition
+declare const checkComposition: (composition: Composition) => readonly CompositionProblem[];
+
+### build/instance.chunk.d.ts#compositionValue
+declare const compositionValue: (composition: Composition, catalog: Catalog, demand: Demand, options?: CompositionOptions) => Result<CompositionValue, CompositionProblem>;
+
+### build/instance.chunk.d.ts#constantIntervals
+declare const constantIntervals: (law: Law, options?: LevelOptions) => Result<readonly ConstantInterval[], LawProblem>;
+
+### build/instance.chunk.d.ts#instancePointOf
+declare const instancePointOf: (demand: Demand, law: Law, given?: Amounts) => Result<LoadPoint, WorkloadProblem>;
+
+### build/instance.chunk.d.ts#isLawTerm
+declare const isLawTerm: (term: CompositionTerm) => term is LawTerm;
+
+### build/instance.chunk.d.ts#lawValue
+declare const lawValue: (law: Law, point: LoadPoint, options?: LevelOptions) => Result<LawValue, LawProblem>;
+
 ### build/instance.chunk.d.ts#leastCount
 declare const leastCount: (level: number) => number;
+
+### build/instance.chunk.d.ts#loadPointOf
+declare const loadPointOf: (demand: Demand, id: string, law: Law, given?: Amounts, options?: PointOptions) => Result<LoadPoint, WorkloadProblem>;
+
+### build/instance.chunk.d.ts#mergeDemands
+declare const mergeDemands: (first: Demand, second: Demand) => Result<Demand, WorkloadProblem>;
+
+### build/instance.chunk.d.ts#scaleDemand
+declare const scaleDemand: (demand: Demand, by: number) => Result<Demand, WorkloadProblem>;
+
+### build/instance.chunk.d.ts#shareOf
+declare const shareOf: (demand: Demand, instances: number, options?: ShareOptions) => Result<Demand, WorkloadProblem>;
+
+### build/instance.chunk.d.ts#totalRate
+declare const totalRate: (demand: Demand, unit: string) => Result<Quantity, WorkloadProblem>;
+
+### build/schema.d.ts#compositionSchema
+export declare const compositionSchema: z.ZodType<Composition>;
 
 ### build/schema.d.ts#instanceSchema
 export declare const instanceSchema: z.ZodType<InstanceType>;
@@ -561,6 +686,9 @@ export declare const limitSchema: z.ZodType<Limit>;
 
 ### build/schema.d.ts#limitsSchema
 export declare const limitsSchema: z.ZodType<LimitSet>;
+
+### build/schema.d.ts#readComposition
+export declare const readComposition: (data: unknown) => Result<Composition, readonly CompositionProblem[]>;
 
 ### build/schema.d.ts#readInstance
 export declare const readInstance: (data: unknown) => Result<InstanceType, readonly InstanceProblem[]>;

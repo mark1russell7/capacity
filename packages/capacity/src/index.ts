@@ -60,8 +60,24 @@ export type {
 } from "./workload.ts";
 export { NO_DEMAND, RATE, WORKLOAD_FORMAT } from "./workload.ts";
 export { checkWorkload, demandProblems } from "./workload-check.ts";
-export type { ShareOptions } from "./demand.ts";
-export { loadPointOf, mergeDemands, scaleDemand, shareOf, totalRate } from "./demand.ts";
+export type { Load, PointOptions, ShareOptions } from "./demand.ts";
+export { instancePointOf, loadPointOf, mergeDemands, scaleDemand, shareOf, totalRate } from "./demand.ts";
+export type {
+  Catalog,
+  Composition,
+  CompositionOptions,
+  CompositionProblem,
+  CompositionProblemCode,
+  CompositionTerm,
+  CompositionValue,
+  LawPart,
+  LawTerm,
+  NestedPart,
+  NestedTerm,
+  Over,
+  PartValue,
+} from "./composition.ts";
+export { COMPOSITION_FORMAT, checkComposition, compositionValue, isLawTerm } from "./composition.ts";
 export type { Observation, ObservedClass, WorkloadName } from "./observe.ts";
 export { observedWorkload } from "./observe.ts";
 export type {

@@ -201,28 +201,30 @@ export const totalRate = (demand: Demand, unit: string): Result<Quantity, Worklo
 };
 
 /**
- * This function gives the load point of one class of a demand for a law. The point has one number
- * for each variable of the law, in the unit of that variable.
- *
- * The variable `rate` is the rate of the class. Each other variable is a variable of the request
- * of the class, a level of the demand, or an amount of `given`. The amounts of `given` are the
- * state of an instance, for example the size of its heap and its age. No workload gives that state.
- *
- * It gives a problem for a demand that is not correct and for a class that the demand does not
- * have. It gives a problem for a variable with no amount or with two amounts. It gives a problem
- * for an amount that does not convert to the unit of the variable.
+ * A load tells which rate the variable `rate` of a law reads. The load `class` is the rate of one
+ * class. The load `total` is the sum of the rates of all classes, the load of the whole instance.
  */
-export const loadPointOf = (demand: Demand, id: string, law: Law, given: Amounts = {}): Result<LoadPoint, WorkloadProblem> => {
-  const bad = firstProblem(demand);
-  if (bad !== undefined) return err(bad);
-  const entry = demand.classes.find((candidate) => candidate.id === id);
-  if (entry === undefined) return err(workloadProblem("class", "classes", `The demand has no class "${id}".`));
+export type Load = "class" | "total";
 
+/** These options tell which rate the variable `rate` of a law reads. The load is `class` when the options give none. */
+export interface PointOptions {
+  readonly load?: Load;
+}
+
+/** This function gives the point of a law from a rate, the variables of one request, the levels of a demand and `given`. */
+const pointOf = (demand: Demand, law: Law, rate: Quantity | "total", request: Amounts, given: Amounts): Result<LoadPoint, WorkloadProblem> => {
   const point: Record<string, number> = {};
   for (const variable of law.variables) {
     const name = variable.id;
-    const found: unknown[] = name === RATE ? [entry.rate] : [];
-    for (const amounts of [entry.request, demand.levels, given]) {
+    const found: unknown[] = [];
+    if (name === RATE) {
+      if (rate === "total") {
+        const total = totalRate(demand, variable.unit);
+        if (total.tag === "err") return err({ ...total.error, path: name, message: `The variable "${name}" of the law "${law.id}" reads the total rate. ${total.error.message}` });
+        found.push(total.value);
+      } else found.push(rate);
+    }
+    for (const amounts of [request, demand.levels, given]) {
       if (Object.hasOwn(amounts, name)) found.push(amounts[name]);
     }
     const [amount] = found;
@@ -247,4 +249,44 @@ export const loadPointOf = (demand: Demand, id: string, law: Law, given: Amounts
     point[name] = valueIn(amount, variable.unit);
   }
   return ok(point);
+};
+
+/**
+ * This function gives the load point of one class of a demand for a law. The point has one number
+ * for each variable of the law, in the unit of that variable.
+ *
+ * The variable `rate` is the rate of the class, or the total rate with the load `total`. Each other
+ * variable is a variable of the request of the class, a level of the demand, or an amount of
+ * `given`. The amounts of `given` are the state of an instance, for example the size of its heap
+ * and its age. No workload gives that state.
+ *
+ * It gives a problem for a demand that is not correct and for a class that the demand does not
+ * have. It gives a problem for a variable with no amount or with two amounts. It gives a problem
+ * for an amount that does not convert to the unit of the variable.
+ */
+export const loadPointOf = (
+  demand: Demand,
+  id: string,
+  law: Law,
+  given: Amounts = {},
+  options: PointOptions = {},
+): Result<LoadPoint, WorkloadProblem> => {
+  const bad = firstProblem(demand);
+  if (bad !== undefined) return err(bad);
+  const entry = demand.classes.find((candidate) => candidate.id === id);
+  if (entry === undefined) return err(workloadProblem("class", "classes", `The demand has no class "${id}".`));
+  return pointOf(demand, law, (options.load ?? "class") === "class" ? entry.rate : "total", entry.request, given);
+};
+
+/**
+ * This function gives the load point of a whole instance for a law: a point with no class. The
+ * variable `rate` is the total rate of the demand. Each other variable is a level of the demand or
+ * an amount of `given`. A variable of a request has no amount here.
+ *
+ * It gives the problems of `loadPointOf`, with no problem of a class.
+ */
+export const instancePointOf = (demand: Demand, law: Law, given: Amounts = {}): Result<LoadPoint, WorkloadProblem> => {
+  const bad = firstProblem(demand);
+  if (bad !== undefined) return err(bad);
+  return pointOf(demand, law, "total", {}, given);
 };
