@@ -27,7 +27,7 @@ The work has three layers. Each layer adds its own laws to the layer below it.
 3. An open-loop driver sends each request at its planned time. A slow reply does not delay the next request.
 4. The cell gives one record with each measure, the CPU model and the commit.
 5. A fit compares the forms of a law on the records. It keeps each form that lost, with its error.
-6. The law file holds the form, the constants with intervals, the range where the law is valid, and the run.
+6. The law file holds the form, the constants with their replicates, the range where the law is valid, and the run.
 7. A gate measures sample points again on each change and each night. It fails when a measure leaves its interval.
 8. The scale rule is a query on the laws, an instance type, the limits and a load.
 
@@ -45,7 +45,8 @@ capacity holds the models and the rules. Each other part has a home package. A f
 | Designs of load points with a seed | `@mark1russell7/rigor-generators` | None |
 | Labs in containers and the open-loop driver | `@mark1russell7/harness` | Resource readings of a container (CAP-11) |
 | Event-loop lag | `@mark1russell7/lag` | An entry for Node (CAP-12) |
-| Amounts with units | `@mark1russell7/quantity` | CAP-5 reads it |
+| Amounts with units | `@mark1russell7/quantity` | None |
+| The program of a form and its evaluation | `@mark1russell7/vex` | None |
 | The service runner | `@mark1russell7/service` | None |
 
 ## The order
@@ -60,14 +61,14 @@ The other laws of layer 1 and the laws of layer 2 follow. They tell where the co
 
 | ID | Item | Status | Priority | Size | Needs | Summary |
 | --- | --- | --- | --- | --- | --- | --- |
-| CAP-1 | The law record | active | P0 | M |  | A law is data: a subject, a measure, its variables with units and ranges, a form, constants with intervals, and its evidence. The package checks a law file and gives the value of a law at a load point, with an interval. |
+| CAP-1 | The law record | done | P0 | M |  | A law is data: a subject, a measure, its variables with units and ranges, a form as a Vex program, constants with their replicates, and its evidence. The package checks a law file and gives the value of a law at a load point, with an interval. |
 | CAP-2 | The catalog of law forms | later | P1 | M | CAP-1 | Each form is data: constant, linear, power, logarithm, hinge, the delay of a queue, the scalability law, and drift with age. Each form gives its value, its slope and the start values of its fit. |
 | CAP-3 | The composition of laws | later | P1 | M | CAP-1 | Laws add, scale and combine over a mix of request classes. Layer 2 is layer 1 plus the law of the overhead. Each interval goes through each operation. |
 | CAP-4 | The knee of a law | later | P1 | S | CAP-2 | The knee is the load where a law leaves its cheap region. The package computes it from the law, with an interval. It also gives the load where the law has no finite value. |
 | CAP-5 | Instances and limits as data | later | P1 | S | CAP-1 | An instance type has cores, memory and a network rate. A limit is a ceiling on one measure, with headroom. The units come from `@mark1russell7/quantity`. |
 | CAP-6 | The scale rule as a query | later | P1 | M | CAP-3, CAP-4, CAP-5, CAP-7 | The query gives the lowest count of instances that holds each limit at a load, the resource that binds first, and the load of the next step, each with an interval. The inverse query gives the highest load of a count. |
 | CAP-7 | The workload as data | later | P1 | S | CAP-1 | A workload is a mix of request classes, each with a rate, a size, a duration and a concurrency. A workload comes from a plan or from the live metrics of an app. |
-| CAP-8 | The first npm release of the package | later | P2 | S | CAP-6 | The package `@mark1russell7/capacity` goes to npm through the release workflow. The owner of npm does the first publish of a new package. |
+| CAP-8 | The first npm release of the package | later | P2 | S | CAP-6 | The package `@mark1russell7/capacity` goes to npm through the release workflow. The owner of npm does the first publish of a new package. Until then the package is private, because the release workflow fails for a new package that is not on npm. |
 | CAP-9 | The cost in money | later | P3 | S | CAP-6, CAP-39 | The prices of machine types are input data. The cost of one request in money follows from the laws and the prices. |
 
 ## Measurement
