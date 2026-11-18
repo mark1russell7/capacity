@@ -1,8 +1,8 @@
 # @capacity/lab
 
-This package has the subjects of the measurement: the programs that a run measures, and the request classes that a run sends to them. It also has the cases: each case is one measurement as data.
+This package has the subjects of the measurement: the programs that a run measures, and the request classes that a run sends to them. It also has the cases: each case is one measurement as data. The cell of a case operates it in the lab of `@mark1russell7/harness`, and the record keeps its measures.
 
-**State: CAP-18 and a part of CAP-10 of the [roadmap](../../docs/ROADMAP.md).** The package has the bare subject of layer 1 and the case record. The cell of a case and the record of its measures come next. The package is private: it is a tool of this repository.
+**State: CAP-18 and CAP-10 of the [roadmap](../../docs/ROADMAP.md).** The package has the bare subject of layer 1, the case record, the cell of a case and the record of its measures. The package is private: it is a tool of this repository.
 
 ## The cases
 
@@ -46,6 +46,64 @@ The case uses the records of `@mark1russell7/capacity`. Thus a measurement and a
   - Node reads the requests of one connection one at a time. Thus the requests of a class with a `wait` stay in a queue on the connection, and its latency includes that queue.
   - A request of a pipeline can come in one read with other requests. Thus its CPU cost can be less than the cost of a request of a real client. A real client sends one request at a time on each connection.
   - A pool of connections for each stream, and a new connection for each request, are a gap of the driver. A case cannot select them yet.
+
+## The cell and the record
+
+`measureCase(case)` measures a case in three steps. Each step is also a function, and a test can give each part.
+
+1. `cellOf(case, { cpus })` gives the cell of the harness. It has no Docker and no clock.
+2. `runCell` of `@mark1russell7/harness` operates the cell in Docker: one warm-up run, then the runs of the case.
+3. `recordOf(case, result, host)` gives the record of the result, with the format `capacity-record/1`.
+
+### The cell
+
+| Part | What it is |
+| --- | --- |
+| The subject | The program of the subject, with the CPU quota and the memory limit of the instance. The level `heap` is its flag `--ballast`. |
+| The CPUs | The subject has the first CPUs of the host, one for each started core. The driver and the reader have the other CPUs. `cpuSetsOf` gives them. |
+| The driver | The client `load` of the harness. Each class is one stream, at the rate of the class for the duration of the case. |
+| The reader | It reads the control group of the subject before and after the schedule, and each 250 ms between them. |
+| The window | Two durations and a drain of 30 s. A request with no reply at the end is unfinished. |
+
+A host with fewer CPUs than the subject cores plus one is an error. Thus the driver does not take the CPU time of the subject.
+
+### The record
+
+A record has the case, the machine, the times and one record for each counted run. The warm-up run is not in it. The case gives the load of each run, thus a law gets its load points from the demand of the case.
+
+Each run record has the measures of the container and the measures of the driver. A measure that the run did not read is `null`, not 0.
+
+| Measure | Unit | What it is |
+| --- | --- | --- |
+| `cpu`, `cpu.user`, `cpu.system` | `{core}·s` | The CPU time of the subject in the run. The control group adds the time of each core. |
+| `cpu.throttled` | `s` | The time that the CPU quota stopped the subject. |
+| `cpu.request` | `{core}·ms/{request}` | The CPU time for each answered request. |
+| `memory` | `B` | The memory of the subject at the end of the run. |
+| `memory.peak` | `B` | The peak of the control group, only when it rose in the run. |
+| `memory.high` | `B` | The highest reading of the series. It is a low bound of the peak. |
+| `network.rx`, `network.tx` | `B` | The bytes in and out of the subject. `network.rx.request` and `network.tx.request` are the bytes for each answered request. |
+| `planned`, `answered`, `failed`, `unsent`, `unfinished` | `{request}` | The counts of the driver. A failed request has a reply with a status outside 200 to 299. |
+| `latency.p50`, `latency.p90`, `latency.p99`, `latency.max` | `ms` | The quantiles of the time from the planned time to the reply. |
+| `lag.max` | `ms` | The largest delay of a send after its planned time. |
+
+The measures of the driver are also in `classes`, for each class of the demand.
+
+- **An unfinished request** counts at its age at the end. Thus a quantile of a run with an unfinished request is a low bound. The CPU time of an unfinished request counts, thus `cpu.request` of such a run is too high.
+- **The idle cost** of the subject is in each measure of a run. The idle base and the noise of two equal runs are CAP-19.
+- **The lag of the driver** has no limit in the record. CAP-19 sets the limit from 5 or more runs in CI.
+
+### The positive control
+
+`src/measure.lab.test.ts` measures two cases. The second case adds 1 ms of CPU work, a reply of 16 KiB and a live heap of 64 MiB to each request. The medians of the records must show each cost in its own measure:
+
+| Measure | The change that the test expects |
+| --- | --- |
+| `cpu.request` | 0.95 to 1.30 ms |
+| `network.tx.request` | 16 KiB to 1.08 times 16 KiB |
+| `memory` | 0.95 to 2 times 64 MiB |
+
+The test needs Docker. It operates only with `CAPACITY_LAB=1`, in the workflow `lab.yml`, and the artifact `lab-records` keeps each record.
+
 ## The request classes
 
 A request class is the work that one request asks of a synthetic subject. Each field is one load variable, thus a law can move one variable alone.
