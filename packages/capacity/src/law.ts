@@ -131,12 +131,15 @@ export type ProblemCode =
   | "point"
   | "level";
 
-/** A problem tells what is not correct, and where: `path` is the path of the field in the law. */
-export interface LawProblem {
-  readonly code: ProblemCode;
+/** A problem tells what is not correct, and where: `path` is the path of the field in the record. */
+export interface Problem<Code extends string> {
+  readonly code: Code;
   readonly path: string;
   readonly message: string;
 }
+
+/** A law problem tells what is not correct in a law, or in a query of a law. */
+export type LawProblem = Problem<ProblemCode>;
 
 /** This number is the level of an interval when a query gives none. */
 export const DEFAULT_LEVEL = 0.95;
