@@ -13,6 +13,7 @@ The laws have three layers: bare Node, the service runner on Node, and each app.
 | Package | What it has |
 | --- | --- |
 | [`@mark1russell7/capacity`](packages/capacity/README.md) | The models and the rules: the law record, its check and its value at a load point. |
+| [`@capacity/lab`](packages/lab/README.md) | The subjects of the measurement: the bare server of Node and the request classes. |
 | `@capacity/site` | The site of the repository. |
 
 ## Rules
