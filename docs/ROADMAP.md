@@ -43,7 +43,7 @@ capacity holds the models and the rules. Each other part has a home package. A f
 | Fits, intervals and noise floors | `@mark1russell7/rigor-statistics` | Fits of a form with parameters, and of a hinge (CAP-14) |
 | Load schedules and the measure of a load run | `@mark1russell7/rigor-chaos` | None |
 | Designs of load points with a seed | `@mark1russell7/rigor-generators` | None |
-| Labs in containers and the open-loop driver | `@mark1russell7/harness` | Resource readings of a container (CAP-11) |
+| Labs in containers and the open-loop driver | `@mark1russell7/harness` | Resource readings of a container (CAP-11), and the connections of the driver (CAP-47) |
 | Event-loop lag | `@mark1russell7/lag` | An entry for Node (CAP-12) |
 | Amounts with units | `@mark1russell7/quantity` | None |
 | The program of a form and its evaluation | `@mark1russell7/vex` | None |
@@ -51,7 +51,7 @@ capacity holds the models and the rules. Each other part has a home package. A f
 
 ## The order
 
-The first path gives one law with a gate: CAP-1, CAP-18 and CAP-11, then CAP-10, CAP-16, CAP-19, CAP-20 and CAP-26.
+The first path gives one law with a gate: CAP-1, CAP-18 and CAP-11, then CAP-10, CAP-16, CAP-19, CAP-47, CAP-20 and CAP-26.
 
 The second path gives the scale rule of alerts: the rest of the algebra (CAP-2 to CAP-7), then CAP-34 to CAP-37. It needs the cell and the gate of the first path, and not the whole of layers 1 and 2.
 
@@ -75,7 +75,7 @@ The other laws of layer 1 and the laws of layer 2 follow. They tell where the co
 
 | ID | Item | Status | Priority | Size | Needs | Summary |
 | --- | --- | --- | --- | --- | --- | --- |
-| CAP-10 | The measurement cell | later | P0 | L | CAP-11, CAP-18 | One case is a subject in a container with a CPU limit and a memory limit, and the open-loop driver of `@mark1russell7/harness` on other cores. The cell gives one record with each measure. |
+| CAP-10 | The measurement cell | active | P0 | L | CAP-11, CAP-18 | One case is a subject in a container with a CPU limit and a memory limit, and the open-loop driver of `@mark1russell7/harness` on other cores. The cell gives one record with each measure. |
 | CAP-11 | Resource readings of a lab container | active | P0 | M |  | The lab reads the CPU time, the memory and the network bytes of a container from its control group, on the clock of the lab. The change is a pull request to `@mark1russell7/harness`, the home of the labs. |
 | CAP-12 | Event-loop lag of a Node process | later | P1 | S |  | `@mark1russell7/lag` gets an entry for Node: the delay of the event loop as a histogram, and the utilization of the loop. The change is a pull request to its home. |
 | CAP-13 | Records with many measures in the bench harness | later | P1 | M |  | `@mark1russell7/rigor-bench` records many measures for each case, not only a time. A/A pairs give the noise floor of each measure. Readings of a Node process give its CPU time, its heap and its garbage collection time. |
@@ -83,6 +83,7 @@ The other laws of layer 1 and the laws of layer 2 follow. They tell where the co
 | CAP-15 | The grid of load variables | later | P1 | S | CAP-1 | Each load variable has a range and a scale: the request rate, size and duration, the concurrency, the heap size and the process age. A design with a seed moves one variable alone, then all variables together. |
 | CAP-16 | The workflow of timed runs | later | P0 | M | CAP-10 | Timed runs start only in CI: on a schedule, by hand, and for a pull request that changes a law or a subject. Each run names its CPU model and keeps its raw records. |
 | CAP-17 | From records to law files | later | P1 | S | CAP-2, CAP-14, CAP-16 | A command reads the records of a named run and writes each law file, with the run as its evidence. It keeps each form that lost, with its error. A pull request changes a law, and the gate measures it again. |
+| CAP-47 | The connections of the open-loop driver | later | P0 | M |  | The driver of `@mark1russell7/harness` keeps one connection for each stream and pipelines its requests. A real client sends one request at a time on each connection of a pool, or opens a new connection. A stream gets a pool of n connections, or a new connection for each request. The change is a pull request to the harness. |
 
 ## Layer 1: Node
 
@@ -90,9 +91,9 @@ The other laws of layer 1 and the laws of layer 2 follow. They tell where the co
 | --- | --- | --- | --- | --- | --- | --- |
 | CAP-18 | The subjects of bare Node | done | P0 | S |  | A subject is a small server of `node:http` with its request classes as data: a body of n bytes, an allocation of n bytes, work of d microseconds of CPU time, a wait of d milliseconds, and a reply of n bytes. A flag sets the live heap. Thus each load variable can move alone. |
 | CAP-19 | The floor of each measure | later | P0 | S | CAP-16 | An idle process gives the base of each measure. A/A pairs give the noise floor of each measure on each CPU model of the CI runners. Each law states its noise. |
-| CAP-20 | Laws of the request rate | later | P0 | M | CAP-1, CAP-19 | CPU time, memory and latency against the request rate, up to and past the limit of one core. The knee is the rate where the latency leaves its floor. |
+| CAP-20 | Laws of the request rate | later | P0 | M | CAP-1, CAP-19, CAP-47 | CPU time, memory and latency against the request rate, up to and past the limit of one core. The knee is the rate where the latency leaves its floor. |
 | CAP-21 | Laws of the request size | later | P1 | M | CAP-20 | CPU time and memory for each byte of a request and of a reply, and the network bytes on the wire for each byte of payload. The knees are at the sizes of the buffers. |
-| CAP-22 | Laws of duration and concurrency | later | P1 | M | CAP-12, CAP-20 | Memory for each request in flight and for each open connection. The lag from work that blocks the loop, as a queue law of its duration and its rate. |
+| CAP-22 | Laws of duration and concurrency | later | P1 | M | CAP-12, CAP-20, CAP-47 | Memory for each request in flight and for each open connection. The lag from work that blocks the loop, as a queue law of its duration and its rate. |
 | CAP-23 | Laws of the heap and garbage collection | later | P1 | M | CAP-13, CAP-20 | The share of time in garbage collection against the live heap and the allocation rate. The knee is near the heap limit, where collection takes most of the time. |
 | CAP-24 | Laws of the process age | later | P1 | M | CAP-20 | The drift of memory and of lag in a long run. A slope with an interval that holds zero is no drift. A slope above zero is a leak, with its rate. |
 | CAP-25 | The variables together | later | P1 | M | CAP-15, CAP-21, CAP-22, CAP-23 | A design with a seed moves all variables together. The composed law must predict the held-out points. Where it fails, the law gets a term for the two variables. A ranking tells which variables matter. |

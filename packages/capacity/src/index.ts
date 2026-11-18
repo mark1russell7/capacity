@@ -28,6 +28,7 @@ export type {
   Variable,
 } from "./law.ts";
 export { DEFAULT_LEVEL, LAW_FORMAT, MAX_VARIABLES, leastCount } from "./law.ts";
+export { SLUG } from "./names.ts";
 export { checkLaw } from "./check.ts";
 export type { ConstantInterval, LawValue, LevelOptions, LoadPoint, Range } from "./value.ts";
 export { constantIntervals, lawValue } from "./value.ts";
