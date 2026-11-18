@@ -2,13 +2,13 @@
 
 This package has the performance and capacity models. A law gives one measure of a subject as a function of its load variables, with an interval. A workload gives the load. An instance type gives the resources of one instance, and a limit set gives the ceilings.
 
-**State: CAP-1, CAP-5 and CAP-7 of the [roadmap](../../docs/ROADMAP.md).** The catalog of forms, the composition of laws, the knee and the scale rule come next. The package stays private until its first npm release (CAP-8).
+**State: CAP-1, CAP-2, CAP-5 and CAP-7 of the [roadmap](../../docs/ROADMAP.md).** The composition of laws, the knee and the scale rule come next. The package stays private until its first npm release (CAP-8).
 
 ## Entries
 
 | Entry | What it has |
 | --- | --- |
-| `@mark1russell7/capacity` | The records of a law, a workload, an instance type and a limit set, with their checks. It also has the value of a law, the algebra of demands and the use of a limit. A browser can import it. |
+| `@mark1russell7/capacity` | The records of a law, a workload, an instance type and a limit set, with their checks. It also has the value of a law, the catalog of forms, the algebra of demands and the use of a limit. A browser can import it. |
 | `@mark1russell7/capacity/schema` | The schema of each file, with `readLaw`, `readWorkload`, `readInstance` and `readLimits`. This entry needs `zod`. |
 
 The package holds the models and the rules. It measures nothing, and it reads no file.
@@ -113,6 +113,44 @@ if (law.tag === "ok") {
 - The evidence names one run or more, each with an `https` address, a full commit and a UTC time.
 
 A law has 8 variables at most.
+
+## The catalog of forms
+
+`FORMS` has the forms of a law of one variable, as data. Each form is a sum of terms. A term is a constant times a basis, and the basis is a Vex program. A shape constant changes the shape of a form, not its size.
+
+| Form | Value | Shape constants |
+| --- | --- | --- |
+| `constant` | `base` | |
+| `linear` | `base + slope·x` | |
+| `power` | `base + scale·x^exponent` | `exponent` |
+| `logarithm` | `base + scale·ln(x)` | |
+| `hinge` | `base + slope·x + bend·max(0, x − knee)` | `knee` |
+| `queue` | `base + scale·capacity / (capacity − x)` | `capacity` |
+| `scalability` | `unit·x / (1 + contention·(x − 1) + coherency·x·(x − 1))` | `contention`, `coherency` |
+| `drift` | `base + drift·x + warm·(1 − e^(−x / settle))` | `settle` |
+
+The `queue` form is the delay of a queue, and it has no finite value at its capacity. The `scalability` form is the universal scalability law of the throughput at a concurrency. The `drift` form is a measure over the age of a process: a warm-up that settles, and a steady drift.
+
+```ts
+import { catalogForm, formOf, slopeOf, startOf } from "@mark1russell7/capacity";
+
+const hinge = catalogForm("hinge");
+if (hinge !== undefined) {
+  // the program of a law: it reads the variable rate and the constants c0, c1, c2 and knee
+  const form = formOf(hinge, { variable: "rate", constants: { base: "c0", slope: "c1", bend: "c2" } });
+  const slope = slopeOf(hinge, { variable: "rate" });
+  const start = startOf(hinge, { x: rates, y: costs });
+  // start.value: { constants: [{ id: "base", value: … }, …, { id: "knee", value: … }], rss: … }
+}
+```
+
+- `formOf` and `programOf` give the program of the value. `slopeOf` gives the program of the slope: the change of the value for each unit of the variable. A test compares each slope with a central difference of the value.
+- `formValues` and `formSlopes` evaluate the two programs at some values of the variable.
+- `startOf` gives the start values of a fit. For each value on the grid of each shape constant, `leastSquares` of `@mark1russell7/rigor-statistics` fits the constants of the terms. The start keeps the grid value with the smallest sum of squared residuals.
+
+A form that holds another form as a special case fits at least as well. For example, a hinge with `bend` 0 is a line. Thus the sum of the squared residuals of a hinge start is not larger than that of the line. A property test holds this order for six pairs of forms.
+
+The fit of all the constants together, with intervals, is CAP-14 in `@mark1russell7/rigor-statistics`. The start values are its first point.
 
 ## A workload
 
@@ -379,7 +417,7 @@ A limit set with no limit is correct. `instanceProblems(instance)` and `limitPro
 | Part | Home |
 | --- | --- |
 | Units and amounts | `@mark1russell7/quantity` |
-| Quantiles | `@mark1russell7/rigor-statistics` |
+| Quantiles and least squares | `@mark1russell7/rigor-statistics` |
 | Programs and their evaluation | `@mark1russell7/vex` and `@mark1russell7/vex-domains` |
 | A value or an error | `@mark1russell7/optional` |
 | The property tests of the algebra | `@mark1russell7/rigor-testkit` on `fast-check` |

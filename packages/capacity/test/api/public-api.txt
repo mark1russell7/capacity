@@ -8,6 +8,8 @@
 
 type AmountCeiling: build/instance.chunk.d.ts#AmountCeiling
 type Amounts: build/instance.chunk.d.ts#Amounts
+type Binding: build/index.d.ts#Binding
+type CatalogForm: build/index.d.ts#CatalogForm
 type Ceiling: build/instance.chunk.d.ts#Ceiling
 type ConditionValue: build/instance.chunk.d.ts#ConditionValue
 type Constant: build/instance.chunk.d.ts#Constant
@@ -15,9 +17,12 @@ type ConstantInterval: build/index.d.ts#ConstantInterval
 DEFAULT_LEVEL: build/instance.chunk.d.ts#DEFAULT_LEVEL
 type Demand: build/instance.chunk.d.ts#Demand
 type Evidence: build/instance.chunk.d.ts#Evidence
+FORMS: build/index.d.ts#FORMS
+FORM_VARIABLE: build/index.d.ts#FORM_VARIABLE
 type Fit: build/instance.chunk.d.ts#Fit
 type FitError: build/instance.chunk.d.ts#FitError
 type Form: build/instance.chunk.d.ts#Form
+type Grid: build/index.d.ts#Grid
 INSTANCE_FORMAT: build/instance.chunk.d.ts#INSTANCE_FORMAT
 type Instance: build/instance.chunk.d.ts#Instance
 type InstanceProblem: build/instance.chunk.d.ts#InstanceProblem
@@ -43,6 +48,7 @@ NO_DEMAND: build/instance.chunk.d.ts#NO_DEMAND
 type Observation: build/index.d.ts#Observation
 type ObservedClass: build/index.d.ts#ObservedClass
 type PlanSource: build/instance.chunk.d.ts#PlanSource
+type Points: build/index.d.ts#Points
 type Problem: build/instance.chunk.d.ts#Problem
 type ProblemCode: build/instance.chunk.d.ts#ProblemCode
 RATE: build/instance.chunk.d.ts#RATE
@@ -53,7 +59,10 @@ type ResourceCeiling: build/instance.chunk.d.ts#ResourceCeiling
 type Run: build/instance.chunk.d.ts#Run
 SLUG: build/index.d.ts#SLUG
 type Scale: build/instance.chunk.d.ts#Scale
+type Shape: build/index.d.ts#Shape
 type ShareOptions: build/index.d.ts#ShareOptions
+type Start: build/index.d.ts#Start
+type Term: build/index.d.ts#Term
 type Variable: build/instance.chunk.d.ts#Variable
 WORKLOAD_FORMAT: build/instance.chunk.d.ts#WORKLOAD_FORMAT
 type Workload: build/instance.chunk.d.ts#Workload
@@ -62,12 +71,18 @@ type WorkloadName: build/index.d.ts#WorkloadName
 type WorkloadProblem: build/instance.chunk.d.ts#WorkloadProblem
 type WorkloadProblemCode: build/instance.chunk.d.ts#WorkloadProblemCode
 type WorkloadSource: build/instance.chunk.d.ts#WorkloadSource
+catalogForm: build/index.d.ts#catalogForm
 checkInstance: build/index.d.ts#checkInstance
 checkLaw: build/index.d.ts#checkLaw
 checkLimits: build/index.d.ts#checkLimits
 checkWorkload: build/index.d.ts#checkWorkload
+constantIdsOf: build/index.d.ts#constantIdsOf
 constantIntervals: build/index.d.ts#constantIntervals
 demandProblems: build/index.d.ts#demandProblems
+formOf: build/index.d.ts#formOf
+formSlopes: build/index.d.ts#formSlopes
+formValues: build/index.d.ts#formValues
+gridOf: build/index.d.ts#gridOf
 instanceProblems: build/index.d.ts#instanceProblems
 lawValue: build/index.d.ts#lawValue
 leastCount: build/instance.chunk.d.ts#leastCount
@@ -78,8 +93,11 @@ limitUses: build/index.d.ts#limitUses
 loadPointOf: build/index.d.ts#loadPointOf
 mergeDemands: build/index.d.ts#mergeDemands
 observedWorkload: build/index.d.ts#observedWorkload
+programOf: build/index.d.ts#programOf
 scaleDemand: build/index.d.ts#scaleDemand
 shareOf: build/index.d.ts#shareOf
+slopeOf: build/index.d.ts#slopeOf
+startOf: build/index.d.ts#startOf
 totalRate: build/index.d.ts#totalRate
 
 ## ./schema (build/schema.d.ts): names
@@ -96,6 +114,20 @@ workloadSchema: build/schema.d.ts#workloadSchema
 
 ## Declarations
 
+### build/index.d.ts#Binding
+interface Binding {
+  readonly variable: string;
+  readonly constants?: Readonly<Record<string, string>>;
+}
+
+### build/index.d.ts#CatalogForm
+interface CatalogForm {
+  readonly id: string;
+  readonly title: string;
+  readonly terms: readonly Term[];
+  readonly shapes: readonly Shape[];
+}
+
 ### build/index.d.ts#ConstantInterval
 interface ConstantInterval {
   readonly id: string;
@@ -103,6 +135,21 @@ interface ConstantInterval {
   readonly level: number;
   readonly interval: Range;
 }
+
+### build/index.d.ts#FORMS
+export declare const FORMS: readonly CatalogForm[];
+
+### build/index.d.ts#FORM_VARIABLE
+export declare const FORM_VARIABLE = "x";
+
+### build/index.d.ts#Grid
+type Grid = {
+  readonly kind: "inside";
+} | {
+  readonly kind: "scaled";
+  readonly factors: readonly number[];
+  readonly power: number;
+};
 
 ### build/index.d.ts#LawValue
 interface LawValue {
@@ -148,6 +195,12 @@ interface ObservedClass {
   readonly request: Amounts;
 }
 
+### build/index.d.ts#Points
+interface Points {
+  readonly x: readonly number[];
+  readonly y: readonly number[];
+}
+
 ### build/index.d.ts#Range
 interface Range {
   readonly low: number;
@@ -157,9 +210,28 @@ interface Range {
 ### build/index.d.ts#SLUG
 export declare const SLUG: RegExp;
 
+### build/index.d.ts#Shape
+interface Shape {
+  readonly id: string;
+  readonly grid: Grid;
+}
+
 ### build/index.d.ts#ShareOptions
 interface ShareOptions {
   readonly whole?: readonly string[];
+}
+
+### build/index.d.ts#Start
+interface Start {
+  readonly constants: readonly Constant[];
+  readonly rss: number;
+}
+
+### build/index.d.ts#Term
+interface Term {
+  readonly constant: string;
+  readonly basis: Expr;
+  readonly slope: Expr;
 }
 
 ### build/index.d.ts#WorkloadName
@@ -167,6 +239,9 @@ interface WorkloadName {
   readonly id: string;
   readonly title: string;
 }
+
+### build/index.d.ts#catalogForm
+export declare const catalogForm: (id: string) => CatalogForm | undefined;
 
 ### build/index.d.ts#checkInstance
 export declare const checkInstance: (type: InstanceType) => readonly InstanceProblem[];
@@ -180,11 +255,26 @@ export declare const checkLimits: (set: LimitSet) => readonly LimitProblem[];
 ### build/index.d.ts#checkWorkload
 export declare const checkWorkload: (workload: Workload) => readonly WorkloadProblem[];
 
+### build/index.d.ts#constantIdsOf
+export declare const constantIdsOf: (form: CatalogForm) => readonly string[];
+
 ### build/index.d.ts#constantIntervals
 export declare const constantIntervals: (law: Law, options?: LevelOptions) => Result<readonly ConstantInterval[], LawProblem>;
 
 ### build/index.d.ts#demandProblems
 export declare const demandProblems: (demand: Demand) => readonly WorkloadProblem[];
+
+### build/index.d.ts#formOf
+export declare const formOf: (form: CatalogForm, binding: Binding) => Form;
+
+### build/index.d.ts#formSlopes
+export declare const formSlopes: (form: CatalogForm, xs: readonly number[], constants: Readonly<Record<string, number>>) => Result<readonly number[], string>;
+
+### build/index.d.ts#formValues
+export declare const formValues: (form: CatalogForm, xs: readonly number[], constants: Readonly<Record<string, number>>) => Result<readonly number[], string>;
+
+### build/index.d.ts#gridOf
+export declare const gridOf: (grid: Grid, xs: readonly number[]) => readonly number[];
 
 ### build/index.d.ts#instanceProblems
 export declare const instanceProblems: (instance: Instance) => readonly InstanceProblem[];
@@ -213,11 +303,20 @@ export declare const mergeDemands: (first: Demand, second: Demand) => Result<Dem
 ### build/index.d.ts#observedWorkload
 export declare const observedWorkload: (observation: Observation, name: WorkloadName) => Result<Workload, readonly WorkloadProblem[]>;
 
+### build/index.d.ts#programOf
+export declare const programOf: (form: CatalogForm, binding: Binding) => Expr;
+
 ### build/index.d.ts#scaleDemand
 export declare const scaleDemand: (demand: Demand, by: number) => Result<Demand, WorkloadProblem>;
 
 ### build/index.d.ts#shareOf
 export declare const shareOf: (demand: Demand, instances: number, options?: ShareOptions) => Result<Demand, WorkloadProblem>;
+
+### build/index.d.ts#slopeOf
+export declare const slopeOf: (form: CatalogForm, binding: Binding) => Expr;
+
+### build/index.d.ts#startOf
+export declare const startOf: (form: CatalogForm, points: Points) => Result<Start, string>;
 
 ### build/index.d.ts#totalRate
 export declare const totalRate: (demand: Demand, unit: string) => Result<Quantity, WorkloadProblem>;
