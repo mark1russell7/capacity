@@ -46,8 +46,6 @@ export interface Case {
   readonly duration: Quantity;
   /** These options select the arrivals of each stream: in equal steps, or a Poisson process with a seed. */
   readonly arrivals: ScheduleOptions;
-  /** This flag keeps the connections of the driver open between requests. Without it, each request opens a new connection. */
-  readonly keepAlive: boolean;
   /** This count is the runs that the record counts. One warm-up run comes before them. */
   readonly runs: number;
 }
@@ -181,7 +179,6 @@ export const caseProblems = (value: Case): readonly CaseProblem[] => {
     problems.push(problem("duration", "duration", `The duration is not a time above 0 and up to ${MAX_DURATION.value} ${MAX_DURATION.unit}.`));
   }
   problems.push(...arrivalProblems(value.arrivals));
-  if (typeof value.keepAlive !== "boolean") problems.push(problem("shape", "keepAlive", "The flag keepAlive is not true or false."));
   if (!Number.isInteger(value.runs) || value.runs < 1 || value.runs > MAX_RUNS) {
     problems.push(problem("runs", "runs", `The count of runs is not a whole number from 1 to ${MAX_RUNS}.`));
   }

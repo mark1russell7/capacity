@@ -13,7 +13,6 @@ const CASE: Case = {
   },
   duration: { value: 30, unit: "s" },
   arrivals: { arrivals: "poisson", seed: "work-500us" },
-  keepAlive: true,
   runs: 5,
 };
 
@@ -31,7 +30,6 @@ describe("the check of a case", () => {
     expect(codes({ ...CASE, id: "Work 500" })).toEqual(["id id"]);
     expect(codes({ ...CASE, title: " " })).toEqual(["id title"]);
     expect(codes({ ...CASE, subject: "deno-http" })).toEqual(["subject subject"]);
-    expect(codes({ ...CASE, keepAlive: "yes" } as unknown as Case)).toEqual(["shape keepAlive"]);
   });
 
   it("gives the problems of the instance from the capacity package, and the resources that the lab cannot limit", () => {

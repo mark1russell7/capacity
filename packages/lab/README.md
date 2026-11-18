@@ -21,7 +21,6 @@ A case is one measurement as data: a subject, the resources of its container, an
   },
   "duration": { "value": 30, "unit": "s" },
   "arrivals": { "arrivals": "poisson", "seed": "work-500us" },
-  "keepAlive": true,
   "runs": 5
 }
 ```
@@ -35,7 +34,6 @@ The case uses the records of `@mark1russell7/capacity`. Thus a measurement and a
 | `demand` | A demand of `@mark1russell7/capacity`. Each class is one stream of the driver, at the rate of the class. |
 | `duration` | The time of the schedule of each run, up to 600 s. |
 | `arrivals` | The arrivals of each stream: `uniform`, or `poisson` with a seed. They are the options of a schedule of `@mark1russell7/rigor-chaos`. |
-| `keepAlive` | With `true`, the driver keeps its connections open between requests. With `false`, each request opens a new connection. |
 | `runs` | The count of the runs that the record counts, from 1 to 20. One warm-up run comes before them. |
 
 - **The variables of a request** are the fields of a request class. Each amount converts to the unit of its field, and it is a whole number in that unit. Thus `0.5 ms` of `work` is `500 us`. A field that the request does not name is 0. `requestClassOf` gives the request class.
@@ -44,7 +42,10 @@ The case uses the records of `@mark1russell7/capacity`. Thus a measurement and a
   - The lab limits the CPU and the memory of a container, and not the network. An instance with `network` is a problem.
   - The driver holds no open connection with no request. A level `connections` is a problem.
   - Each class has a rate above 0.
-
+- **The connections of a class.** The driver of the harness keeps one connection for each stream, and it sends each request at its time. It does not wait for the reply before the next request (HTTP pipelining).
+  - Node reads the requests of one connection one at a time. Thus the requests of a class with a `wait` stay in a queue on the connection, and its latency includes that queue.
+  - A request of a pipeline can come in one read with other requests. Thus its CPU cost can be less than the cost of a request of a real client. A real client sends one request at a time on each connection.
+  - A pool of connections for each stream, and a new connection for each request, are a gap of the driver. A case cannot select them yet.
 ## The request classes
 
 A request class is the work that one request asks of a synthetic subject. Each field is one load variable, thus a law can move one variable alone.
