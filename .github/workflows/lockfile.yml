@@ -18,6 +18,6 @@ concurrency:
 
 jobs:
   lockfile:
-    uses: mark1russell7/template/.github/workflows/reusable-lockfile.yml@f9506b77817778609b50a32a43f63b41f9360172 # main
+    uses: mark1russell7/template/.github/workflows/reusable-lockfile.yml@e29ffc12fba84fe75b1516ce25f8f8908243e723 # main
     permissions:
       contents: read
