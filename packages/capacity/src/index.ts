@@ -3,7 +3,8 @@
  * of one request, as a function of its load variables. A workload gives the load: the classes of
  * requests with their rates. The package examines a law and a workload, and it gives the value of
  * a law at a load point, with an interval. The catalog of forms gives the math of a law as data,
- * with its slope and the start values of its fit.
+ * with its slope and the start values of its fit. The knee of a law is the first load where its
+ * cost starts to grow fast. Its edge is the first load with no value.
  *
  * An instance type gives the resources of one copy of a service. A limit is a ceiling on one
  * measure, with headroom. The package gives the share of each limit that a value takes.
@@ -47,6 +48,8 @@ export {
 } from "./forms.ts";
 export type { ConstantInterval, LawValue, LevelOptions, LoadPoint, Range } from "./value.ts";
 export { constantIntervals, lawValue } from "./value.ts";
+export type { Crossing, Knee, KneeOptions, KneeRule, OpenRange } from "./knee.ts";
+export { KNEE_STEPS, lawKnee } from "./knee.ts";
 export type {
   Amounts,
   Demand,
