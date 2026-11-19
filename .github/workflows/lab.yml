@@ -8,7 +8,7 @@
 #
 # A pull request that changes the lab, the records of the model, the lockfile or this file starts it. Start it by hand with:
 #   gh workflow run lab.yml -R mark1russell7/capacity --ref <branch>
-# A limit of the control takes the worst of 5 or more runs. Start 5 runs at once, each on its own runner, with:
+# A limit of the control takes the worst of 5 or more runs. Start 5 runs, each on its own runner, 3 at once, with:
 #   gh workflow run lab.yml -R mark1russell7/capacity --ref <branch> -f runs='[1,2,3,4,5]'
 name: Lab
 
@@ -64,6 +64,8 @@ jobs:
     strategy:
       # each run gives its records, also when another run fails
       fail-fast: false
+      # the convention of the shared runners: at most 3 jobs of a matrix at once
+      max-parallel: 3
       matrix:
         run: ${{ fromJSON(inputs.runs || '[1]') }}
     # the subject has CPU 0, and the driver and the reader have CPUs 1 to 3: this runner has 4 CPUs
