@@ -1,8 +1,8 @@
 # @capacity/lab
 
-This package has the subjects of the measurement: the programs that a run measures, and the request classes that a run sends to them. It also has the cases: each case is one measurement as data. The cell of a case operates it in the lab of `@mark1russell7/harness`, and the record keeps its measures.
+This package has the subjects of the measurement: the programs that a run measures, and the request classes that a run sends to them. It also has the cases: each case is one measurement as data. The cell of a case operates it in the lab of `@mark1russell7/harness`, and the record keeps its measures. A plan is a set of cases that one CI job measures, with the check of their records.
 
-**State: CAP-18 and CAP-10 of the [roadmap](../../docs/ROADMAP.md).** The package has the bare subject of layer 1, the case record, the cell of a case and the record of its measures. The package is private: it is a tool of this repository.
+**State: CAP-18, CAP-10 and CAP-16 of the [roadmap](../../docs/ROADMAP.md).** The package has the bare subject of layer 1, the case record, the cell of a case and the record of its measures. It also has the plans and the timed runs. The package is private: it is a tool of this repository.
 
 ## The cases
 
@@ -92,11 +92,29 @@ The measures of the driver are also in `classes`, for each class of the demand.
 - **The idle cost** of the subject is in each measure of a run. The idle base and the noise of two equal runs are CAP-19.
 - **The lag of the driver** has no limit in the record. CAP-19 sets the limit from 5 or more runs in CI.
 
+## The plans
+
+A plan is a set of cases that one CI job measures on one runner, and the check of their records. A plan file is this record as JSON, with the format `capacity-plan/1`, in the folder `plans`. The name of the file is the id of the plan.
+
+| Field | What it is |
+| --- | --- |
+| `id` | Lower-case words joined by `-`. It is a part of the name of the artifact of each run. |
+| `check` | The name of a check of `CHECKS`, or `null`. The check judges the records of the plan. |
+| `triggers` | The events that start the plan with no selection by hand: `pull_request` and `schedule`. A person can start each plan by its id. |
+| `cases` | The cases of the plan, each a case record. The ids of the cases are different. |
+
+- **One runner for each plan.** The cases of a plan share one runner, thus one CPU model. Thus a check can compare two cases, and the points of a law come from one machine.
+- **The check.** `planProblems` gives each problem of a plan. It examines each case with `caseProblems`. `readPlans` reads each plan file of a folder, and the id of each plan must be the name of its file.
+- **The time of a job.** `planMinutes` gives the time limit of the job of a plan. It is `SETUP_MINUTES` and the window of each run of each case, with the warm-up runs. A plan that needs more than 360 minutes is a problem. Put some of its cases in a second plan.
+
 ### The positive control
 
-`src/measure.lab.test.ts` measures two cases. The second case adds 1 ms of CPU work, a reply of 16 KiB and a live heap of 64 MiB to each request. The medians of the records must show each cost in its own measure:
+The plan `control` has two cases. The case `control/more` adds 1 ms of CPU work, a reply of 16 KiB and a live heap of 64 MiB to each request of `control/base`. The check `control` (`controlCheck`) gives the problems of the records:
 
-| Measure | The limits of the test | The 6 runs |
+- Each run must answer each planned request, with no failure and no unfinished request.
+- The medians of the records must show each cost in its own measure, inside the limits of `CONTROL_LIMITS`:
+
+| Measure | The limits of the check | The 6 runs |
 | --- | --- | --- |
 | The change of `cpu.request` | 0.956 to 1.059 ms | 0.990 to 1.024 ms |
 | The change of `network.tx.request` | 16388 to 16389 B | 16388.198 B in each run |
@@ -105,7 +123,45 @@ The measures of the driver are also in `classes`, for each class of the demand.
 
 Each limit is the worst of the runs, less or plus the spread of the runs, rounded outward. The runs are 44448319523 and the 5 runs of 44449842625, on two CPU models. A run outside a limit is a question about the measure first.
 
-The test needs Docker. It operates only with `CAPACITY_LAB=1`, in the workflow `lab.yml`. The artifact `lab-records-<run>` of each run keeps its records.
+The check is a function of the records, with no Docker. Thus a test examines it with the two records of the Lab run 44453927945, in `test/fixtures`.
+
+## The timed runs
+
+A timed run is one job of the workflow `lab.yml`: it measures one plan on one runner of GitHub. Only CI starts a timed run, because the lab needs Docker and a machine with no other load.
+
+| Event | The plans |
+| --- | --- |
+| The schedule, each night at 06:22 UTC | Each plan with the trigger `schedule` |
+| A pull request that changes the lab, the model, the lockfile or the workflow | Each plan with the trigger `pull_request` |
+| A push of such a change to `main` | Each plan with the trigger `pull_request` |
+| A dispatch by hand, with the input `plans` | The plans of the input. With no input, each plan with the trigger `pull_request`. |
+
+The input `runs` of a dispatch is a JSON list of numbers. Each run of each plan is a job on its own runner, thus a limit can take the worst of many runners. For example, 5 runs of the plan `control`:
+
+```sh
+gh workflow run lab.yml -R mark1russell7/capacity --ref <branch> -f plans=control -f runs='[1,2,3,4,5]'
+```
+
+The workflow has three steps:
+
+1. The job `plan` reads and examines each plan file. Then `selectPlans` gives the plans of the event, and `matrixOf` gives one job for each run of each plan. A plan with a problem, an unknown id and a selection with no plan stop the workflow.
+2. Each job measures its plan with `timePlan`: each case with `measureCase`, then the check of the plan with `verdictOf`. A verdict with a problem fails the job. The summary of the job has the CPU model, each value of the check and each problem.
+3. Each job uploads its folder as the artifact `lab-<plan>-<run>-<attempt>`.
+
+### The folder of a run
+
+| File | What it is |
+| --- | --- |
+| `<case>.record.json` | The record of each case, with the format `capacity-record/1`. The id of the case has `-` for each `/`. |
+| `<case>.result.json` | The raw result of the cell of each case. A later analysis can judge it again. |
+| `timed.json` | The manifest of the run, with the format `capacity-timed/1`. |
+
+The manifest has the plan, the CI run and its `attempt`. It also has the machine of the first record, the times, the files of each case and the verdict. The CI run (`runOf`) has the form of a run of the evidence of a law: its address, its commit and its UTC time. Thus a law file gets its evidence from the manifest (CAP-17).
+
+- **The CPU model** of a run is `machine.cpu` of the manifest and of each record. The summary of the job also tells it.
+- **The commit** of a pull request is the merge commit, because the job measures the code of that commit.
+- **A case that throws** stops the plan with no manifest. The files of the cases before it stay in the artifact.
+- **The command.** `node src/timed.main.ts plan --event <event>` gives the matrix as JSON, with no Docker. `node src/timed.main.ts measure --plan <id> --out <folder>` measures a plan. Only CI starts `measure`.
 
 ## The request classes
 

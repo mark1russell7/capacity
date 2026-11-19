@@ -1,0 +1,495 @@
+{
+  "format": "capacity-record/1",
+  "case": {
+    "format": "capacity-case/1",
+    "id": "control/more",
+    "title": "1 ms of work, a reply of 16 KiB and 64 MiB of heap",
+    "subject": "node-http",
+    "instance": {
+      "resources": {
+        "cpu": {
+          "value": 1,
+          "unit": "{core}"
+        },
+        "memory": {
+          "value": 512,
+          "unit": "MiB"
+        }
+      }
+    },
+    "demand": {
+      "classes": [
+        {
+          "id": "control",
+          "rate": {
+            "value": 100,
+            "unit": "{request}/s"
+          },
+          "request": {
+            "work": {
+              "value": 1,
+              "unit": "ms"
+            },
+            "reply": {
+              "value": 16384,
+              "unit": "B"
+            }
+          }
+        }
+      ],
+      "levels": {
+        "heap": {
+          "value": 67108864,
+          "unit": "B"
+        }
+      }
+    },
+    "duration": {
+      "value": 10,
+      "unit": "s"
+    },
+    "arrivals": {
+      "arrivals": "uniform"
+    },
+    "runs": 3
+  },
+  "machine": {
+    "cpu": "Intel(R) Xeon(R) 6975P-C",
+    "cores": 4,
+    "runner": "GitHub Actions 1000439372",
+    "kernel": "7.0.0-1014-aws",
+    "architecture": "x86_64",
+    "docker": "28.0.4 on Ubuntu 24.04.5 LTS",
+    "harness": "0.16.18"
+  },
+  "at": {
+    "started": "2026-11-19T03:51:21.578Z",
+    "ended": "2026-11-19T03:52:09.949Z"
+  },
+  "warmups": 1,
+  "runs": [
+    {
+      "environment": 0,
+      "index": 0,
+      "measures": {
+        "elapsed": {
+          "value": 10.289367735,
+          "unit": "s"
+        },
+        "cpu": {
+          "value": 1.241765,
+          "unit": "{core}·s"
+        },
+        "cpu.user": {
+          "value": 1.233953,
+          "unit": "{core}·s"
+        },
+        "cpu.system": {
+          "value": 0.007813,
+          "unit": "{core}·s"
+        },
+        "cpu.throttled": {
+          "value": 0,
+          "unit": "s"
+        },
+        "cpu.request": {
+          "value": 1.241765,
+          "unit": "{core}·ms/{request}"
+        },
+        "memory": {
+          "value": 101281792,
+          "unit": "B"
+        },
+        "memory.peak": null,
+        "memory.high": {
+          "value": 102146048,
+          "unit": "B"
+        },
+        "network.rx": {
+          "value": 194264,
+          "unit": "B"
+        },
+        "network.tx": {
+          "value": 16553330,
+          "unit": "B"
+        },
+        "network.rx.request": {
+          "value": 194.264,
+          "unit": "B/{request}"
+        },
+        "network.tx.request": {
+          "value": 16553.33,
+          "unit": "B/{request}"
+        },
+        "planned": {
+          "value": 1000,
+          "unit": "{request}"
+        },
+        "answered": {
+          "value": 1000,
+          "unit": "{request}"
+        },
+        "failed": {
+          "value": 0,
+          "unit": "{request}"
+        },
+        "unsent": {
+          "value": 0,
+          "unit": "{request}"
+        },
+        "unfinished": {
+          "value": 0,
+          "unit": "{request}"
+        },
+        "latency.p50": {
+          "value": 1.3707210000000032,
+          "unit": "ms"
+        },
+        "latency.p90": {
+          "value": 1.4331789999996545,
+          "unit": "ms"
+        },
+        "latency.p99": {
+          "value": 1.94381199999998,
+          "unit": "ms"
+        },
+        "latency.max": {
+          "value": 3.94169200000033,
+          "unit": "ms"
+        },
+        "lag.max": {
+          "value": 0.15386299999954645,
+          "unit": "ms"
+        }
+      },
+      "classes": {
+        "control": {
+          "planned": {
+            "value": 1000,
+            "unit": "{request}"
+          },
+          "answered": {
+            "value": 1000,
+            "unit": "{request}"
+          },
+          "failed": {
+            "value": 0,
+            "unit": "{request}"
+          },
+          "unsent": {
+            "value": 0,
+            "unit": "{request}"
+          },
+          "unfinished": {
+            "value": 0,
+            "unit": "{request}"
+          },
+          "latency.p50": {
+            "value": 1.3707210000000032,
+            "unit": "ms"
+          },
+          "latency.p90": {
+            "value": 1.4331789999996545,
+            "unit": "ms"
+          },
+          "latency.p99": {
+            "value": 1.94381199999998,
+            "unit": "ms"
+          },
+          "latency.max": {
+            "value": 3.94169200000033,
+            "unit": "ms"
+          },
+          "lag.max": {
+            "value": 0.15386299999954645,
+            "unit": "ms"
+          }
+        }
+      },
+      "resets": [],
+      "missing": null
+    },
+    {
+      "environment": 0,
+      "index": 1,
+      "measures": {
+        "elapsed": {
+          "value": 10.29166111,
+          "unit": "s"
+        },
+        "cpu": {
+          "value": 1.188039,
+          "unit": "{core}·s"
+        },
+        "cpu.user": {
+          "value": 1.184639,
+          "unit": "{core}·s"
+        },
+        "cpu.system": {
+          "value": 0.0034,
+          "unit": "{core}·s"
+        },
+        "cpu.throttled": {
+          "value": 0,
+          "unit": "s"
+        },
+        "cpu.request": {
+          "value": 1.188039,
+          "unit": "{core}·ms/{request}"
+        },
+        "memory": {
+          "value": 101490688,
+          "unit": "B"
+        },
+        "memory.peak": null,
+        "memory.high": {
+          "value": 102158336,
+          "unit": "B"
+        },
+        "network.rx": {
+          "value": 194400,
+          "unit": "B"
+        },
+        "network.tx": {
+          "value": 16553330,
+          "unit": "B"
+        },
+        "network.rx.request": {
+          "value": 194.4,
+          "unit": "B/{request}"
+        },
+        "network.tx.request": {
+          "value": 16553.33,
+          "unit": "B/{request}"
+        },
+        "planned": {
+          "value": 1000,
+          "unit": "{request}"
+        },
+        "answered": {
+          "value": 1000,
+          "unit": "{request}"
+        },
+        "failed": {
+          "value": 0,
+          "unit": "{request}"
+        },
+        "unsent": {
+          "value": 0,
+          "unit": "{request}"
+        },
+        "unfinished": {
+          "value": 0,
+          "unit": "{request}"
+        },
+        "latency.p50": {
+          "value": 1.308021999999255,
+          "unit": "ms"
+        },
+        "latency.p90": {
+          "value": 1.3762480000000323,
+          "unit": "ms"
+        },
+        "latency.p99": {
+          "value": 1.5268050000004223,
+          "unit": "ms"
+        },
+        "latency.max": {
+          "value": 4.051166000000194,
+          "unit": "ms"
+        },
+        "lag.max": {
+          "value": 0.17277500000000146,
+          "unit": "ms"
+        }
+      },
+      "classes": {
+        "control": {
+          "planned": {
+            "value": 1000,
+            "unit": "{request}"
+          },
+          "answered": {
+            "value": 1000,
+            "unit": "{request}"
+          },
+          "failed": {
+            "value": 0,
+            "unit": "{request}"
+          },
+          "unsent": {
+            "value": 0,
+            "unit": "{request}"
+          },
+          "unfinished": {
+            "value": 0,
+            "unit": "{request}"
+          },
+          "latency.p50": {
+            "value": 1.308021999999255,
+            "unit": "ms"
+          },
+          "latency.p90": {
+            "value": 1.3762480000000323,
+            "unit": "ms"
+          },
+          "latency.p99": {
+            "value": 1.5268050000004223,
+            "unit": "ms"
+          },
+          "latency.max": {
+            "value": 4.051166000000194,
+            "unit": "ms"
+          },
+          "lag.max": {
+            "value": 0.17277500000000146,
+            "unit": "ms"
+          }
+        }
+      },
+      "resets": [],
+      "missing": null
+    },
+    {
+      "environment": 0,
+      "index": 2,
+      "measures": {
+        "elapsed": {
+          "value": 10.289066641,
+          "unit": "s"
+        },
+        "cpu": {
+          "value": 1.176403,
+          "unit": "{core}·s"
+        },
+        "cpu.user": {
+          "value": 1.169499,
+          "unit": "{core}·s"
+        },
+        "cpu.system": {
+          "value": 0.006904,
+          "unit": "{core}·s"
+        },
+        "cpu.throttled": {
+          "value": 0,
+          "unit": "s"
+        },
+        "cpu.request": {
+          "value": 1.176403,
+          "unit": "{core}·ms/{request}"
+        },
+        "memory": {
+          "value": 101335040,
+          "unit": "B"
+        },
+        "memory.peak": null,
+        "memory.high": {
+          "value": 102215680,
+          "unit": "B"
+        },
+        "network.rx": {
+          "value": 194198,
+          "unit": "B"
+        },
+        "network.tx": {
+          "value": 16553330,
+          "unit": "B"
+        },
+        "network.rx.request": {
+          "value": 194.198,
+          "unit": "B/{request}"
+        },
+        "network.tx.request": {
+          "value": 16553.33,
+          "unit": "B/{request}"
+        },
+        "planned": {
+          "value": 1000,
+          "unit": "{request}"
+        },
+        "answered": {
+          "value": 1000,
+          "unit": "{request}"
+        },
+        "failed": {
+          "value": 0,
+          "unit": "{request}"
+        },
+        "unsent": {
+          "value": 0,
+          "unit": "{request}"
+        },
+        "unfinished": {
+          "value": 0,
+          "unit": "{request}"
+        },
+        "latency.p50": {
+          "value": 1.3621969999999237,
+          "unit": "ms"
+        },
+        "latency.p90": {
+          "value": 1.4481450000002951,
+          "unit": "ms"
+        },
+        "latency.p99": {
+          "value": 1.5000989999998637,
+          "unit": "ms"
+        },
+        "latency.max": {
+          "value": 4.019698000000062,
+          "unit": "ms"
+        },
+        "lag.max": {
+          "value": 0.21123699999952805,
+          "unit": "ms"
+        }
+      },
+      "classes": {
+        "control": {
+          "planned": {
+            "value": 1000,
+            "unit": "{request}"
+          },
+          "answered": {
+            "value": 1000,
+            "unit": "{request}"
+          },
+          "failed": {
+            "value": 0,
+            "unit": "{request}"
+          },
+          "unsent": {
+            "value": 0,
+            "unit": "{request}"
+          },
+          "unfinished": {
+            "value": 0,
+            "unit": "{request}"
+          },
+          "latency.p50": {
+            "value": 1.3621969999999237,
+            "unit": "ms"
+          },
+          "latency.p90": {
+            "value": 1.4481450000002951,
+            "unit": "ms"
+          },
+          "latency.p99": {
+            "value": 1.5000989999998637,
+            "unit": "ms"
+          },
+          "latency.max": {
+            "value": 4.019698000000062,
+            "unit": "ms"
+          },
+          "lag.max": {
+            "value": 0.21123699999952805,
+            "unit": "ms"
+          }
+        }
+      },
+      "resets": [],
+      "missing": null
+    }
+  ]
+}

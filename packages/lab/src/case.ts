@@ -1,4 +1,5 @@
 import { SLUG, demandProblems, instanceProblems, type Amounts, type Demand, type Instance, type Problem } from "@mark1russell7/capacity";
+import { isRecord } from "@mark1russell7/optional/read";
 import { convertible, isQuantity, kindOf, valueIn, type Quantity } from "@mark1russell7/quantity";
 import type { ScheduleOptions } from "@mark1russell7/rigor-chaos";
 import { FIELDS, LIMITS, UNITS, type Field, type RequestClass } from "./subject/class.ts";
@@ -73,9 +74,6 @@ export type CaseProblem = Problem<CaseProblemCode>;
 const problem = (code: CaseProblemCode, path: string, message: string): CaseProblem => ({ code, path, message });
 
 const isField = (name: string): name is Field => (FIELDS as readonly string[]).includes(name);
-
-const isRecord = (value: unknown): value is Readonly<Record<string, unknown>> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
 
 /**
  * This function gives an amount as a whole number in a unit, or undefined. The factor of a
