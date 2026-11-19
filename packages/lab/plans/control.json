@@ -1,0 +1,43 @@
+{
+  "format": "capacity-plan/1",
+  "id": "control",
+  "title": "The positive control of the lab: two cases that differ by known costs",
+  "check": "control",
+  "triggers": ["pull_request", "schedule"],
+  "cases": [
+    {
+      "format": "capacity-case/1",
+      "id": "control/base",
+      "title": "No work, no reply and no heap",
+      "subject": "node-http",
+      "instance": { "resources": { "cpu": { "value": 1, "unit": "{core}" }, "memory": { "value": 512, "unit": "MiB" } } },
+      "demand": {
+        "classes": [{ "id": "control", "rate": { "value": 100, "unit": "{request}/s" }, "request": {} }],
+        "levels": {}
+      },
+      "duration": { "value": 10, "unit": "s" },
+      "arrivals": { "arrivals": "uniform" },
+      "runs": 3
+    },
+    {
+      "format": "capacity-case/1",
+      "id": "control/more",
+      "title": "1 ms of work, a reply of 16 KiB and 64 MiB of heap",
+      "subject": "node-http",
+      "instance": { "resources": { "cpu": { "value": 1, "unit": "{core}" }, "memory": { "value": 512, "unit": "MiB" } } },
+      "demand": {
+        "classes": [
+          {
+            "id": "control",
+            "rate": { "value": 100, "unit": "{request}/s" },
+            "request": { "work": { "value": 1, "unit": "ms" }, "reply": { "value": 16384, "unit": "B" } }
+          }
+        ],
+        "levels": { "heap": { "value": 67108864, "unit": "B" } }
+      },
+      "duration": { "value": 10, "unit": "s" },
+      "arrivals": { "arrivals": "uniform" },
+      "runs": 3
+    }
+  ]
+}

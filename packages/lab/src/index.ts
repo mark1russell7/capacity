@@ -2,6 +2,7 @@
  * This package has the subjects of the measurement: the programs that a run measures, and the
  * request classes that a run sends to them. It also has the cases: each case is one measurement as
  * data. The cell of a case operates it in the lab of `@mark1russell7/harness`, and the record keeps its measures.
+ * A plan is a set of cases that one CI job measures, and the check of their records.
  *
  * @packageDocumentation
  */
@@ -53,3 +54,38 @@ export {
   type RunRecord,
 } from "./record.ts";
 export { measureCase, type MeasureOptions, type Measurement } from "./measure.ts";
+export { CHECKS, recordProblems, verdictOf, type Check, type CheckProblem, type CheckProblemCode, type Verdict } from "./check.ts";
+export { CONTROL_CASES, CONTROL_LIMITS, controlCheck, type ControlValue, type Limit } from "./control.ts";
+export {
+  MAX_JOB_MINUTES,
+  MAX_JOBS,
+  PLAN_FORMAT,
+  PLAN_ID,
+  PLAN_TRIGGERS,
+  SETUP_MINUTES,
+  matrixOf,
+  planMinutes,
+  planProblems,
+  readPlans,
+  selectPlans,
+  type MatrixEntry,
+  type Plan,
+  type PlanFiles,
+  type PlanProblem,
+  type PlanProblemCode,
+  type PlanTrigger,
+  type Selection,
+} from "./plan.ts";
+export {
+  MANIFEST,
+  TIMED_FORMAT,
+  filesOf,
+  runOf,
+  summaryOf,
+  timePlan,
+  utcOf,
+  type Environment,
+  type TimeOptions,
+  type Timed,
+  type TimedFiles,
+} from "./timed.ts";
