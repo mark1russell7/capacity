@@ -96,13 +96,16 @@ The measures of the driver are also in `classes`, for each class of the demand.
 
 `src/measure.lab.test.ts` measures two cases. The second case adds 1 ms of CPU work, a reply of 16 KiB and a live heap of 64 MiB to each request. The medians of the records must show each cost in its own measure:
 
-| Measure | The change that the test expects |
-| --- | --- |
-| `cpu.request` | 0.95 to 1.30 ms |
-| `network.tx.request` | 16 KiB to 1.08 times 16 KiB |
-| `memory` | 0.95 to 2 times 64 MiB |
+| Measure | The limits of the test | The 6 runs |
+| --- | --- | --- |
+| The change of `cpu.request` | 0.956 to 1.059 ms | 0.990 to 1.024 ms |
+| The change of `network.tx.request` | 16388 to 16389 B | 16388.198 B in each run |
+| The change of `memory` | 61288448 to 74473472 B | 65683456 to 70078464 B |
+| `latency.p50` of the second case | 1.08 to 1.50 ms | 1.224 to 1.360 ms |
 
-The test needs Docker. It operates only with `CAPACITY_LAB=1`, in the workflow `lab.yml`, and the artifact `lab-records` keeps each record.
+Each limit is the worst of the runs, less or plus the spread of the runs, rounded outward. The runs are 44448319523 and the 5 runs of 44449842625, on two CPU models. A run outside a limit is a question about the measure first.
+
+The test needs Docker. It operates only with `CAPACITY_LAB=1`, in the workflow `lab.yml`. The artifact `lab-records-<run>` of each run keeps its records.
 
 ## The request classes
 

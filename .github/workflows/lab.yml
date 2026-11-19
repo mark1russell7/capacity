@@ -1,6 +1,6 @@
 # Starts the positive control of the lab (CAPACITY_LAB=1) on GitHub's runners. The test measures two cases of the bare subject
 # in the lab of @mark1russell7/harness. The second case adds 1 ms of CPU work, a reply of 16 KiB and a live heap of 64 MiB to
-# each request. The records must show each cost in its own measure, inside its tolerance. The lab needs Docker and
+# each request. The records must show each cost in its own measure, inside its limits. The lab needs Docker and
 # privileged containers. Thus the control operates only here.
 #
 # The job builds the image of the harness from the installed package, runs packages/lab/src/measure.lab.test.ts, and
