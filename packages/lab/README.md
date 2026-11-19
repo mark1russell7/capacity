@@ -2,7 +2,7 @@
 
 This package has the subjects of the measurement: the programs that a run measures, and the request classes that a run sends to them. It also has the cases: each case is one measurement as data. The cell of a case operates it in the lab of `@mark1russell7/harness`, and the record keeps its measures. A plan is a set of cases that one CI job measures, with the check of their records.
 
-**State: CAP-18, CAP-10 and CAP-16 of the [roadmap](../../docs/ROADMAP.md).** The package has the bare subject of layer 1, the case record, the cell of a case and the record of its measures. It also has the plans and the timed runs. The package is private: it is a tool of this repository.
+**State: CAP-18, CAP-10, CAP-16 and CAP-19 of the [roadmap](../../docs/ROADMAP.md).** The package has the bare subject of layer 1, the case record, the cell of a case and the record of its measures. It also has the plans, the timed runs and the noise floor of each measure. The package is private: it is a tool of this repository.
 
 ## The cases
 
@@ -89,8 +89,8 @@ Each run record has the measures of the container and the measures of the driver
 The measures of the driver are also in `classes`, for each class of the demand.
 
 - **An unfinished request** counts at its age at the end. Thus a quantile of a run with an unfinished request is a low bound. The CPU time of an unfinished request counts, thus `cpu.request` of such a run is too high.
-- **The idle cost** of the subject is in each measure of a run. The idle base and the noise of two equal runs are CAP-19.
-- **The lag of the driver** has no limit in the record. CAP-19 sets the limit from 5 or more runs in CI.
+- **The idle cost** of the subject is in each measure of a run. A run of an idle subject needs a hold with no load in the harness. Thus the idle base is CAP-48.
+- **The lag of the driver** has no limit in the record. The checks `control` and `floor` give a limit at their light load: `LAG_LIMIT`.
 
 ## The plans
 
@@ -112,6 +112,7 @@ A plan is a set of cases that one CI job measures on one runner, and the check o
 The plan `control` has two cases. The case `control/more` adds 1 ms of CPU work, a reply of 16 KiB and a live heap of 64 MiB to each request of `control/base`. The check `control` (`controlCheck`) gives the problems of the records:
 
 - Each run must answer each planned request, with no failure and no unfinished request.
+- The driver of each run must have a lag of `LAG_LIMIT` or less.
 - The medians of the records must show each cost in its own measure, inside the limits of `CONTROL_LIMITS`:
 
 | Measure | The limits of the check | The 6 runs |
@@ -124,6 +125,26 @@ The plan `control` has two cases. The case `control/more` adds 1 ms of CPU work,
 Each limit is the worst of the runs, less or plus the spread of the runs, rounded outward. The runs are 44448319523 and the 5 runs of 44449842625, on two CPU models. A run outside a limit is a question about the measure first.
 
 The check is a function of the records, with no Docker. Thus a test examines it with the two records of the Lab run 44453927945, in `test/fixtures`.
+
+### The noise floor
+
+The plan `floor` has 5 A/A pairs. The two cases of a pair are equal: each one is a copy of `control/base`, in its own container. Thus each difference between the cases of a pair is noise. The check `floor` (`floorCheck`) gives these values for each measure of `FLOOR_MEASURES`:
+
+| Value | What it is |
+| --- | --- |
+| `<measure>.floor` | The noise floor: 2 standard deviations of the 5 differences. A difference is the median of the case b less the median of the case a. |
+| `<measure>.level` | The median of the medians of the 10 cases: the level of the measure at this load. |
+| `<measure>.bias` | The mean of the 5 differences. The case a always runs first, thus a bias far from 0 is an effect of the order. |
+| `lag.max.worst` | The largest lag of the driver in a run. |
+
+- Each run must answer each planned request, with no failure and no unfinished request. The driver of each run must have a lag of `LAG_LIMIT` or less.
+- Each floor must be `FLOOR_LIMITS` or less. A larger floor tells that the runners became noisier.
+- The bias is information, not a limit.
+- A law keeps the floor of its measure in its field `noise`, with the CPU model and the runs. A difference below the floor is not a result.
+
+The floor holds for the load of `control/base` and for the cases of one job on one runner. Two runners can have more noise than the cases of one job. The gate of the laws (CAP-26) compares runs on two runners, thus it measures that noise too. CAP-27 gives a factor for each CPU model.
+
+The plan runs each night, not on each pull request. Its time limit is 54 minutes, and the floor is a property of the runners, not of the code. A test examines the check with records, with no Docker.
 
 ## The timed runs
 

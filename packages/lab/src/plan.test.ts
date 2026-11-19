@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 import { CASE_FORMAT, type Case } from "./case.ts";
 import { CONTROL_CASES } from "./control.ts";
+import { FLOOR_PAIRS, floorPair } from "./floor.ts";
 import { MAX_JOB_MINUTES, MAX_JOBS, PLAN_FORMAT, SETUP_MINUTES, matrixOf, planMinutes, planProblems, readPlans, selectPlans, type Plan } from "./plan.ts";
 
 const PLANS = fileURLToPath(new URL("../plans/", import.meta.url));
@@ -40,6 +41,19 @@ describe("the plan files of the lab", () => {
     expect(control?.cases.map((each) => each.id)).toEqual([CONTROL_CASES.base, CONTROL_CASES.more]);
     // each case: 4 runs with the warm-up, each run in a window of 2 x 10 s and a drain of 30 s
     expect(planMinutes(control!)).toBe(SETUP_MINUTES + Math.ceil((2 * 4 * 50) / 60));
+  });
+
+  it("have the plan of the noise floor, with its check and its A/A pairs of the case control/base, each night", () => {
+    const { plans } = readPlans(PLANS);
+    const floor = plans.find((each) => each.id === "floor");
+    const base = plans.find((each) => each.id === "control")?.cases.find((each) => each.id === CONTROL_CASES.base);
+    expect(floor?.check).toBe("floor");
+    expect(floor?.triggers).toEqual(["schedule"]);
+    const ids = Array.from({ length: FLOOR_PAIRS }, (_, index) => floorPair(index + 1)).flatMap((pair) => [pair.a, pair.b]);
+    expect(floor?.cases.map((each) => each.id)).toEqual(ids);
+    for (const each of floor?.cases ?? []) expect({ ...each, id: base?.id, title: base?.title }).toEqual(base);
+    // 10 cases: each one 4 runs with the warm-up, each run in a window of 2 x 10 s and a drain of 30 s
+    expect(planMinutes(floor!)).toBe(SETUP_MINUTES + Math.ceil((10 * 4 * 50) / 60));
   });
 });
 
