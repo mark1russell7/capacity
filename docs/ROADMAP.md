@@ -75,15 +75,15 @@ The other laws of layer 1 and the laws of layer 2 follow. They tell where the co
 
 | ID | Item | Status | Priority | Size | Needs | Summary |
 | --- | --- | --- | --- | --- | --- | --- |
-| CAP-10 | The measurement cell | active | P0 | L | CAP-11, CAP-18 | One case is a subject in a container with a CPU limit and a memory limit, and the open-loop driver of `@mark1russell7/harness` on other cores. The cell gives one record with each measure. |
+| CAP-10 | The measurement cell | blocked | P0 | L | CAP-11, CAP-18 | One case is a subject in a container with a CPU limit and a memory limit, and the open-loop driver of `@mark1russell7/harness` on other cores. The cell gives one record with each measure. |
 | CAP-11 | Resource readings of a lab container | active | P0 | M |  | The lab reads the CPU time, the memory and the network bytes of a container from its control group, on the clock of the lab. The change is a pull request to `@mark1russell7/harness`, the home of the labs. |
-| CAP-12 | Event-loop lag of a Node process | later | P1 | S |  | `@mark1russell7/lag` gets an entry for Node: the delay of the event loop as a histogram, and the utilization of the loop. The change is a pull request to its home. |
+| CAP-12 | Event-loop lag of a Node process | later | P1 | S |  | `@mark1russell7/lag` gets an entry for Node: the delay of the event loop as a histogram, and the busy part of the loop (`eventLoopUtilization`). The change is a pull request to its home. |
 | CAP-13 | Records with many measures in the bench harness | later | P1 | M |  | `@mark1russell7/rigor-bench` records many measures for each case, not only a time. A/A pairs give the noise floor of each measure. Readings of a Node process give its CPU time, its heap and its garbage collection time. |
 | CAP-14 | Fits of law forms and knees | later | P1 | M |  | `@mark1russell7/rigor-statistics` fits a form with parameters to values, with intervals from the bootstrap. It fits a hinge and gives the interval of its break. It ranks the forms by their error on held-out points. |
 | CAP-15 | The grid of load variables | later | P1 | S | CAP-1 | Each load variable has a range and a scale: the request rate, size and duration, the concurrency, the heap size and the process age. A design with a seed moves one variable alone, then all variables together. |
 | CAP-16 | The workflow of timed runs | later | P0 | M | CAP-10 | Timed runs start only in CI: on a schedule, by hand, and for a pull request that changes a law or a subject. Each run names its CPU model and keeps its raw records. |
 | CAP-17 | From records to law files | later | P1 | S | CAP-2, CAP-14, CAP-16 | A command reads the records of a named run and writes each law file, with the run as its evidence. It keeps each form that lost, with its error. A pull request changes a law, and the gate measures it again. |
-| CAP-47 | The connections of the open-loop driver | later | P0 | M |  | The driver of `@mark1russell7/harness` keeps one connection for each stream and pipelines its requests. A real client sends one request at a time on each connection of a pool, or opens a new connection. A stream gets a pool of n connections, or a new connection for each request. The change is a pull request to the harness. |
+| CAP-47 | The connections of the open-loop driver | active | P0 | M |  | The driver of `@mark1russell7/harness` keeps one connection for each stream and pipelines its requests. A real client sends one request at a time on each connection of a pool, or opens a new connection. A stream gets a pool of n connections, or a new connection for each request. The change is a pull request to the harness. |
 
 ## Layer 1: Node
 
@@ -121,7 +121,7 @@ The other laws of layer 1 and the laws of layer 2 follow. They tell where the co
 | CAP-37 | The scale rule of alerts | later | P1 | M | CAP-6, CAP-36 | The load at which alerts needs one more instance, and the memory and CPU of each instance, with intervals. The rule names what binds first, and what stops a second instance today. |
 | CAP-38 | The scale rule in the infrastructure code | later | P2 | M | CAP-37 | The rule is a file that the infrastructure code reads: the size of an instance, the lowest and highest count, and the metric and threshold that add an instance. |
 | CAP-39 | Cloud machine types | later | P2 | M | CAP-27, CAP-37 | Runs on real cloud machines give the factor of each machine type. These runs cost money, so the item starts with a budget question and a monthly cap. |
-| CAP-40 | The live check of a law | later | P2 | M | CAP-37 | The laws read the live metrics of the app: the instances that the load needs now, the headroom, and the load of the next step. A law that drifts from the live values raises a flag. |
+| CAP-40 | The live check of a law | later | P2 | M | CAP-37 | The laws read the live metrics of the app: the instances that the current load needs, the headroom, and the load of the next step. A law that drifts from the live values raises a flag. |
 | CAP-41 | A second session for layer 3 | later | P2 | XS | CAP-34 | Layer 3 gets its own work stream when the contract of an app is stable. The laws of each app then move in parallel with layers 1 and 2. |
 | CAP-42 | The next apps | later | P3 | L | CAP-37 | Each next app gets its laws and its scale rule through the same contract. |
 
