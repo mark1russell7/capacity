@@ -136,7 +136,9 @@ The search goes along the range of the variable. The options `from` and `to` cha
 - The constants or a replicate give no value at the start of the search. The path names the row.
 - The rule cannot apply at the start: a rise needs a value more than 0, and a slope needs a slope more than 0.
 
-Two edges in one step of the grid can hide the first edge. Increase `steps` for a law with poles near each other.
+The search finds a pole where the value grows as a power or as a logarithm, also between two floats. At a pole, each step nearer adds as much size as the step before. Near a finite peak, each step nearer adds much less.
+
+Two edges in one step of the grid can hide the first edge. Increase `steps` for a law with poles near each other. A finite peak narrower than 1e-9 of a step can look like a pole.
 
 ## The check of a law
 

@@ -71,11 +71,17 @@ export interface Knee {
 /** A curve gives the value of one row of a law at each load of the variable. A load with no finite value gives undefined. */
 type Curve = (loads: readonly number[]) => readonly (number | undefined)[];
 
-/** This number sets the two loads near a peak where the edge search compares the size of the law. It is a share of the width of the bracket. */
+/** This number sets the farthest distance from a peak where the pole test reads the size of the law. It is a share of the width of the bracket. */
 const NEAR = 1e-6;
 
-/** The size of a law at a pole is more than this number times its size at the two near loads. */
-const POLE_RATIO = 10;
+/** Each distance of the pole test is this share of the distance before it. */
+const CLOSER = 1e-3;
+
+/** At a pole, the gain of size in the second step nearer is at least this share of the gain in the first step. */
+const POLE_GAIN = 0.9;
+
+/** A gain of size less than this share of the size is the noise of the floats, not a pole. */
+const NOISE = 1e-9;
 
 /** The step of a difference quotient, for each unit of the load. */
 const STEP = 1e-7;
@@ -126,13 +132,29 @@ const peakOf = (size: (load: number) => number, low: number, high: number): numb
 };
 
 /**
+ * This function tells if the size of a law grows with no bound near the top of a peak. It reads the
+ * size at three distances from the top, each 1000 times nearer than the distance before it.
+ *
+ * At a pole, each step nearer adds as much size as the step before, or more. A power pole adds more,
+ * and a logarithm pole adds the same. Near a finite peak, the second step adds about a millionth of
+ * the first. A load with no value at one of the distances is an edge near the top.
+ */
+const diverges = (size: (load: number) => number, top: number, near: number): boolean => {
+  const sizeAt = (distance: number): number => Math.max(size(top - distance), size(top + distance));
+  const [far, middle, close] = [near, near * CLOSER, near * CLOSER * CLOSER].map(sizeAt) as [number, number, number];
+  if (!Number.isFinite(close) || !Number.isFinite(middle) || !Number.isFinite(far)) return true;
+  const first = middle - far;
+  return first > NOISE * middle && close - middle >= POLE_GAIN * first;
+};
+
+/**
  * This function gives the edge of one row of a law: the first load of the grid where the law has
  * no finite value. It gives Infinity when the law has a finite value on all of the grid.
  *
  * The size of a law at a load is the distance of its value from the start value. A load with no
  * value has an infinite size. The search examines each peak of the size on the grid, in order. A
- * golden-section search finds the top of the peak. The top is a pole when its size is more than 10
- * times the size at two near loads. A peak with no value at its top starts a region with no value.
+ * golden-section search finds the top of the peak, and the pole test examines it. A peak with no
+ * value at its top starts a region with no value.
  */
 const edgeOf = (curve: Curve, grid: readonly number[], values: readonly (number | undefined)[], start: number): number => {
   const sizeOf = (value: number | undefined): number => (value === undefined ? Infinity : Math.abs(value - start));
@@ -149,8 +171,7 @@ const edgeOf = (curve: Curve, grid: readonly number[], values: readonly (number 
     const high = grid[missing ? index : Math.min(index + 1, last)] as number;
     const top = peakOf(size, low, high);
     if (noValue(top)) return crossingOf(noValue, low, top);
-    const near = NEAR * (high - low);
-    if (size(top) > POLE_RATIO * Math.max(size(top - near), size(top + near))) return top;
+    if (diverges(size, top, NEAR * (high - low))) return top;
     if (missing) return crossingOf(noValue, low, grid[index] as number);
   }
   return Infinity;

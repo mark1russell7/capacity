@@ -146,6 +146,33 @@ describe("lawKnee", () => {
     expect(found.knee.value).toBeCloseTo(1, 6);
   });
 
+  it("finds a pole that grows as a logarithm and that no load reaches exactly", () => {
+    // Near the root of 2, the size of 10 - ln((2 - x^2)^2) at the float limit is only 2 to 3 times its size at 1e-6 of a step.
+    const rate: Variable = { id: "rate", unit: "{request}/s", min: 0, max: 3, scale: "linear" };
+    const distance = app("subtract", ref("capacity"), app("multiply", ref("rate"), ref("rate")));
+    const law = programLaw(app("subtract", ref("base"), app("ln", app("multiply", distance, distance))), { base: 10, capacity: 2 }, [rate]);
+    expect(checkLaw(law)).toEqual([]);
+    const found = kneeOf(law, { kind: "rise", share: 1 });
+    expect(found.edge.value).toBeCloseTo(Math.SQRT2, 9);
+    expect(found.edge.outside).toBe(false);
+    // 10 - 2 ln(2 - x^2) is 2 times 10 - 2 ln(2) where ln(2 - x^2) = 2 ln(2) - 5.
+    expect(found.knee.value).toBeCloseTo(Math.sqrt(2 - Math.exp(2 * Math.log(2) - 5)), 6);
+  });
+
+  it("gives no edge for a finite peak, also a narrow peak or a flat peak at the limit of the floats", () => {
+    const rate: Variable = { id: "rate", unit: "{request}/s", min: 0, max: 3, scale: "linear" };
+    const offset = app("subtract", ref("rate"), ref("center"));
+    const square = app("multiply", offset, offset);
+    // A peak 1e-6 wide, between two loads of the grid: its size changes at the far distance of the pole test, and much less nearer.
+    const narrow = programLaw(app("add", ref("base"), app("divide", ref("scale"), app("add", square, ref("width")))), { base: 1, scale: 1, center: 1.3, width: 1e-12 }, [rate]);
+    // At 1e8, the floats near the top round to one value: the gains of the pole test are 0.
+    const flat = programLaw(app("subtract", ref("base"), square), { base: 1e8, center: 1.5 }, [rate]);
+    for (const law of [narrow, flat]) {
+      expect(checkLaw(law)).toEqual([]);
+      expect(kneeOf(law, { kind: "rise", share: 1 }).edge).toEqual(NO_CROSSING);
+    }
+  });
+
   it("finds the edge where a region with no value starts", () => {
     const rate: Variable = { id: "rate", unit: "{request}/s", min: 0, max: 99, scale: "linear" };
     const found = kneeOf(programLaw(lostValue, { base: 10, capacity: 100 }, [rate]), { kind: "rise", share: 1 }, { to: 150 });
