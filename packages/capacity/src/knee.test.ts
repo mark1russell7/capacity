@@ -1,0 +1,262 @@
+import type { Result } from "@mark1russell7/optional";
+import { quantile } from "@mark1russell7/rigor-statistics";
+import { app, ref, type Expr } from "@mark1russell7/vex";
+import { describe, expect, it } from "vitest";
+import { checkLaw } from "./check.ts";
+import { catalogForm, constantIdsOf, formOf } from "./forms.ts";
+import { lawKnee, type Knee, type KneeOptions, type KneeRule } from "./knee.ts";
+import type { Law, LawProblem, Variable } from "./law.ts";
+import { hinge, sampleLaw, wave } from "./sample.fixture.ts";
+
+const must = <T>(result: Result<T, LawProblem>): T => {
+  if (result.tag === "err") throw new Error(`${result.error.code} at ${result.error.path}: ${result.error.message}`);
+  return result.value;
+};
+
+const problemOf = (result: Result<Knee, LawProblem>): LawProblem => {
+  if (result.tag === "ok") throw new Error("The search gave a knee, not a problem.");
+  return result.error;
+};
+
+/**
+ * This function gives a law of one variable `rate` from a form of the catalog. Each replicate is the
+ * estimate, with the share `spread` of a wave added to each named constant.
+ */
+const lawOf = (
+  formId: string,
+  constants: Readonly<Record<string, number>>,
+  variable: Partial<Variable> = {},
+  spread: Readonly<Record<string, number>> = {},
+): Law => {
+  const form = catalogForm(formId);
+  if (form === undefined) throw new Error(`The catalog has no form "${formId}".`);
+  const ids = constantIdsOf(form);
+  const estimate = ids.map((id) => constants[id] as number);
+  return {
+    ...sampleLaw(),
+    id: `test/${formId}`,
+    variables: [{ id: "rate", unit: "{request}/s", min: 0, max: 100, scale: "linear", ...variable }],
+    form: formOf(form, { variable: "rate" }),
+    constants: ids.map((id, index) => ({ id, value: estimate[index] as number })),
+    replicates: Array.from({ length: 40 }, (_, row) =>
+      estimate.map((value, column) => value * (1 + (spread[ids[column] as string] ?? 0) * wave(row, column))),
+    ),
+  };
+};
+
+/** This function gives a law with its own program, and its constants and replicates as `lawOf` makes them. */
+const programLaw = (program: Expr, constants: Readonly<Record<string, number>>, variables: readonly Variable[]): Law => {
+  const ids = Object.keys(constants);
+  const estimate = ids.map((id) => constants[id] as number);
+  return {
+    ...sampleLaw(),
+    id: "test/program",
+    variables,
+    form: { id: "program", program },
+    constants: ids.map((id, index) => ({ id, value: estimate[index] as number })),
+    replicates: Array.from({ length: 40 }, () => estimate),
+  };
+};
+
+const kneeOf = (law: Law, rule: KneeRule, options: KneeOptions = {}): Knee => must(lawKnee(law, "rate", rule, options));
+
+const HINGE = { base: 1, slope: 1, bend: 3, knee: 50 };
+const QUEUE = { base: 0.5, scale: 1, capacity: 100 };
+const QUEUE_RANGE = { min: 1, max: 99 };
+const SCALABILITY = { unit: 1, contention: 0.1, coherency: 0.01 };
+
+/** The load where the queue of `QUEUE` on `QUEUE_RANGE` is `1 + share` times its value at 1: the algebra of the form. */
+const queueRise = (share: number): number => 100 - 100 / ((1 + share) * (0.5 + 100 / 99) - 0.5);
+
+/** The base, then the logarithm of the capacity less the rate: the law has no value from the capacity up. */
+const lostValue: Expr = app("subtract", ref("base"), app("ln", app("subtract", ref("capacity"), ref("rate"))));
+
+const NO_CROSSING = { value: null, interval: { low: null, high: null }, outside: false };
+
+describe("the laws of the tests", () => {
+  it("have no problem", () => {
+    const rate: Variable = { id: "rate", unit: "{request}/s", min: 0, max: 99, scale: "linear" };
+    for (const law of [
+      lawOf("hinge", HINGE),
+      lawOf("queue", QUEUE, QUEUE_RANGE),
+      lawOf("scalability", SCALABILITY, { min: 1 }),
+      programLaw(lostValue, { base: 10, capacity: 100 }, [rate]),
+    ]) {
+      expect(checkLaw(law)).toEqual([]);
+    }
+  });
+});
+
+describe("lawKnee", () => {
+  it("finds the knee of a hinge with the rule slope", () => {
+    const found = kneeOf(lawOf("hinge", HINGE), { kind: "slope", factor: 2 });
+    expect(found.knee.value).toBeCloseTo(50, 4);
+    expect(found.knee.interval).toEqual({ low: found.knee.value, high: found.knee.value });
+    expect(found.knee.outside).toBe(false);
+    expect(found.edge).toEqual(NO_CROSSING);
+    expect(found).toMatchObject({ variable: "rate", unit: "{request}/s", level: 0.95, search: { low: 0, high: 100 }, outside: [] });
+  });
+
+  it("gives no knee when the law does not obey the rule in the search", () => {
+    // After the knee the slope is 4 times the first slope, thus never 5 times.
+    expect(kneeOf(lawOf("hinge", HINGE), { kind: "slope", factor: 5 }).knee).toEqual(NO_CROSSING);
+    expect(kneeOf(lawOf("hinge", HINGE), { kind: "rise", share: 1000 }).knee).toEqual(NO_CROSSING);
+  });
+
+  it("finds the knee of a queue with each rule, as the algebra of the form gives it", () => {
+    const law = lawOf("queue", QUEUE, QUEUE_RANGE);
+    // The slope of the queue is capacity / (capacity - x)^2. It is 4 times the slope at 1 where 100 - x = 99 / 2.
+    expect(kneeOf(law, { kind: "slope", factor: 4 }).knee.value).toBeCloseTo(50.5, 4);
+    for (const share of [0.1, 0.5, 1, 3]) {
+      expect(kneeOf(law, { kind: "rise", share }).knee.value).toBeCloseTo(queueRise(share), 6);
+    }
+    expect(kneeOf(law, { kind: "rise", share: 1 }).edge).toEqual(NO_CROSSING);
+  });
+
+  it("finds the edge of a queue at its capacity, after the knee", () => {
+    const found = kneeOf(lawOf("queue", QUEUE, QUEUE_RANGE), { kind: "rise", share: 1 }, { to: 150 });
+    expect(found.edge.value).toBeCloseTo(100, 9);
+    expect(found.edge.outside).toBe(true);
+    expect(found.knee.value).toBeCloseTo(queueRise(1), 6);
+    expect(found.knee.outside).toBe(false);
+  });
+
+  it("finds a knee near the edge, before the edge", () => {
+    // The queue is 1e6 times its start value only in the last 1e-4 before its capacity.
+    const found = kneeOf(lawOf("queue", QUEUE, QUEUE_RANGE), { kind: "rise", share: 1e6 }, { to: 150 });
+    expect(found.knee.value).toBeCloseTo(queueRise(1e6), 6);
+    expect(found.knee.value as number).toBeLessThan(found.edge.value as number);
+  });
+
+  it("finds the edge when a load of the grid is the pole", () => {
+    // From 0 to 200 in 64 steps, the load of step 32 is 100, the capacity.
+    const found = kneeOf(lawOf("queue", QUEUE, QUEUE_RANGE), { kind: "slope", factor: 4 }, { from: 0, to: 200 });
+    expect(found.edge.value).toBeCloseTo(100, 9);
+  });
+
+  it("finds a pole that no load reaches exactly", () => {
+    // The square of each float near the root of 2 is not 2. Thus the law has a finite value at each load, and only the size test finds the pole.
+    const rate: Variable = { id: "rate", unit: "{request}/s", min: 0, max: 1.4, scale: "linear" };
+    const program = app("divide", ref("scale"), app("subtract", ref("capacity"), app("multiply", ref("rate"), ref("rate"))));
+    const law = programLaw(program, { scale: 1, capacity: 2 }, [rate]);
+    expect(checkLaw(law)).toEqual([]);
+    const found = kneeOf(law, { kind: "rise", share: 1 }, { to: 3 });
+    expect(found.edge.value).toBeCloseTo(Math.SQRT2, 9);
+    // 1 / (2 - x^2) is 2 times its start value, 1 / 2, at x = 1.
+    expect(found.knee.value).toBeCloseTo(1, 6);
+  });
+
+  it("finds the edge where a region with no value starts", () => {
+    const rate: Variable = { id: "rate", unit: "{request}/s", min: 0, max: 99, scale: "linear" };
+    const found = kneeOf(programLaw(lostValue, { base: 10, capacity: 100 }, [rate]), { kind: "rise", share: 1 }, { to: 150 });
+    expect(found.edge.value).toBeCloseTo(100, 9);
+    // 10 - ln(100 - x) is 2 times its start value, 10 - ln(100), where ln(100 - x) = 2 ln(100) - 10.
+    expect(found.knee.value).toBeCloseTo(100 - Math.exp(2 * Math.log(100) - 10), 6);
+  });
+
+  it("gives no edge for the peak of the scalability law, and finds its first knee", () => {
+    const law = lawOf("scalability", SCALABILITY, { min: 1 });
+    const found = kneeOf(law, { kind: "rise", share: 1 });
+    expect(found.edge).toEqual(NO_CROSSING);
+    // x / (1 + 0.1 (x - 1) + 0.01 x (x - 1)) = 2 where 0.02 x^2 - 0.82 x + 1.8 = 0.
+    expect(found.knee.value).toBeCloseTo((0.82 - Math.sqrt(0.82 ** 2 - 4 * 0.02 * 1.8)) / 0.04, 6);
+    // The slope of the throughput falls after the start, thus it is never 2 times the first slope.
+    expect(kneeOf(law, { kind: "slope", factor: 2 }).knee).toEqual(NO_CROSSING);
+  });
+
+  it("gives the interval of the replicates for the edge and for the knee", () => {
+    const queue = lawOf("queue", QUEUE, QUEUE_RANGE, { capacity: 0.02 });
+    const capacities = queue.replicates.map((row) => row[2] as number);
+    const edge = kneeOf(queue, { kind: "rise", share: 1 }, { to: 150 }).edge;
+    expect(edge.value).toBeCloseTo(100, 9);
+    expect(edge.interval.low).toBeCloseTo(quantile(capacities, 0.025), 9);
+    expect(edge.interval.high).toBeCloseTo(quantile(capacities, 0.975), 9);
+
+    const hinged = lawOf("hinge", HINGE, {}, { knee: 0.02 });
+    const knees = hinged.replicates.map((row) => row[3] as number);
+    const knee = kneeOf(hinged, { kind: "slope", factor: 2 }).knee;
+    expect(knee.interval.low).toBeCloseTo(quantile(knees, 0.025), 4);
+    expect(knee.interval.high).toBeCloseTo(quantile(knees, 0.975), 4);
+  });
+
+  it("gives a null end of an interval past the end of the search", () => {
+    // The knees of the replicates go from 85.5 to 104.5, thus some are past the end, 100.
+    const found = kneeOf(lawOf("hinge", { ...HINGE, knee: 95 }, {}, { knee: 0.1 }), { kind: "slope", factor: 2 });
+    expect(found.knee.value).toBeCloseTo(95, 4);
+    expect(found.knee.interval.low as number).toBeLessThan(95);
+    expect(found.knee.interval.high).toBeNull();
+  });
+
+  it("marks a knee outside the range of the variable", () => {
+    const found = kneeOf(lawOf("hinge", HINGE, { max: 40 }), { kind: "slope", factor: 2 }, { to: 100 });
+    expect(found.knee.value).toBeCloseTo(50, 4);
+    expect(found.knee.outside).toBe(true);
+  });
+
+  it("finds the knee of the sample law on its log scale, with an interval", () => {
+    const law = sampleLaw();
+    const slope = must(lawKnee(law, "rate", { kind: "slope", factor: 2 }));
+    expect(slope.knee.value).toBeCloseTo(2500, 3);
+    expect(slope.knee.interval.low as number).toBeGreaterThan(2400);
+    expect(slope.knee.interval.low as number).toBeLessThan(2500);
+    expect(slope.knee.interval.high as number).toBeGreaterThan(2500);
+    expect(slope.knee.interval.high as number).toBeLessThan(2600);
+    // 0.08 + 1e-5 x + 5e-5 (x - 2500) is 1.5 times 0.081, its value at 100, at x = 2775.
+    expect(must(lawKnee(law, "rate", { kind: "rise", share: 0.5 })).knee.value).toBeCloseTo(2775, 6);
+  });
+
+  it("holds the other variables at the point at", () => {
+    const law = sampleLaw();
+    const sized: Law = {
+      ...law,
+      variables: [...law.variables, { id: "size", unit: "B", min: 0, max: 65_536, scale: "linear" }],
+      form: { id: "hinge-size", program: app("add", hinge, app("multiply", ref("c4"), ref("size"))) },
+      constants: [...law.constants, { id: "c4", value: 1e-6 }],
+      replicates: law.replicates.map((row) => [...row, 1e-6]),
+    };
+    expect(checkLaw(sized)).toEqual([]);
+    const found = must(lawKnee(sized, "rate", { kind: "slope", factor: 2 }, { at: { size: 1024 } }));
+    expect(found.knee.value).toBeCloseTo(2500, 3);
+    expect(found.outside).toEqual([]);
+    expect(must(lawKnee(sized, "rate", { kind: "slope", factor: 2 }, { at: { size: 1e6 } })).outside).toEqual(["size"]);
+    expect(problemOf(lawKnee(sized, "rate", { kind: "slope", factor: 2 }))).toMatchObject({ code: "point", path: "at.size" });
+  });
+});
+
+describe("the problems of lawKnee", () => {
+  const law = lawOf("hinge", HINGE);
+  const slope: KneeRule = { kind: "slope", factor: 2 };
+
+  it("names the variable or the point that the law cannot read", () => {
+    expect(problemOf(lawKnee(law, "speed", slope))).toMatchObject({ code: "point", path: "variable" });
+    expect(problemOf(lawKnee(law, "rate", slope, { at: { rate: 5 } }))).toMatchObject({ code: "point", path: "at.rate" });
+    expect(problemOf(lawKnee(law, "rate", slope, { at: { speed: 5 } }))).toMatchObject({ code: "point", path: "at.speed" });
+  });
+
+  it("names a bad search range, rule, count of steps or level", () => {
+    expect(problemOf(lawKnee(law, "rate", slope, { from: 50, to: 50 }))).toMatchObject({ code: "range", path: "from" });
+    expect(problemOf(lawKnee(law, "rate", slope, { to: Number.NaN }))).toMatchObject({ code: "range", path: "from" });
+    expect(problemOf(lawKnee(sampleLaw(), "rate", slope, { from: 0 }))).toMatchObject({ code: "range", path: "from" });
+    for (const steps of [1, 2.5, 5000]) {
+      expect(problemOf(lawKnee(law, "rate", slope, { steps }))).toMatchObject({ code: "knee", path: "steps" });
+    }
+    expect(problemOf(lawKnee(law, "rate", { kind: "rise", share: 0 }))).toMatchObject({ code: "knee", path: "rule.share" });
+    expect(problemOf(lawKnee(law, "rate", { kind: "rise", share: Number.NaN }))).toMatchObject({ code: "knee", path: "rule.share" });
+    expect(problemOf(lawKnee(law, "rate", { kind: "slope", factor: 1 }))).toMatchObject({ code: "knee", path: "rule.factor" });
+    expect(problemOf(lawKnee(law, "rate", slope, { level: 0.99 }))).toMatchObject({ code: "level", path: "replicates" });
+  });
+
+  it("names the row with no value or no cheap region at the start of the search", () => {
+    // ln(0) is not a finite number.
+    expect(problemOf(lawKnee(lawOf("logarithm", { base: 1, scale: 1 }), "rate", slope))).toMatchObject({ code: "value", path: "constants" });
+    const falling = lawOf("linear", { base: 10, slope: -1 });
+    expect(problemOf(lawKnee(falling, "rate", slope))).toMatchObject({ code: "knee", path: "constants" });
+    const negative = lawOf("linear", { base: -1, slope: 1 });
+    expect(problemOf(lawKnee(negative, "rate", { kind: "rise", share: 1 }))).toMatchObject({ code: "knee", path: "constants" });
+    // Some replicates of the base are below 0: the first of them has the problem.
+    const spread = lawOf("linear", { base: 0.5, slope: 1 }, {}, { base: 3 });
+    const first = spread.replicates.findIndex((row) => (row[0] as number) <= 0);
+    expect(first).toBeGreaterThanOrEqual(0);
+    expect(problemOf(lawKnee(spread, "rate", { kind: "rise", share: 1 }))).toMatchObject({ code: "knee", path: `replicates[${first}]` });
+  });
+});

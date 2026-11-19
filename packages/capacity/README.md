@@ -99,6 +99,45 @@ if (law.tag === "ok") {
 
 `constantIntervals(law)` gives each constant with the interval of its replicates.
 
+## The knee of a law
+
+The knee is the first load where the cost of a request starts to grow fast. The edge is the first load where the law has no finite value, for example the capacity of a queue.
+
+```ts
+import { lawKnee } from "@mark1russell7/capacity";
+
+const knee = lawKnee(law, "rate", { kind: "slope", factor: 2 });
+// knee.value.knee: { value: 2500, interval: { low: 2453, high: 2548 }, outside: false }
+// knee.value.edge: { value: null, interval: { low: null, high: null }, outside: false }
+```
+
+A rule tells when the cost grows fast. The law obeys the rule at the knee, and not before it.
+
+| Rule | The knee |
+| --- | --- |
+| `{ kind: "rise", share }` | The first load where the value is `1 + share` times the value at the start of the search. |
+| `{ kind: "slope", factor }` | The first load where the slope is `factor` times the slope at the start of the search. |
+
+The search goes along the range of the variable. The options `from` and `to` change it, and the point `at` gives each other variable. The search tests a grid of `KNEE_STEPS` steps on the scale of the variable, then a bisection finds each crossing. The option `steps` changes the count.
+
+| Field | What it is |
+| --- | --- |
+| `knee`, `edge` | A crossing: its `value`, its `interval` from the replicates, and `outside`, true when the value is outside the range of the variable. |
+| `value` | The load of the crossing. It is `null` when the search finds no crossing. |
+| `interval` | The share `level` of the crossings of the replicates. An end past the end of the search is `null`. |
+| `search` | The loads where the search starts and stops. |
+| `outside` | The other variables whose value at the point is outside its range. |
+
+`lawKnee` gives a problem, not a knee, in these cases:
+
+- The variable is not a variable of the law, or the point does not give each other variable.
+- The search range, the rule or the count of steps is not correct. A share is more than 0, and a factor is more than 1.
+- The law has too few replicates for the level.
+- The constants or a replicate give no value at the start of the search. The path names the row.
+- The rule cannot apply at the start: a rise needs a value more than 0, and a slope needs a slope more than 0.
+
+Two edges in one step of the grid can hide the first edge. Increase `steps` for a law with poles near each other.
+
 ## The check of a law
 
 `checkLaw(law)` gives each problem of a law, with a code and the path of the field. `readLaw(data)` examines the shape of the data first, then it uses `checkLaw`.

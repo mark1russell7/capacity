@@ -22,6 +22,7 @@ type CompositionValue: build/instance.chunk.d.ts#CompositionValue
 type ConditionValue: build/instance.chunk.d.ts#ConditionValue
 type Constant: build/instance.chunk.d.ts#Constant
 type ConstantInterval: build/instance.chunk.d.ts#ConstantInterval
+type Crossing: build/index.d.ts#Crossing
 DEFAULT_LEVEL: build/instance.chunk.d.ts#DEFAULT_LEVEL
 type Demand: build/instance.chunk.d.ts#Demand
 type Evidence: build/instance.chunk.d.ts#Evidence
@@ -36,6 +37,10 @@ type Instance: build/instance.chunk.d.ts#Instance
 type InstanceProblem: build/instance.chunk.d.ts#InstanceProblem
 type InstanceProblemCode: build/instance.chunk.d.ts#InstanceProblemCode
 type InstanceType: build/instance.chunk.d.ts#InstanceType
+KNEE_STEPS: build/index.d.ts#KNEE_STEPS
+type Knee: build/index.d.ts#Knee
+type KneeOptions: build/index.d.ts#KneeOptions
+type KneeRule: build/index.d.ts#KneeRule
 LAW_FORMAT: build/instance.chunk.d.ts#LAW_FORMAT
 LIMITS_FORMAT: build/instance.chunk.d.ts#LIMITS_FORMAT
 type Law: build/instance.chunk.d.ts#Law
@@ -60,6 +65,7 @@ type NestedPart: build/instance.chunk.d.ts#NestedPart
 type NestedTerm: build/instance.chunk.d.ts#NestedTerm
 type Observation: build/index.d.ts#Observation
 type ObservedClass: build/index.d.ts#ObservedClass
+type OpenRange: build/index.d.ts#OpenRange
 type Over: build/instance.chunk.d.ts#Over
 type PartValue: build/instance.chunk.d.ts#PartValue
 type PlanSource: build/instance.chunk.d.ts#PlanSource
@@ -104,6 +110,7 @@ gridOf: build/index.d.ts#gridOf
 instancePointOf: build/instance.chunk.d.ts#instancePointOf
 instanceProblems: build/index.d.ts#instanceProblems
 isLawTerm: build/instance.chunk.d.ts#isLawTerm
+lawKnee: build/index.d.ts#lawKnee
 lawValue: build/instance.chunk.d.ts#lawValue
 leastCount: build/instance.chunk.d.ts#leastCount
 limitAmount: build/index.d.ts#limitAmount
@@ -150,6 +157,13 @@ interface CatalogForm {
   readonly shapes: readonly Shape[];
 }
 
+### build/index.d.ts#Crossing
+interface Crossing {
+  readonly value: number | null;
+  readonly interval: OpenRange;
+  readonly outside: boolean;
+}
+
 ### build/index.d.ts#FORMS
 export declare const FORMS: readonly CatalogForm[];
 
@@ -163,6 +177,38 @@ type Grid = {
   readonly kind: "scaled";
   readonly factors: readonly number[];
   readonly power: number;
+};
+
+### build/index.d.ts#KNEE_STEPS
+export declare const KNEE_STEPS = 64;
+
+### build/index.d.ts#Knee
+interface Knee {
+  readonly variable: string;
+  readonly unit: string;
+  readonly rule: KneeRule;
+  readonly level: number;
+  readonly search: Range;
+  readonly knee: Crossing;
+  readonly edge: Crossing;
+  readonly outside: readonly string[];
+}
+
+### build/index.d.ts#KneeOptions
+interface KneeOptions extends LevelOptions {
+  readonly at?: LoadPoint;
+  readonly from?: number;
+  readonly to?: number;
+  readonly steps?: number;
+}
+
+### build/index.d.ts#KneeRule
+type KneeRule = {
+  readonly kind: "rise";
+  readonly share: number;
+} | {
+  readonly kind: "slope";
+  readonly factor: number;
 };
 
 ### build/index.d.ts#LimitUse
@@ -189,6 +235,12 @@ interface ObservedClass {
   readonly id: string;
   readonly count: Quantity;
   readonly request: Amounts;
+}
+
+### build/index.d.ts#OpenRange
+interface OpenRange {
+  readonly low: number | null;
+  readonly high: number | null;
 }
 
 ### build/index.d.ts#Points
@@ -260,6 +312,9 @@ export declare const gridOf: (grid: Grid, xs: readonly number[]) => readonly num
 
 ### build/index.d.ts#instanceProblems
 export declare const instanceProblems: (instance: Instance) => readonly InstanceProblem[];
+
+### build/index.d.ts#lawKnee
+export declare const lawKnee: (law: Law, variable: string, rule: KneeRule, options?: KneeOptions) => Result<Knee, LawProblem>;
 
 ### build/index.d.ts#limitAmount
 export declare const limitAmount: (limit: Limit, instance: Instance) => Result<Quantity, LimitProblem>;
@@ -562,7 +617,7 @@ interface Problem<Code extends string> {
 }
 
 ### build/instance.chunk.d.ts#ProblemCode
-type ProblemCode = "shape" | "format" | "id" | "unit" | "range" | "condition" | "program" | "read" | "constant" | "replicates" | "value" | "fit" | "evidence" | "point" | "level";
+type ProblemCode = "shape" | "format" | "id" | "unit" | "range" | "condition" | "program" | "read" | "constant" | "replicates" | "value" | "fit" | "evidence" | "point" | "level" | "knee";
 
 ### build/instance.chunk.d.ts#RATE
 declare const RATE = "rate";

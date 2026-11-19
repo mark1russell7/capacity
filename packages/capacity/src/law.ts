@@ -132,7 +132,8 @@ export type ProblemCode =
   | "fit"
   | "evidence"
   | "point"
-  | "level";
+  | "level"
+  | "knee";
 
 /** A problem tells what is not correct, and where: `path` is the path of the field in the record. */
 export interface Problem<Code extends string> {
