@@ -19,6 +19,9 @@ export const CASE_RESOURCES: Readonly<Record<string, string>> = { cpu: "{core}",
 /** These levels are the levels of a demand that a subject holds, with the unit of each. `heap` is the live heap of the subject. */
 export const CASE_LEVELS: Readonly<Record<string, string>> = { heap: "B" };
 
+/** This unit is the unit of the rate of a class: the driver sends requests. */
+export const CASE_RATE = "{request}/s";
+
 /** This number is the most runs that a case can count. */
 export const MAX_RUNS = 20;
 
@@ -119,7 +122,11 @@ const caseDemandProblems = (demand: Demand): readonly CaseProblem[] => {
   if (demand.classes.length === 0) problems.push(problem("demand", "demand.classes", "The demand has no class. A case sends one class or more."));
   demand.classes.forEach((entry, index) => {
     const path = `demand.classes[${index}]`;
-    if (!(entry.rate.value > 0)) problems.push(problem("demand", `${path}.rate`, `The rate of the class "${entry.id}" is not above 0.`));
+    if (!convertible(entry.rate.unit, CASE_RATE)) {
+      problems.push(problem("demand", `${path}.rate`, `The rate of the class "${entry.id}" does not convert to "${CASE_RATE}".`));
+    } else if (!(entry.rate.value > 0)) {
+      problems.push(problem("demand", `${path}.rate`, `The rate of the class "${entry.id}" is not above 0.`));
+    }
     problems.push(...requestProblems(entry.request, `${path}.request`));
   });
   for (const [name, amount] of Object.entries(demand.levels)) {

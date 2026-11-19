@@ -49,6 +49,11 @@ describe("the check of a case", () => {
     expect(codes({ ...CASE, demand: { ...CASE.demand, classes: [{ ...one, rate: { value: 0, unit: "{request}/s" } }] } })).toEqual([
       "demand demand.classes[0].rate",
     ]);
+    // a rate of events is a frequency for the capacity package, but the driver sends requests
+    expect(caseProblems({ ...CASE, demand: { ...CASE.demand, classes: [{ ...one, rate: { value: 200, unit: "{event}/s" } }] } }).map((each) => each.message)).toEqual([
+      'The rate of the class "work" does not convert to "{request}/s".',
+    ]);
+    expect(caseProblems({ ...CASE, demand: { ...CASE.demand, classes: [{ ...one, rate: { value: 6000, unit: "{request}/min" } }] } })).toEqual([]);
     const request = (amounts: Case["demand"]["classes"][number]["request"]): Case => ({ ...CASE, demand: { ...CASE.demand, classes: [{ ...one, request: amounts }] } });
     expect(caseProblems(request({ sleep: { value: 1, unit: "ms" } })).map((each) => each.message)).toEqual([
       'The lab has no variable "sleep". The variables of a request are body, alloc, work, wait, reply.',

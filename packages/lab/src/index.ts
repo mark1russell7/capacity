@@ -1,6 +1,7 @@
 /**
  * This package has the subjects of the measurement: the programs that a run measures, and the
- * request classes that a run sends to them. It also has the cases: each case is one measurement as data.
+ * request classes that a run sends to them. It also has the cases: each case is one measurement as
+ * data. The cell of a case operates it in the lab of `@mark1russell7/harness`, and the record keeps its measures.
  *
  * @packageDocumentation
  */
@@ -9,6 +10,7 @@ export { NODE_HTTP, SUBJECT_FOLDER, subjectFiles, type LabSubject } from "./subj
 export {
   CASE_FORMAT,
   CASE_LEVELS,
+  CASE_RATE,
   CASE_RESOURCES,
   MAX_DURATION,
   MAX_RUNS,
@@ -20,3 +22,34 @@ export {
   type CaseProblem,
   type CaseProblemCode,
 } from "./case.ts";
+export {
+  DRAIN,
+  READING_PERIOD,
+  SUBJECT_PORT,
+  cellOf,
+  commandOf,
+  cpuSetsOf,
+  streamArrivals,
+  streamsOf,
+  subjectOf,
+  windowOf,
+  type CellOptions,
+  type CpuSets,
+} from "./cell.ts";
+export {
+  LOAD_MEASURES,
+  RECORD_FORMAT,
+  RUN_MEASURES,
+  loadMeasures,
+  recordOf,
+  runMeasures,
+  runRecordOf,
+  type CaseRecord,
+  type Host,
+  type LoadMeasure,
+  type Machine,
+  type Measures,
+  type RunMeasure,
+  type RunRecord,
+} from "./record.ts";
+export { measureCase, type MeasureOptions, type Measurement } from "./measure.ts";

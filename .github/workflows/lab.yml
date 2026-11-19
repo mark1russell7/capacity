@@ -1,0 +1,110 @@
+# Starts the positive control of the lab (CAPACITY_LAB=1) on GitHub's runners. The test measures two cases of the bare subject
+# in the lab of @mark1russell7/harness. The second case adds 1 ms of CPU work, a reply of 16 KiB and a live heap of 64 MiB to
+# each request. The records must show each cost in its own measure, inside its limits. The lab needs Docker and
+# privileged containers. Thus the control operates only here.
+#
+# The job builds the image of the harness from the installed package, runs packages/lab/src/measure.lab.test.ts, and
+# uploads the record and the raw result of each case as the artifact lab-records-<run>.
+#
+# A pull request that changes the lab, the records of the model, the lockfile or this file starts it. Start it by hand with:
+#   gh workflow run lab.yml -R mark1russell7/capacity --ref <branch>
+# A limit of the control takes the worst of 5 or more runs. Start 5 runs, each on its own runner, 3 at once, with:
+#   gh workflow run lab.yml -R mark1russell7/capacity --ref <branch> -f runs='[1,2,3,4,5]'
+name: Lab
+
+on:
+  workflow_dispatch:
+    inputs:
+      runs:
+        description: The numbers of the runs, as a JSON list. Each run is a job on its own runner.
+        type: string
+        default: "[1]"
+  # Each pull request starts this workflow. Thus the summary check of the gate is always present. The job changes skips the
+  # work when the pull request changes no file of the gate (CI.md of the template, "A gate with paths").
+  pull_request:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/lab.yml"
+      - "packages/lab/**"
+      - "packages/capacity/src/**"
+      - "pnpm-lock.yaml"
+
+permissions:
+  contents: read
+
+# A pull request and a dispatch share a group with the later workflows of their ref. A later one cancels an earlier one.
+# A push to main cancels nothing.
+concurrency:
+  group: lab-${{ github.event_name != 'push' && github.ref || github.sha }}
+  cancel-in-progress: ${{ github.event_name != 'push' }}
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      match: ${{ steps.changes.outputs.match }}
+    steps:
+      - id: changes
+        uses: mark1russell7/template/.github/actions/changes@f9506b77817778609b50a32a43f63b41f9360172 # main
+        with:
+          paths: |
+            .github/workflows/lab.yml
+            packages/lab/**
+            packages/capacity/src/**
+            pnpm-lock.yaml
+
+  lab:
+    needs: changes
+    if: needs.changes.outputs.match == 'true'
+    strategy:
+      # each run gives its records, also when another run fails
+      fail-fast: false
+      # the convention of the shared runners: at most 3 jobs of a matrix at once
+      max-parallel: 3
+      matrix:
+        run: ${{ fromJSON(inputs.runs || '[1]') }}
+    # the subject has CPU 0, and the driver and the reader have CPUs 1 to 3: this runner has 4 CPUs
+    runs-on: ubuntu-24.04
+    # the lab builds the image of the harness on the runner, with its programs in Rust
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # The pnpm version comes from "packageManager" in package.json
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 26
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # The image builds once in the step. The log keeps the lines of the test.
+      - name: The positive control of the lab
+        env:
+          CAPACITY_LAB: "1"
+          CAPACITY_LAB_OUT: ${{ runner.temp }}/lab-records
+        run: pnpm --filter @capacity/lab exec vitest run src/measure.lab.test.ts --silent=false
+      - name: The records of the run
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: lab-records-${{ matrix.run }}
+          path: ${{ runner.temp }}/lab-records
+          if-no-files-found: warn
+
+  lab-ok:
+    name: Lab OK
+    if: ${{ !cancelled() }}
+    needs: [changes, lab]
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions: {}
+    steps:
+      - uses: mark1russell7/template/.github/actions/gate-summary@f9506b77817778609b50a32a43f63b41f9360172 # main
+        with:
+          needs: ${{ toJSON(needs) }}

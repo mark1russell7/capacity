@@ -8,6 +8,11 @@ allowBuilds:
   esbuild: true
   # Its install script only checks the native package, which pnpm installs as an optional dependency.
   "@swc/core": false
+  # The lab uses @mark1russell7/harness. Its Testcontainers reaches Docker through ssh2, which works without the
+  # optional native addon cpu-features. The script of protobufjs only checks a version. The lab needs none of them.
+  cpu-features: false
+  protobufjs: false
+  ssh2: false
 
 # Our own packages: the release train updates them, so the release age check of pnpm does not apply to them.
 minimumReleaseAgeExclude:
@@ -26,3 +31,7 @@ trustPolicyIgnoreAfter: 10080
 trustPolicyExclude:
   - "@mark1russell7/*"
   - "@procedures/*"
+
+overrides:
+  # GHSA-3g3m-2fjr-6pw4 and GHSA-g3hv-75wg-m249. The rule security-overrides of conventions removes this line at its end.
+  "archiver-utils>glob": "^14.0.3"
