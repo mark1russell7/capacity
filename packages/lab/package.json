@@ -27,6 +27,6 @@
     "@mark1russell7/rigor-bench": "^0.2.64",
     "@mark1russell7/rigor-chaos": "^0.3.4",
     "@mark1russell7/rigor-statistics": "^0.2.12",
-    "@mark1russell7/text": "^0.0.16"
+    "@mark1russell7/text": "^0.0.17"
   }
 }
