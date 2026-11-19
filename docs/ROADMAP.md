@@ -83,7 +83,7 @@ The other laws of layer 1 and the laws of layer 2 follow. They tell where the co
 | CAP-15 | The grid of load variables | later | P1 | S | CAP-1 | Each load variable has a range and a scale: the request rate, size and duration, the concurrency, the heap size and the process age. A design with a seed moves one variable alone, then all variables together. |
 | CAP-16 | The workflow of timed runs | later | P0 | M | CAP-10 | Timed runs start only in CI: on a schedule, by hand, and for a pull request that changes a law or a subject. Each run names its CPU model and keeps its raw records. |
 | CAP-17 | From records to law files | later | P1 | S | CAP-2, CAP-14, CAP-16 | A command reads the records of a named run and writes each law file, with the run as its evidence. It keeps each form that lost, with its error. A pull request changes a law, and the gate measures it again. |
-| CAP-47 | The connections of the open-loop driver | active | P0 | M |  | The driver of `@mark1russell7/harness` keeps one connection for each stream and pipelines its requests. A real client sends one request at a time on each connection of a pool, or opens a new connection. A stream gets a pool of n connections, or a new connection for each request. The change is a pull request to the harness. |
+| CAP-47 | The connections of the open-loop driver | done | P0 | M |  | The driver of `@mark1russell7/harness` keeps one connection for each stream and pipelines its requests. A real client sends one request at a time on each connection of a pool, or opens a new connection. A stream gets a pool of n connections, or a new connection for each request. The change is a pull request to the harness. |
 
 ## Layer 1: Node
 
