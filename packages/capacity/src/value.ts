@@ -45,13 +45,13 @@ export interface ConstantInterval {
 const problem = (code: LawProblem["code"], path: string, message: string): LawProblem => ({ code, path, message });
 
 /** This function gives the two ends of the share `level` of some values. */
-const rangeOf = (values: readonly number[], level: number): Range => ({
+export const rangeOf = (values: readonly number[], level: number): Range => ({
   low: quantile(values, (1 - level) / 2),
   high: quantile(values, (1 + level) / 2),
 });
 
 /** This function gives the problem of a level that the law cannot show, or undefined. */
-const levelProblem = (law: Law, level: number, residuals: boolean): LawProblem | undefined => {
+export const levelProblem = (law: Law, level: number, residuals: boolean): LawProblem | undefined => {
   if (!(level > 0 && level < 1)) return problem("level", "level", `The level ${level} is not between 0 and 1.`);
   const least = leastCount(level);
   if (law.replicates.length < least) {
@@ -64,28 +64,26 @@ const levelProblem = (law: Law, level: number, residuals: boolean): LawProblem |
 };
 
 /** This function gives the range of one measured run: the interval of the law, made wider by the residuals. */
-const runOf = (law: Law, interval: Range, level: number): Range => {
+export const runOf = (law: Law, interval: Range, level: number): Range => {
   const band = rangeOf(law.fit.residuals, level);
   if (law.fit.residual === "absolute") return { low: interval.low + band.low, high: interval.high + band.high };
   const corners = [interval.low, interval.high].flatMap((end) => [end * (1 + band.low), end * (1 + band.high)]);
   return { low: Math.min(...corners), high: Math.max(...corners) };
 };
 
-/**
- * This function gives the value of a law at a load point, with its interval. The point gives each
- * variable of the law, and no other name.
- *
- * The function evaluates the program with the constants, then with each replicate. The interval is
- * the share `level` of the values of the replicates, made wider to hold the value.
- *
- * The function gives a problem for a point that the law cannot read. It also gives a problem for a
- * level that the law cannot show, and for a value that is not finite.
- */
-export const lawValue = (law: Law, point: LoadPoint, options: LevelOptions = {}): Result<LawValue, LawProblem> => {
-  const level = options.level ?? DEFAULT_LEVEL;
-  const noLevel = levelProblem(law, level, true);
-  if (noLevel !== undefined) return err(noLevel);
+/** These values are the value of a law at a point with its constants, then with each replicate, and the variables outside their ranges. */
+export interface PointValues {
+  readonly values: readonly [number, ...number[]];
+  readonly outside: readonly string[];
+}
 
+/**
+ * This function evaluates a law at a load point with its constants, then with each replicate. The
+ * point gives each variable of the law, and no other name.
+ *
+ * It gives a problem for a point that the law cannot read, and for a value that is not finite.
+ */
+export const pointValuesOf = (law: Law, point: LoadPoint): Result<PointValues, LawProblem> => {
   const variables = law.variables.map((variable) => variable.id);
   const unknown = Object.keys(point).find((name) => !variables.includes(name));
   if (unknown !== undefined) return err(problem("point", unknown, `The law has no variable "${unknown}".`));
@@ -103,15 +101,38 @@ export const lawValue = (law: Law, point: LoadPoint, options: LevelOptions = {})
   const records = [estimate, ...law.replicates.map((row) => recordOf(names, row, load))];
   const values = valuesOf(law.form.program, records);
   if (values.tag === "err") return err(problem("value", "form.program", `The law has no value at this point: ${values.error}.`));
-
-  const [value, ...spread] = values.value as readonly [number, ...number[]];
-  // At a bend of a form, each replicate can be on one side of the value. The interval then starts at the value.
-  const share = rangeOf(spread, level);
-  const interval = { low: Math.min(share.low, value), high: Math.max(share.high, value) };
   const outside = law.variables
     .filter((variable) => (load[variable.id] as number) < variable.min || (load[variable.id] as number) > variable.max)
     .map((variable) => variable.id);
-  return ok({ value, unit: law.measure.unit, level, interval, run: runOf(law, interval, level), outside });
+  return ok({ values: values.value as readonly [number, ...number[]], outside });
+};
+
+/** This function gives the interval of some replicate values at the share `level`, made wider to hold `value`. */
+export const intervalOf = (value: number, spread: readonly number[], level: number): Range => {
+  // At a bend of a form, each replicate can be on one side of the value. The interval then starts at the value.
+  const share = rangeOf(spread, level);
+  return { low: Math.min(share.low, value), high: Math.max(share.high, value) };
+};
+
+/**
+ * This function gives the value of a law at a load point, with its interval. The point gives each
+ * variable of the law, and no other name.
+ *
+ * The function evaluates the program with the constants, then with each replicate. The interval is
+ * the share `level` of the values of the replicates, made wider to hold the value.
+ *
+ * The function gives a problem for a point that the law cannot read. It also gives a problem for a
+ * level that the law cannot show, and for a value that is not finite.
+ */
+export const lawValue = (law: Law, point: LoadPoint, options: LevelOptions = {}): Result<LawValue, LawProblem> => {
+  const level = options.level ?? DEFAULT_LEVEL;
+  const noLevel = levelProblem(law, level, true);
+  if (noLevel !== undefined) return err(noLevel);
+  const evaluated = pointValuesOf(law, point);
+  if (evaluated.tag === "err") return evaluated;
+  const [value, ...spread] = evaluated.value.values;
+  const interval = intervalOf(value, spread, level);
+  return ok({ value, unit: law.measure.unit, level, interval, run: runOf(law, interval, level), outside: evaluated.value.outside });
 };
 
 /**

@@ -224,8 +224,8 @@ importers:
         specifier: ^1.2.0
         version: 1.3.0
       '@mark1russell7/quantity':
-        specifier: ^0.4.2
-        version: 0.4.2(zod@4.6.7)
+        specifier: ^0.4.3
+        version: 0.4.3(zod@4.6.7)
       '@mark1russell7/rigor-statistics':
         specifier: ^0.2.12
         version: 0.2.12
@@ -270,8 +270,8 @@ importers:
         specifier: workspace:*
         version: link:../capacity
       '@mark1russell7/quantity':
-        specifier: ^0.4.2
-        version: 0.4.2(zod@4.6.7)
+        specifier: ^0.4.3
+        version: 0.4.3(zod@4.6.7)
       '@mark1russell7/rigor-chaos':
         specifier: ^0.3.4
         version: 0.3.4
@@ -590,8 +590,8 @@ packages:
     resolution: {integrity: sha512-PCK0H/St2CorXD6SbvzXp389QPive2ahfFRIOapUWM50Pk60YvB7CibGbI6+y7jdeVLFzbuzfoXFmAFcOQAg6w==}
     engines: {node: '>=22.12'}
 
-  '@mark1russell7/quantity@0.4.2':
-    resolution: {integrity: sha512-vWlc1XwW8LVENdOYJwwbHUX2LY7wioYrz0USSwaezV4Z0AcE1ZhmJu5c1oe6zhqqLRPvjiFQclc+cYuZrZitzg==}
+  '@mark1russell7/quantity@0.4.3':
+    resolution: {integrity: sha512-XtD9tiGDit51uR5ATtCHarXCfAS6004slKst+AGcAPVxd1wcIpi+OVlsxb/PIkkr2NOFL/oG3QCF0kdEWHhu/w==}
     engines: {node: '>=22.19'}
     peerDependencies:
       zod: ^4.1.0
@@ -1984,13 +1984,13 @@ snapshots:
 
   '@mark1russell7/algebra@0.8.10(zod@4.6.7)':
     dependencies:
-      '@mark1russell7/quantity': 0.4.2(zod@4.6.7)
+      '@mark1russell7/quantity': 0.4.3(zod@4.6.7)
     optionalDependencies:
       zod: 4.6.7
 
   '@mark1russell7/algebra@0.9.7(zod@4.6.7)':
     dependencies:
-      '@mark1russell7/quantity': 0.4.2(zod@4.6.7)
+      '@mark1russell7/quantity': 0.4.3(zod@4.6.7)
     optionalDependencies:
       zod: 4.6.7
 
@@ -2039,7 +2039,7 @@ snapshots:
 
   '@mark1russell7/optional@1.3.0': {}
 
-  '@mark1russell7/quantity@0.4.2(zod@4.6.7)':
+  '@mark1russell7/quantity@0.4.3(zod@4.6.7)':
     dependencies:
       '@mark1russell7/rational': 0.1.3
     optionalDependencies:
@@ -2075,7 +2075,7 @@ snapshots:
       '@mark1russell7/algebra': 0.9.7(zod@4.6.7)
       '@mark1russell7/collections': 0.11.3(zod@4.6.7)
       '@mark1russell7/files': 0.0.3
-      '@mark1russell7/quantity': 0.4.2(zod@4.6.7)
+      '@mark1russell7/quantity': 0.4.3(zod@4.6.7)
       '@mark1russell7/rational': 0.1.3
       '@mark1russell7/rigor-generators': 0.1.19
       '@mark1russell7/text': 0.0.6
@@ -2103,7 +2103,7 @@ snapshots:
 
   '@mark1russell7/vex-domains@0.19.1(zod@4.6.7)':
     dependencies:
-      '@mark1russell7/quantity': 0.4.2(zod@4.6.7)
+      '@mark1russell7/quantity': 0.4.3(zod@4.6.7)
       '@mark1russell7/vex': 0.19.1(zod@4.6.7)
     transitivePeerDependencies:
       - zod
