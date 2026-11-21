@@ -236,15 +236,16 @@ A start case measures the start of an application, not its load. It gives the ti
 | --- | --- |
 | `subject` | The name of a subject of `START_SUBJECTS`. A subject is data: its repository, its install command, its type check, its variables and its two programs. |
 | `seeder` | The commit of the tree that writes the stores. Each arm opens the same stores. |
-| `arms` | 2 trees or more of the subject, each at a commit. The first arm is the base. A `graft` puts a file of another commit into a tree. |
-| `points` | The stores of the case. A point gives an amount of each variable of the subject, for example the byte size of the log. |
+| `arms` | 2 trees or more of the subject, each at a commit. The first arm is the base. A `graft` puts a file of another commit into a tree. An arm can also have `ballast` and `snapshot`. |
+| `points` | The stores of the case. A point gives an amount of each variable of the subject, for example the byte size of the log. A point with `after` is a second start. |
 | `seed` | The seed of each store. One seed gives the same files. |
 | `rounds` | The rounds of one job, from 1 to 10. |
 | `watch` | The time of the live loop after the ready time, 600 s or less. |
 | `limit` | The longest start to the end of the first pass, 1800 s or less. |
 | `windows` | The ready windows of the supervisor of the subject, up to the limit, in ascending order. |
 | `probe` | The interval of the ready probe of the supervisor, 60 s or less. |
-| `target` | The machine that the case models: the image with its Node, the memory, the swap, the CPUs and the heap limit of V8. |
+| `samples` | The interval of the samples of each child, from 1 s to 60 s. The default is no samples. |
+| `target` | The machine that the case models: the image with its Node, the memory, the swap, the CPUs and the heap limit of V8. It can also give the disk, the page cache and the other processes. |
 | `observed` | The facts of the target machine: the start of an arm on a point was ready in a window, or it was not. |
 
 `measureStart` does the job of a start case in four steps:
@@ -256,12 +257,36 @@ A start case measures the start of an application, not its load. It gives the ti
 
 Each child is the start program in a new container of the target, with the Node of the image and `--expose-gc`. The container has the memory, the swap and the CPUs of the target. Node sizes the heap of V8 from the memory limit of the container, as on the target. The child copies the store and opens the copy with no network and no key. It is ready at the end of its first pass. Then it reads its memory and does the passes of a live loop for the time of the watch.
 
+### The machine model
+
+A start case can also model the disk, the page cache and the other processes of the target machine. With none of them, a child has the fast disk of the host of the lab.
+
+- **The disk.** `target.disk` gives the limits of each child each second: `readBytes`, `readOps`, `writeBytes` and `writeOps`. Its `source` tells where the numbers come from.
+  - The lab finds the disk of the work folder, of the data of Docker and of each swap file of the host.
+  - The container of each child gets the limits on each of these disks, through `io.max` of cgroup v2.
+- **The page cache.** With `cache: "cold"`, the lab copies the store to a home on the host before each child. Then it drops the page cache of the host.
+  - The child opens the home in place with `--home`. Thus the open reads the store from the disk.
+  - With `warm`, the default, the child copies the store in its container.
+- **The other processes.** `target.others` gives the other processes of the target. The `ballast` of an arm gives the steps of its live start that the start program does not run, for example a bundler.
+  - Each ballast is a process in the container of the child, with `bytes` of resident memory, from the moment `start` or `ready`.
+  - Its field `models` tells what it models.
+- **The snapshot.** An arm with `snapshot: true` writes the start snapshot of the subject at its first pass, and its next start reads the snapshot.
+- **A second start.** A point with `after` names an earlier point with the same amounts.
+  - Before the children of the point, each arm does one first start on its copy of the home of the earlier point. A first start has no limits of the disk and no ballasts, and it runs to the end of its watch.
+  - Each child of the point then opens a copy of the home of its arm.
+  - The record keeps each first start: its time, its passes and the size of each file of the home.
+  - A first start of an arm with a snapshot and no pass stops the case, because it wrote no snapshot.
+- **The samples.** With `samples`, a child reads its own reads from the disk, its major faults and its resident set at each interval. It also reads the memory, the swap and the reads of its container.
+  - A worker thread takes the samples. Thus the samples continue while the open blocks the main thread.
+
 | Measure | What it is |
 | --- | --- |
 | `ready` | The time to ready: the import of the runtime, the open of the store and the first pass. |
-| `readiness` | The time from the start of the process to the end of the open, less the copy. The ready probe passes after this point. |
+| `readiness` | The time from the start of the process to the end of the open, less the copy and the ballasts. The ready probe passes after this point. |
 | `firstPass` | The time from the end of the open to ready. |
 | `copy`, `close`, `end` | The time of the copy of the store, the time of the close, and the time from the start of the process to the line. |
+| `ballast` | The time to start the ballasts of the moment `start`. |
+| `read`, `faults` | The bytes that the child read from the disk and its count of major page faults, from the start of the process to ready. |
 | `peak` | VmHWM at ready: the peak of the resident set of the start. |
 | `rss`, `anon`, `file`, `heap`, `external` | The memory at ready. `anon` and `file` are `null` on a machine with no `/proc`. |
 | `live` | The used heap after a full GC at ready. |
@@ -277,15 +302,16 @@ Each child is the start program in a new container of the target, with the Node 
 - **The observations.** `observationReads` compares each fact of the target machine with the reads of the children of its arm and its A/A copy. A disagreement is a problem: the lab does not model the time of the machine. A fact with a child of `no read` is a problem too.
 - **A stalled loop.** A pass can give a wake time that is not after the pass. Then the watch has no more passes. The reading records `stalled`, and the summary tells it.
 - **The problems of a record.** `startRecordProblems` examines each start record. Each reading has each needed measure. Each arm and the A/A pair have a child of each point in each round: a reading, a failure or a skip. Each observation agrees with the record.
-- **The time of a job.** `startWindowOf` gives the longest time of one job. It is `IMAGE_MARGIN` for each of the 3 steps of the image, `TREE_MARGIN` for each tree and each type check, and the seeds at `SEED_RATE`. Each child adds its limit, the watch and `CHILD_MARGIN`.
+- **The time of a job.** `startWindowOf` gives the longest time of one job. It is `IMAGE_MARGIN` for each of the 3 steps of the image, `TREE_MARGIN` for each tree and each type check, and the seeds at `SEED_RATE`. A point with `after` has no seed. Each child and each first start adds its limit, the watch and `CHILD_MARGIN`.
 
 The container does not model all of the target machine:
 
-- It does not have the other load of the target: its other processes, the traffic of its swap and its waits on the disk.
+- With no machine model, it does not have the other load of the target. That load is its other processes, the traffic of its swap and its waits on the disk.
+- A limit of the disk models the rate and the count of the reads. It does not model the delay of each read.
 - The CPUs of the host of the lab are not the CPUs of the target. Thus a time of the lab is a time on the CPU of the record.
-- The copy of the store is in the container. The page cache of the copy counts in the memory of the container. The kernel takes back clean cache first.
+- The page cache of the store counts in the memory of the container. The kernel takes back clean cache first.
 
-Three plans measure the start of alerts. Each one has no check and no trigger. The arm `cloud` is the build of the cloud machine with the graft of the measured start, and the arm `new` is the current build.
+Five plans measure the start of alerts. Each one has no check and no trigger. The arm `cloud` is the build of the cloud machine with the graft of the measured start. In the first three plans, the arm `new` is the current build.
 
 - `alerts-start` measures logs from 16 MiB to 512 MiB, and the log of the cloud machine, with the shapes and the transit copy of the cloud machine. It reads the windows of 90 s, of 308.012 s and of 600 s.
 - `alerts-start-files` measures a log of 64 MiB with 3 sizes of the shapes file and 3 sizes of the transit copy. Its second case is the knee of the cloud log:
@@ -293,6 +319,11 @@ Three plans measure the start of alerts. Each one has no check and no trigger. T
   - The point `file-1844` is the log when the starts stopped at 90 s. The two points are 3% apart.
   - When the lab reads the two points the same, the size of the log does not explain the change.
 - `alerts-start-horizon` measures the two points of the knee in 3 rounds, with a third arm. The arm `horizon` is the build of the horizon change of the state of alerts.
+- `alerts-start-disk-mean` and `alerts-start-disk-peak` measure the knee on the model of the cloud machine: a cold cache, the other processes of the machine, and its disk.
+  - The disk has the mean rate or the peak rate of a study of the cloud start.
+  - The arms are the cloud build, the build of the start snapshot, and the current build without and with the snapshot.
+  - The point `file-1844-again` is a second start after `file-1844`.
+  - The observations of the knee are in the two plans. When the lab agrees with them, the other arms tell the time on the machine.
 
 A person starts a plan by hand, for example with 5 runs:
 

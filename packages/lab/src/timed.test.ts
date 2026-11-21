@@ -114,6 +114,8 @@ describe("a timed run of a plan", () => {
       orders: [],
       failures: [],
       skipped: [],
+      firsts: [],
+      disks: [],
     };
     const runs: number[] = [];
     const start = async (each: StartCase, run: number): Promise<StartMeasurement> => {

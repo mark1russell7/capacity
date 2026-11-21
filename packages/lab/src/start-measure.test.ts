@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -8,15 +8,19 @@ import { START_FORMAT, type StartCase } from "./start.ts";
 import {
   CHECK_PROGRAM,
   START_RECORD_FORMAT,
+  ballastsOf,
   childLimitOf,
   measureStart,
   observationReads,
+  samplesOf,
+  seedPointOf,
   startMeasures,
   startRecordProblems,
   startSummaryOf,
   targetCheckOf,
   targetMismatches,
   windowReads,
+  type HostDisk,
   type StartReading,
   type StartRecord,
 } from "./start-measure.ts";
@@ -78,9 +82,14 @@ const PEAK: Readonly<Record<string, number>> = { base: 200 * MIB, new: 150 * MIB
 /** The readiness of each child: the base on the large point ends its open after 2 minutes, and each other child after 4 seconds. */
 const readinessOf = (arm: string, point: string): number => (arm === "base" && point === "large" ? 120_000 : 4000);
 
+/** The samples of a child with the flag --samples: one sample, with a null for each value that the child cannot read. */
+const SAMPLE = { ms: 5000, readBytes: 40 * MIB, writeBytes: MIB, majorFaults: 2000, rss: 100 * MIB, cgroup: { memory: 500 * MIB, swap: null, readBytes: 400 * MIB, writeBytes: null, reads: 1000, writes: null } };
+
 /** This function gives the line of the start program for one child, as the real program prints it. */
-const startLine = (arm: string, point: string): string => {
+const startLine = (arm: string, point: string, argv: readonly string[] = []): string => {
   const peak = PEAK[arm]!;
+  const flags = argv.flatMap((each, index) => (argv[index - 1] === "--ballast" ? [each.split("@")] : []));
+  const ballasts = flags.map(([bytes, at]) => ({ bytes: Number(bytes), at, rss: Number(bytes) + MIB, ms: 300 }));
   const readiness = readinessOf(arm, point);
   const ready = { rss: peak - MIB, peakRss: peak, anon: peak / 2, file: null, heapUsed: 80 * MIB, external: 8 * MIB };
   const watch = { rss: peak, peakRss: peak + MIB, anon: peak / 2, file: null, heapUsed: 70 * MIB, external: 8 * MIB };
@@ -92,6 +101,7 @@ const startLine = (arm: string, point: string): string => {
     firstPass: 1500,
     peakRss: peak,
     ready,
+    io: { at: 1, readBytes: 300 * MIB, writeBytes: 2 * MIB, majorFaults: 4000, rss: peak, cgroup: { memory: null, swap: null, readBytes: null, writeBytes: null, reads: null, writes: null } },
     live: 60 * MIB,
     startHeap,
     watch,
@@ -99,8 +109,11 @@ const startLine = (arm: string, point: string): string => {
     passes: 10,
     stalled: false,
     limit: 556269568,
-    copyMs: 500,
+    copyMs: argv.includes("--home") ? 0 : 500,
+    ballastMs: ballasts.filter((each) => each.at === "start").length * 300,
     closeMs: 20,
+    ballasts,
+    samples: argv.includes("--samples") ? [SAMPLE] : [],
     open: ["FSReqCallback"],
     endMs: readiness + 500 + 1500 + 120_000 + 20,
   };
@@ -114,7 +127,9 @@ const fakeStart = (calls: Call[], fails: (argv: readonly string[]) => ChildExit 
     const failed = fails(argv);
     if (failed !== undefined) return failed;
     if (argv[0] === "docker" && argv[1] === "image") return ok(`${ID} ${JSON.stringify([DIGEST])}\n`);
+    if (argv[0] === "docker" && argv[1] === "info") return ok("/var/lib/docker\n");
     if (argv.includes(SEED)) {
+      writeFileSync(join(flagOf(argv, "out"), "point.txt"), basename(flagOf(argv, "out")));
       const sizes = { log: Number(flagOf(argv, "log")), shapes: Number(flagOf(argv, "shapes")), transit: Number(flagOf(argv, "transit")) };
       return ok(`seeding\n${JSON.stringify({ ms: 12, sizes, args: ["--end", "1767227897200"], logEvents: 759 })}\n`);
     }
@@ -130,7 +145,7 @@ const fakeContainer = (seen: ContainerOptions[], calls: Call[], fails: (argv: re
       const failed = fails(argv);
       if (failed !== undefined) return failed;
       if (argv[1] === "-e") return ok(`${JSON.stringify(check)}\n`);
-      return ok(startLine(armOf(argv), flagOf(argv, "case")));
+      return ok(startLine(armOf(argv), flagOf(argv, "case"), argv));
     };
 
 const folders: string[] = [];
@@ -321,6 +336,174 @@ describe("measureStart", () => {
   });
 });
 
+const MODEL: StartCase = {
+  ...CASE,
+  rounds: 1,
+  arms: [
+    { ...CASE.arms[0]!, snapshot: true },
+    { ...CASE.arms[1]!, ballast: [{ bytes: { value: 69, unit: "MiB" }, at: "ready", models: "the bundle of the live start" }] },
+  ],
+  points: [...CASE.points, { id: "again", at: CASE.points[1]!.at, after: "large" }],
+  samples: s(5),
+  target: {
+    ...CASE.target,
+    disk: { readBytes: { value: 14, unit: "MiB/s" }, readOps: { value: 200, unit: "{read}/s" }, writeBytes: { value: 7, unit: "MiB/s" }, writeOps: { value: 100, unit: "{write}/s" }, source: "the study of the start" },
+    cache: "cold",
+    others: [{ bytes: { value: 322, unit: "MiB" }, at: "start", models: "the other processes of the machine" }],
+  },
+};
+
+/** This disk of the host puts the data of Docker on `/dev/sda` and each other path on `/dev/sdb`, and it counts the drops of the page cache. */
+const fakeDisk = (drops: string[]): HostDisk => ({
+  of: (path) => (path === "/var/lib/docker" ? "/dev/sda" : "/dev/sdb"),
+  drop: async () => {
+    drops.push("drop");
+  },
+  swaps: () => ["/mnt/swapfile"],
+});
+
+/**
+ * This container is the fake container, and it also writes the home of a first start: the id of the arm, and a snapshot for
+ * an arm with the flag --snapshot. Each child of the case gives what its home holds: the point of the seed and the arm of the first start.
+ */
+const modelContainer = (seen: ContainerOptions[], calls: Call[], homes: string[]) => {
+  const inner = fakeContainer(seen, calls);
+  return (options: ContainerOptions): StartChild => {
+    const child = inner(options);
+    return async (argv, limits) => {
+      const home = argv.includes("--home") ? flagOf(argv, "home") : undefined;
+      if (home !== undefined && home.includes("firsts")) {
+        writeFileSync(join(home, "first.txt"), armOf(argv));
+        if (argv.includes("--snapshot")) writeFileSync(join(home, "snapshot.bin"), Buffer.alloc(1024));
+      } else if (home !== undefined) {
+        const first = join(home, "first.txt");
+        homes.push(`${armOf(argv)} ${flagOf(argv, "case")}: ${readFileSync(join(home, "point.txt"), "utf8")} ${existsSync(first) ? readFileSync(first, "utf8") : "-"}`);
+      }
+      return child(argv, limits);
+    };
+  };
+};
+
+describe("the machine model of measureStart", () => {
+  it("limits the disks of each child, drops the page cache before each child, starts the ballasts and places the home of a second start", async () => {
+    const calls: Call[] = [];
+    const inside: Call[] = [];
+    const seen: ContainerOptions[] = [];
+    const homes: string[] = [];
+    const drops: string[] = [];
+    const folder = work();
+    const { record } = await measureStart(MODEL, { work: folder, start: fakeStart(calls), container: modelContainer(seen, inside, homes), host: HOST, disk: fakeDisk(drops) });
+    const tree = (id: string): string => join(folder, "trees", id);
+    const home = join(folder, "home");
+
+    // The work folder and the swap file are on one disk, and the data of Docker is on the other disk.
+    const limit = { readBytes: 14 * MIB, readOps: 200, writeBytes: 7 * MIB, writeOps: 100 };
+    expect(record.disks).toEqual([
+      { device: "/dev/sdb", paths: [folder, "/mnt/swapfile"], limit: { device: "/dev/sdb", ...limit } },
+      { device: "/dev/sda", paths: ["/var/lib/docker"], limit: { device: "/dev/sda", ...limit } },
+    ]);
+    expect(calls.some((call) => call.argv.join(" ") === "docker info --format {{.DockerRootDir}}")).toBe(true);
+    expect(seen[0]?.disks).toEqual([{ device: "/dev/sdb", ...limit }, { device: "/dev/sda", ...limit }]);
+
+    // The point again has no seed. Each arm starts once on the point large, with no limit of the disk and no ballast.
+    expect(record.points.map((point) => point.id)).toEqual(["small", "large"]);
+    const firsts = inside.flatMap((call, index) => (call.argv.some((each) => each.includes("firsts")) ? [{ call, options: seen[index]! }] : []));
+    expect(firsts.map(({ call }) => call.argv)).toEqual([
+      ["node", "--expose-gc", START, "--tree", tree("base"), "--snapshot", "--case", "large", "--home", join(folder, "firsts", "again", "base"), "--end", "1767227897200", "--watch", "120000"],
+      ["node", "--expose-gc", START, "--tree", tree("new"), "--case", "large", "--home", join(folder, "firsts", "again", "new"), "--end", "1767227897200", "--watch", "120000"],
+    ]);
+    expect(firsts.every(({ options }) => options.disks === undefined)).toBe(true);
+    expect(firsts.map(({ call }) => call.timeoutMs)).toEqual([480_000, 480_000]);
+    expect(record.firsts.map((each) => [each.point, each.after, each.arm, each.passes, each.files])).toEqual([
+      ["again", "large", "base", 10, { "first.txt": { value: 4, unit: "B" }, "point.txt": { value: 5, unit: "B" }, "snapshot.bin": { value: 1024, unit: "B" } }],
+      ["again", "large", "new", 10, { "first.txt": { value: 3, unit: "B" }, "point.txt": { value: 5, unit: "B" } }],
+    ]);
+
+    // Each child opens its home in place, with the ballasts of the target and of its arm, the snapshot of its arm and the samples.
+    const children = inside.filter((call, index) => call.argv.includes(START) && !firsts.some((each) => each.call === inside[index]));
+    expect(children).toHaveLength(3 * 3);
+    expect(children.find((call) => call.cwd === tree("new") && flagOf(call.argv, "case") === "again")?.argv).toEqual([
+      "node", "--expose-gc", START, "--tree", tree("new"), "--ballast", `${322 * MIB}@start`, "--ballast", `${69 * MIB}@ready`,
+      "--case", "again", "--home", home, "--end", "1767227897200", "--watch", "120000", "--samples", "5000",
+    ]);
+    expect(children.find((call) => call.cwd === tree("base"))?.argv.slice(0, 8)).toEqual(["node", "--expose-gc", START, "--tree", tree("base"), "--snapshot", "--ballast", `${322 * MIB}@start`]);
+    expect(children.every((call) => (seen[inside.indexOf(call)]?.disks ?? []).length === 2)).toBe(true);
+    // The lab places the store of the point before each child. A child of the point again gets the home of the first start of its arm, and the A/A copy gets the home of the base.
+    expect(drops).toHaveLength(9);
+    expect([...homes].sort()).toEqual(["base again: large base", "base again: large base", "base large: large -", "base large: large -", "base small: small -", "base small: small -", "new again: large new", "new large: large -", "new small: small -"]);
+
+    const reading = record.readings.find((each) => each.arm === "new" && each.point === "again")!;
+    expect(reading.measures).toMatchObject({ copy: { value: 0, unit: "ms" }, ballast: { value: 300, unit: "ms" }, read: { value: 300 * MIB, unit: "B" }, faults: { value: 4000, unit: "{fault}" } });
+    expect(reading.ballasts).toEqual([
+      { bytes: { value: 322 * MIB, unit: "B" }, at: "start", rss: { value: 323 * MIB, unit: "B" }, time: { value: 300, unit: "ms" } },
+      { bytes: { value: 69 * MIB, unit: "B" }, at: "ready", rss: { value: 70 * MIB, unit: "B" }, time: { value: 300, unit: "ms" } },
+    ]);
+    expect(reading.samples).toEqual([SAMPLE]);
+    expect(startRecordProblems(record)).toEqual([]);
+
+    const summary = startSummaryOf(record);
+    expect(summary).toContain(`- The disk \`/dev/sdb\` (\`${folder}\`, \`/mnt/swapfile\`): each child reads at 14 MiB/s and 200 reads/s, and writes at 7 MiB/s and 100 writes/s.`);
+    expect(summary).toContain("- The cache is cold: the lab drops the page cache of the host before each child, and the child opens its home in place.");
+    expect(summary).toContain("- The other processes of the target: 322 MiB at start.");
+    expect(summary).toContain("- The ballasts of the arm `new`: 69 MiB at ready.");
+    expect(summary).toContain("- The first start of `base` on `large` for `again`: ");
+    expect(summary).toContain(", 10 passes, 3 files of 1 KiB.");
+    // A point with the field after has the sizes of its seed point.
+    expect(summary).toContain("| `again` | 64 MiB | 2 MiB | 0 B | `new` | 4 s | ready | ready | 5 s | 300 MiB | 4000 | 150 MiB |");
+  });
+
+  it("starts no first start, places no home and drops no cache for a warm case with no point after another", async () => {
+    const drops: string[] = [];
+    const homes: string[] = [];
+    const inside: Call[] = [];
+    const seen: ContainerOptions[] = [];
+    const { record } = await measureStart({ ...CASE, rounds: 1 }, { work: work(), start: fakeStart([]), container: modelContainer(seen, inside, homes), host: HOST, disk: fakeDisk(drops) });
+    expect([record.disks, record.firsts, drops, homes]).toEqual([[], [], [], []]);
+    expect(seen.every((options) => options.disks === undefined)).toBe(true);
+    expect(inside.filter((call) => call.argv.includes(START)).every((call) => call.argv.includes("--seeded"))).toBe(true);
+  });
+
+  it("copies the home of a warm second start before the child, and the child copies it again", async () => {
+    const homes: string[] = [];
+    const inside: Call[] = [];
+    const folder = work();
+    const warm: StartCase = { ...MODEL, target: { ...CASE.target } };
+    const { record } = await measureStart(warm, { work: folder, start: fakeStart([]), container: modelContainer([], inside, homes), host: HOST, disk: fakeDisk([]) });
+    const children = inside.filter((call) => call.argv.includes("--seeded"));
+    expect(children).toHaveLength(9);
+    expect(children.every((call) => flagOf(call.argv, "seeded") === join(folder, "home"))).toBe(true);
+    expect(record.readings.every((reading) => reading.measures.copy?.value === 500)).toBe(true);
+  });
+
+  it("throws when the first start of an arm with a snapshot does no pass in its watch", async () => {
+    const none = (argv: readonly string[]): ChildExit | undefined => (argv.some((each) => each.includes("firsts")) ? ok(`${JSON.stringify({ ...JSON.parse(startLine("base", "large")), passes: 0 })}\n`) : undefined);
+    const run = measureStart(MODEL, { work: work(), start: fakeStart([]), container: fakeContainer([], [], none), host: HOST, disk: fakeDisk([]) });
+    await expect(run).rejects.toThrow('The first start of the arm "base" on "large" did no pass in its watch. It wrote no snapshot.');
+  });
+});
+
+describe("seedPointOf, ballastsOf and samplesOf", () => {
+  it("give the seed point of a point, through each point after another", () => {
+    const points = [{ id: "a", at: {} }, { id: "b", at: {}, after: "a" }, { id: "c", at: {}, after: "b" }];
+    expect(points.map((point) => seedPointOf(points, point.id))).toEqual(["a", "a", "a"]);
+    expect(seedPointOf(points, "none")).toBeUndefined();
+  });
+
+  it("keep each ballast and each sample with fields of the right type, and null for each value of a sample that the child cannot read", () => {
+    const fields = {
+      extra: {
+        ballasts: [{ bytes: 10, at: "start", rss: 12, ms: 3 }, { bytes: 10, at: "opened", rss: 12, ms: 3 }, { bytes: "10", at: "ready", rss: 12, ms: 3 }, null],
+        samples: [{ ms: 1000, readBytes: 5, cgroup: { reads: 2 } }, { readBytes: 5 }, 7],
+      },
+    };
+    expect(ballastsOf(fields)).toEqual([{ bytes: { value: 10, unit: "B" }, at: "start", rss: { value: 12, unit: "B" }, time: { value: 3, unit: "ms" } }]);
+    expect(samplesOf(fields)).toEqual([
+      { ms: 1000, readBytes: 5, writeBytes: null, majorFaults: null, rss: null, cgroup: { memory: null, swap: null, readBytes: null, writeBytes: null, reads: 2, writes: null } },
+    ]);
+    expect([ballastsOf({}), samplesOf({ extra: { samples: "x" } })]).toEqual([[], []]);
+  });
+});
+
 describe("targetCheckOf and targetMismatches", () => {
   it("read the last line of the check child, and give the start of the container from the time of the command", () => {
     const check = targetCheckOf(`warning\n${JSON.stringify(CHECK)}\n`, 60_900);
@@ -385,8 +568,12 @@ describe("startMeasures", () => {
       passes: { value: 2, unit: "{pass}" },
       limit: null,
       copy: null,
+      ballast: null,
       close: null,
+      read: null,
+      faults: null,
     });
+    expect(startMeasures(1, { extra: { ballastMs: 300, io: { readBytes: 7, majorFaults: 2 } } })).toMatchObject({ ballast: { value: 300, unit: "ms" }, read: { value: 7, unit: "B" }, faults: { value: 2, unit: "{fault}" } });
     expect(startMeasures(1, { extra: { ready: { peakRss: 80 } } }).peak).toEqual({ value: 80, unit: "B" });
   });
 });
@@ -418,6 +605,10 @@ describe("windowReads and observationReads", () => {
     expect(at(90_000, { ...late, kind: "memory" })).toBe("no read");
     expect(at(90_000, { ...late, kind: "heap" })).toBe("no read");
     expect(at(90_000, { ...late, case: "none" })).toBe("no read");
+    // The ballasts of the moment start are a part of the preparation, as the copy is. A ballast of 1 s on the point large adds 1 s to its longest preparation, and the longest time after the open comes from the point small.
+    const ballasted: StartRecord = { ...record, check, readings: record.readings.map((reading) => (reading.point === "large" ? { ...reading, measures: { ...reading.measures, ballast: { value: 1000, unit: "ms" } } } : reading)) };
+    expect(at(355_980, late, ballasted)).toBe("late");
+    expect(at(355_981, late, ballasted)).toBe("no read");
   });
 
   it("tell if each observation agrees with the reads of the children of its arm and its A/A copy", async () => {
@@ -463,9 +654,11 @@ describe("startRecordProblems and startSummaryOf", () => {
     expect(summary).toContain(` of memory\\, 2 GiB of swap\\, Node v24\\.21\\.0. The image: \`${DIGEST}\`.`);
     expect(summary).toContain("- The check child: the heap limit of V8 is 530.5 MiB, and the container starts in 0 ms.");
     expect(summary).toContain(`\`base\` ${A.slice(0, 7)} with 1 graft in `);
-    expect(summary).toContain("| Point | `log` | `shapes` | `transit` | Arm | Readiness | In 1 min 30 s | In 4 min | Ready | VmHWM at ready | Heap peak | Live heap | GC | VmHWM of the watch | Passes |");
-    expect(summary).toContain(`|${" --- |".repeat(15)}\n`);
-    expect(summary).toContain("| `small` | 16 MiB | 0 B | 0 B | `new` | 4 s | ready | ready | 5 s | 150 MiB | 120 MiB | 60 MiB | 250 ms | 151 MiB | 10 |");
+    expect(summary).toContain("| Point | `log` | `shapes` | `transit` | Arm | Readiness | In 1 min 30 s | In 4 min | Ready | Read to ready | Major faults | VmHWM at ready | Heap peak | Live heap | GC | VmHWM of the watch | Passes |");
+    expect(summary).toContain(`|${" --- |".repeat(17)}\n`);
+    expect(summary).toContain("| `small` | 16 MiB | 0 B | 0 B | `new` | 4 s | ready | ready | 5 s | 300 MiB | 4000 | 150 MiB | 120 MiB | 60 MiB | 250 ms | 151 MiB | 10 |");
+    expect(summary).not.toContain("- The disk ");
+    expect(summary).not.toContain("- The cache is cold");
     expect(summary).toContain("| `large` | 64 MiB | 2 MiB | 0 B | `base` | 2 min | late | ready |");
     expect(summary).toContain("| `large` | 64 MiB | 2 MiB | 0 B | `new` | does not fit: heap | no read | no read |");
     expect(summary).toContain("- **stalled** `");

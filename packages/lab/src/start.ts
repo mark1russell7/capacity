@@ -28,6 +28,18 @@ export const CHILD_MARGIN: Quantity = { value: 60, unit: "s" };
 /** This time is the longest interval of the ready probe of a supervisor. */
 export const MAX_PROBE: Quantity = { value: 60, unit: "s" };
 
+/** This time is the shortest interval of the samples of a child. Thus a child of the longest start keeps 2400 samples or fewer. */
+export const MIN_SAMPLES: Quantity = { value: 1, unit: "s" };
+
+/** This time is the longest interval of the samples of a child. */
+export const MAX_SAMPLES: Quantity = { value: 60, unit: "s" };
+
+/** These moments are the moments of the start of a ballast. */
+export const BALLAST_MOMENTS: readonly BallastMoment[] = ["start", "ready"];
+
+/** These texts are the states of the page cache at the start of each child. */
+export const START_CACHES: readonly StartCache[] = ["warm", "cold"];
+
 /** This time is the margin of each of the 3 steps of the image of the target. The steps are the pull, the inspect and the check child. */
 export const IMAGE_MARGIN: Quantity = { value: 300, unit: "s" };
 
@@ -101,13 +113,60 @@ export interface Graft {
   readonly commit: string;
 }
 
+/**
+ * This moment is the start of a ballast: `start`, before the import of the runtime, or `ready`, at the end of the first pass.
+ * The measured runtime gives control back only at ready. Thus a ballast cannot start between the open and the end of the first pass.
+ */
+export type BallastMoment = "start" | "ready";
+
+/**
+ * A ballast is a process in the container of a child that holds memory and does nothing more. It models a
+ * process of the target that the start program does not run. That is another process of the machine, or a step of
+ * the live start, for example a bundler.
+ */
+export interface StartBallast {
+  /** This amount is the resident set of the ballast process, its Node included. */
+  readonly bytes: Quantity;
+  readonly at: BallastMoment;
+  /** This text tells what the ballast models, and the source of its size. */
+  readonly models: string;
+}
+
 /** An arm of a start case is one tree of the subject: a commit, and the files that it takes from other commits. */
 export interface StartArm {
   readonly id: string;
   readonly commit: string;
   /** These grafts give a file to an old commit, for example the entry of the measure. The default is no graft. */
   readonly graft?: readonly Graft[];
+  /** These ballasts model the steps of the live start of this tree that the start program does not run. The default is none. */
+  readonly ballast?: readonly StartBallast[];
+  /** This flag tells that the start reads and writes the snapshot of the start in its home, as the live start of this tree does. The default is false. */
+  readonly snapshot?: boolean;
 }
+
+/**
+ * The disk of a target is the limits of the reads and writes of each child on each disk that the child uses.
+ * These disks are the disks of the host with the work folder, the data of Docker and the swap. The rates are each second.
+ */
+export interface StartDisk {
+  /** This rate is the most bytes that a child reads each second, in a unit of bytes each second, for example `MiB/s`. */
+  readonly readBytes: Quantity;
+  /** This rate is the most reads of a child each second, in the unit `{read}/s`. */
+  readonly readOps: Quantity;
+  /** This rate is the most bytes that a child writes each second. */
+  readonly writeBytes: Quantity;
+  /** This rate is the most writes of a child each second, in the unit `{write}/s`. */
+  readonly writeOps: Quantity;
+  /** This text tells the source of the limits: the facts of the target and their time. */
+  readonly source: string;
+}
+
+/**
+ * This text is the state of the page cache at the start of each child. With `warm`, the start program copies the
+ * store, and the open reads the copy from the page cache. With `cold`, the lab copies the store before the child,
+ * and it drops the page cache of the host. Then the child opens the copy in place, and each read goes to the disk.
+ */
+export type StartCache = "warm" | "cold";
 
 /**
  * The target of a start case is the machine whose start the case models. Each child of the case starts in a
@@ -130,6 +189,12 @@ export interface StartTarget {
   readonly cpus: number;
   /** This amount is the heap size limit of V8 on the target, or null when it is not known. The check child must give it. */
   readonly heapLimit: Quantity | null;
+  /** This disk is the disk of the target. The default is the disk of the host, with no limit. */
+  readonly disk?: StartDisk;
+  /** This text is the state of the page cache at the start of each child. The default is `warm`. */
+  readonly cache?: StartCache;
+  /** These ballasts are the other processes of the target. The default is none. */
+  readonly others?: readonly StartBallast[];
 }
 
 /**
@@ -152,6 +217,12 @@ export interface StartObservation {
 export interface StartPoint {
   readonly id: string;
   readonly at: Amounts;
+  /**
+   * This id names an earlier point of the case. Then the store of this point is the home after one start of each
+   * arm on that point. The `at` of this point is the `at` of that point. Thus a second start reads what a first start wrote, for
+   * example its snapshot. The default is the store of the seed program.
+   */
+  readonly after?: string;
 }
 
 /**
@@ -187,6 +258,11 @@ export interface StartCase {
   readonly windows: readonly Quantity[];
   /** This time is the interval of the ready probe of the supervisor. A start is ready at the first probe after the end of its open. */
   readonly probe: Quantity;
+  /**
+   * This time is the interval of the samples of each child: its reads, its major faults and its resident set. A sample
+   * also has the memory and the reads of its container. The samples continue while the open blocks the main thread. The default is no samples.
+   */
+  readonly samples?: Quantity;
   readonly target: StartTarget;
   /** These facts of the target machine are the observations that the record compares with the children. */
   readonly observed: readonly StartObservation[];
@@ -219,11 +295,13 @@ const armProblems = (arms: unknown): readonly StartProblem[] => {
       problems.push(problem("shape", path, "The arm is not a record."));
       return;
     }
-    const { id, commit, graft } = arm as Partial<StartArm>;
+    const { id, commit, graft, ballast, snapshot } = arm as Partial<StartArm>;
     if (typeof id !== "string" || !START_ID.test(id)) problems.push(problem("id", `${path}.id`, 'The id of the arm is not lower-case words joined by "-".'));
     else if (ids.has(id)) problems.push(problem("id", `${path}.id`, `The arm id "${id}" is in the case two times.`));
     else ids.add(id);
     if (typeof commit !== "string" || !COMMIT.test(commit)) problems.push(problem("commit", `${path}.commit`, "The commit is not 40 lower-case hexadecimal digits."));
+    problems.push(...ballastProblems(ballast, `${path}.ballast`, "arm"));
+    if (snapshot !== undefined && typeof snapshot !== "boolean") problems.push(problem("arm", `${path}.snapshot`, "The field snapshot is not true or false."));
     if (graft === undefined) return;
     if (!Array.isArray(graft)) {
       problems.push(problem("arm", `${path}.graft`, "The graft is not a list."));
@@ -251,10 +329,18 @@ const pointProblems = (points: unknown, subject: StartSubject | undefined): read
       problems.push(problem("shape", path, "The point is not a record with the record at."));
       return;
     }
-    const { id, at } = point as unknown as StartPoint;
+    const { id, at, after } = point as unknown as StartPoint;
     if (typeof id !== "string" || !START_ID.test(id)) problems.push(problem("id", `${path}.id`, 'The id of the point is not lower-case words joined by "-".'));
     else if (ids.has(id)) problems.push(problem("id", `${path}.id`, `The point id "${id}" is in the case two times.`));
     else ids.add(id);
+    if (after !== undefined) {
+      // The store of the point comes from the starts on an earlier point. Thus the order of the points is the order of their stores.
+      const earlier: unknown = points.slice(0, index).find((each: unknown) => isRecord(each) && each["id"] === after);
+      if (!isRecord(earlier)) problems.push(problem("point", `${path}.after`, "The field after is not the id of an earlier point of the case."));
+      else if (subject !== undefined && !sameAmounts(subject, at, earlier["at"])) {
+        problems.push(problem("point", `${path}.at`, `The amounts of the point are not the amounts of the point "${String(after)}". Its store is the home of a start on that point.`));
+      }
+    }
     if (subject === undefined) return;
     for (const [name, amount] of Object.entries(at)) {
       const where = `${path}.at.${name}`;
@@ -299,6 +385,9 @@ export const startCaseProblems = (value: StartCase): readonly StartProblem[] => 
   if (!isTimeUpTo(value.watch, MAX_WATCH)) problems.push(problem("time", "watch", `The watch is not a time above 0 and up to ${MAX_WATCH.value} ${MAX_WATCH.unit}.`));
   if (!isTimeUpTo(value.limit, MAX_START)) problems.push(problem("time", "limit", `The limit is not a time above 0 and up to ${MAX_START.value} ${MAX_START.unit}.`));
   if (!isTimeUpTo(value.probe, MAX_PROBE)) problems.push(problem("time", "probe", `The probe interval is not a time above 0 and up to ${MAX_PROBE.value} ${MAX_PROBE.unit}.`));
+  if (value.samples !== undefined && !(isTimeUpTo(value.samples, MAX_SAMPLES) && valueIn(value.samples, "s") >= valueIn(MIN_SAMPLES, "s"))) {
+    problems.push(problem("time", "samples", `The sample interval is not a time from ${MIN_SAMPLES.value} ${MIN_SAMPLES.unit} to ${MAX_SAMPLES.value} ${MAX_SAMPLES.unit}.`));
+  }
   problems.push(...windowProblems(value.windows, isTimeUpTo(value.limit, MAX_START) ? value.limit : MAX_START), ...targetProblems(value.target), ...observedProblems(value));
   return problems;
 };
@@ -336,6 +425,44 @@ const targetProblems = (target: unknown): readonly StartProblem[] => {
     problems.push(problem("target", "target.cpus", `The count of CPUs is not a whole number from 1 to ${MAX_TARGET_CPUS}.`));
   }
   if (heapLimit !== null && !isBytesFrom(heapLimit, 1)) problems.push(problem("target", "target.heapLimit", "The heap limit is not null or a whole number of bytes above 0."));
+  const { disk, cache, others } = target as Partial<StartTarget>;
+  if (disk !== undefined) problems.push(...diskProblems(disk));
+  if (cache !== undefined && !START_CACHES.includes(cache)) problems.push(problem("target", "target.cache", `The cache is not one of ${START_CACHES.join(", ")}.`));
+  problems.push(...ballastProblems(others, "target.others", "target"));
+  return problems;
+};
+
+/** These units are the units of the limits of a disk. Each limit converts to its unit. */
+export const DISK_UNITS: Readonly<Record<Exclude<keyof StartDisk, "source">, string>> = { readBytes: "B/s", readOps: "{read}/s", writeBytes: "B/s", writeOps: "{write}/s" };
+
+/** This function gives the problems of the disk of a target. Each limit is a whole rate of 1 or more in its unit, and the disk has a source. */
+const diskProblems = (disk: unknown): readonly StartProblem[] => {
+  if (!isRecord(disk)) return [problem("target", "target.disk", "The disk is not a record.")];
+  const problems: StartProblem[] = [];
+  for (const [name, unit] of Object.entries(DISK_UNITS)) {
+    const rate = disk[name];
+    const value = isQuantity(rate) && convertible(rate.unit, unit) ? valueIn(rate, unit) : Number.NaN;
+    if (!(Number.isSafeInteger(value) && value >= 1)) problems.push(problem("target", `target.disk.${name}`, `The limit is not a whole number of "${unit}", 1 or more.`));
+  }
+  if (typeof disk["source"] !== "string" || disk["source"].trim() === "") problems.push(problem("target", "target.disk.source", "The disk has no source."));
+  return problems;
+};
+
+/** This function gives the problems of a list of ballasts. Each one has a whole number of bytes above 0, a moment and a text of what it models. */
+const ballastProblems = (list: unknown, path: string, code: StartProblemCode): readonly StartProblem[] => {
+  if (list === undefined) return [];
+  if (!Array.isArray(list)) return [problem(code, path, "The ballasts are not a list.")];
+  const problems: StartProblem[] = [];
+  list.forEach((each: unknown, index) => {
+    const where = `${path}[${index}]`;
+    if (!isRecord(each)) {
+      problems.push(problem(code, where, "The ballast is not a record."));
+      return;
+    }
+    if (!isBytesFrom(each["bytes"], 1)) problems.push(problem(code, `${where}.bytes`, "The ballast is not a whole number of bytes above 0."));
+    if (!BALLAST_MOMENTS.includes(each["at"] as BallastMoment)) problems.push(problem(code, `${where}.at`, `The moment is not one of ${BALLAST_MOMENTS.join(", ")}.`));
+    if (typeof each["models"] !== "string" || each["models"].trim() === "") problems.push(problem(code, `${where}.models`, "The ballast does not tell what it models."));
+  });
   return problems;
 };
 
@@ -362,14 +489,23 @@ const observedProblems = (value: StartCase): readonly StartProblem[] => {
   return problems;
 };
 
+/**
+ * This function gives the amount of a variable in a record of amounts, in the unit of the variable. It is the amount
+ * of the record, or the `min` of the variable when the record does not name it. An amount of a wrong kind gives NaN.
+ */
+const amountOf = (at: Readonly<Record<string, unknown>>, name: string, variable: StartVariable): number => {
+  const amount = at[name];
+  if (amount === undefined) return variable.min;
+  return isQuantity(amount) && convertible(amount.unit, variable.unit) ? valueIn(amount, variable.unit) : Number.NaN;
+};
+
 /** This function gives the amount of each variable of the subject at a point: the amount of the point, or the `min` of the variable. */
 export const pointAmounts = (subject: StartSubject, point: StartPoint): Readonly<Record<string, number>> =>
-  Object.fromEntries(
-    Object.entries(subject.variables).map(([name, variable]) => {
-      const amount = point.at[name];
-      return [name, amount === undefined ? variable.min : valueIn(amount, variable.unit)];
-    }),
-  );
+  Object.fromEntries(Object.entries(subject.variables).map(([name, variable]) => [name, amountOf(point.at, name, variable)]));
+
+/** This function tells if two records of amounts give the same amount of each variable of a subject. A variable that a record does not name has its `min`. */
+const sameAmounts = (subject: StartSubject, a: unknown, b: unknown): boolean =>
+  isRecord(a) && isRecord(b) && Object.entries(subject.variables).every(([name, variable]) => amountOf(a, name, variable) === amountOf(b, name, variable));
 
 /** This function gives the byte size of a point: the sum of the amounts of the variables in a unit of data. */
 export const pointBytes = (subject: StartSubject, point: StartPoint): number =>
@@ -397,14 +533,18 @@ export const checksOf = (value: StartCase): number => value.arms.filter((arm) =>
 /** This function gives the count of the children of a start case in one job. Each point has one child of each arm and one A/A child in each round. */
 export const childrenOf = (value: StartCase): number => value.points.length * value.rounds * (value.arms.length + 1);
 
+/** This function gives the count of the first starts of a start case. Each arm starts one time on the earlier point of each point with the field `after`. */
+export const firstStartsOf = (value: StartCase): number => value.points.filter((point) => point.after !== undefined).length * value.arms.length;
+
 /**
  * This function gives the longest time of one job of a start case. It is the margin of each step of the image, of each tree
- * and of each type check. It also has the time of the seeds at `SEED_RATE` and the longest time of each child. The longest child is the limit, the watch
- * and `CHILD_MARGIN`. A job in this time cannot stop a child.
+ * and of each type check. It also has the time of the seeds at `SEED_RATE`, and the longest time of each child and of each first start.
+ * The longest child is the limit, the watch and `CHILD_MARGIN`. A job in this time cannot stop a child. A point with the field `after` has no seed.
  */
 export const startWindowOf = (value: StartCase): Quantity => {
   const subject = startSubjectOf(value);
-  const bytes = value.points.reduce((sum, point) => sum + pointBytes(subject, point), 0);
+  const bytes = value.points.filter((point) => point.after === undefined).reduce((sum, point) => sum + pointBytes(subject, point), 0);
   const child = valueIn(value.limit, "s") + valueIn(value.watch, "s") + valueIn(CHILD_MARGIN, "s");
-  return quantity(IMAGE_STEPS * valueIn(IMAGE_MARGIN, "s") + (treesOf(value) + checksOf(value)) * valueIn(TREE_MARGIN, "s") + bytes / SEED_RATE + childrenOf(value) * child, "s");
+  const steps = IMAGE_STEPS * valueIn(IMAGE_MARGIN, "s") + (treesOf(value) + checksOf(value)) * valueIn(TREE_MARGIN, "s");
+  return quantity(steps + bytes / SEED_RATE + (childrenOf(value) + firstStartsOf(value)) * child, "s");
 };

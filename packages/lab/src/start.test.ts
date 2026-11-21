@@ -14,6 +14,7 @@ import {
   TREE_MARGIN,
   checksOf,
   childrenOf,
+  firstStartsOf,
   isStartCase,
   pointAmounts,
   pointBytes,
@@ -68,9 +69,9 @@ const bare = (more: Partial<StartCase> | Record<string, unknown>): StartCase => 
 const paths = (value: StartCase): readonly string[] => startCaseProblems(value).map((each) => `${each.code} ${each.path}`);
 
 describe("startCaseProblems", () => {
-  it("gives no problem for a correct case, and for the cases of the three plans of the start of alerts", () => {
+  it("gives no problem for a correct case, and for the cases of the five plans of the start of alerts", () => {
     expect(startCaseProblems(CASE)).toEqual([]);
-    for (const name of ["alerts-start", "alerts-start-files", "alerts-start-horizon"]) {
+    for (const name of ["alerts-start", "alerts-start-files", "alerts-start-horizon", "alerts-start-disk-mean", "alerts-start-disk-peak"]) {
       const plan = JSON.parse(readFileSync(new URL(`../plans/${name}.json`, import.meta.url), "utf8")) as Plan;
       expect(plan.cases.filter(isStartCase)).toHaveLength(plan.cases.length);
       expect(plan.cases.filter(isStartCase).flatMap((each) => startCaseProblems(each))).toEqual([]);
@@ -148,6 +149,44 @@ describe("startCaseProblems", () => {
     for (const heapLimit of [{ value: 0, unit: "B" }, { value: 1, unit: "s" }, 556269568]) expect(paths(target({ heapLimit }))).toEqual(["target target.heapLimit"]);
   });
 
+  it("needs a disk with whole limits and a source, a known cache, and ballasts with bytes, a moment and what they model", () => {
+    const disk = { readBytes: { value: 14, unit: "MiB/s" }, readOps: { value: 200, unit: "{read}/s" }, writeBytes: { value: 14, unit: "MiB/s" }, writeOps: { value: 200, unit: "{write}/s" }, source: "the study of the start" };
+    const ballast = { bytes: { value: 322, unit: "MiB" }, at: "start", models: "the other processes of the machine" };
+    const target = (more: Record<string, unknown>): StartCase => start({ target: { ...CASE.target, ...more } });
+    expect(paths(target({ disk, cache: "cold", others: [ballast, { ...ballast, at: "ready" }] }))).toEqual([]);
+    expect(paths(target({ cache: "warm" }))).toEqual([]);
+    expect(paths(target({ disk: "fast" }))).toEqual(["target target.disk"]);
+    const bad = { ...disk, readBytes: { value: 0.5, unit: "B/s" }, readOps: { value: 200, unit: "s" }, writeBytes: { value: 0, unit: "B/s" }, writeOps: 200, source: " " };
+    expect(paths(target({ disk: bad }))).toEqual(["target target.disk.readBytes", "target target.disk.readOps", "target target.disk.writeBytes", "target target.disk.writeOps", "target target.disk.source"]);
+    expect(paths(target({ cache: "hot" }))).toEqual(["target target.cache"]);
+    expect(paths(target({ others: ballast }))).toEqual(["target target.others"]);
+    const wrong = ["x", { bytes: { value: 0, unit: "B" }, at: "opened", models: " " }];
+    expect(paths(target({ others: wrong }))).toEqual(["target target.others[0]", "target target.others[1].bytes", "target target.others[1].at", "target target.others[1].models"]);
+  });
+
+  it("needs the ballasts of an arm in the form of the target, and a snapshot flag of true or false", () => {
+    const arm = (more: Record<string, unknown>): StartCase => bare({ arms: [{ ...CASE.arms[0]!, ...more }, CASE.arms[1]!] });
+    expect(paths(arm({ ballast: [{ bytes: { value: 69, unit: "MiB" }, at: "ready", models: "the bundle of the live start" }], snapshot: true }))).toEqual([]);
+    expect(paths(arm({ ballast: [{ bytes: { value: 1, unit: "s" }, at: "ready", models: "x" }] }))).toEqual(["arm arms[0].ballast[0].bytes"]);
+    expect(paths(arm({ ballast: {} }))).toEqual(["arm arms[0].ballast"]);
+    expect(paths(arm({ snapshot: "yes" }))).toEqual(["arm arms[0].snapshot"]);
+  });
+
+  it("needs the field after to name an earlier point with the same amounts, and a sample interval in its range", () => {
+    const again = { id: "again", at: CASE.points[1]!.at, after: "large" };
+    expect(paths(bare({ points: [...CASE.points, again] }))).toEqual([]);
+    // A unit of the same kind gives the same amount, and a variable that a point does not name has its min.
+    const same = { ...again, at: { log: { value: 65536, unit: "KiB" }, shapes: { value: 2, unit: "MiB" }, transit: { value: 1, unit: "MiB" } } };
+    expect(paths(bare({ points: [...CASE.points, same] }))).toEqual([]);
+    expect(paths(bare({ points: [...CASE.points, { id: "zero", at: { ...CASE.points[0]!.at, shapes: { value: 0, unit: "B" } }, after: "small" }] }))).toEqual([]);
+    expect(paths(bare({ points: [again, ...CASE.points] }))).toEqual(["point points[0].after"]);
+    expect(paths(bare({ points: [...CASE.points, { ...again, after: "again" }] }))).toEqual(["point points[2].after"]);
+    expect(paths(bare({ points: [...CASE.points, { ...again, after: "none" }] }))).toEqual(["point points[2].after"]);
+    expect(paths(bare({ points: [...CASE.points, { ...again, at: CASE.points[0]!.at }] }))).toEqual(["point points[2].at"]);
+    expect(paths(start({ samples: { value: 5, unit: "s" } }))).toEqual([]);
+    for (const samples of [{ value: 500, unit: "ms" }, { value: 2, unit: "min" }, { value: 1, unit: "B" }]) expect(paths(start({ samples }))).toEqual(["time samples"]);
+  });
+
   it("needs each observation to name a point, an arm and a window of the case, with ready true or false and a source", () => {
     const observed = (more: Record<string, unknown>): StartCase => start({ observed: [{ ...CASE.observed[0]!, ...more }] });
     expect(paths(start({ observed: [] }))).toEqual([]);
@@ -180,14 +219,21 @@ describe("the amounts and the time of a start case", () => {
     expect(checksOf(start({ arms: [{ id: "base", commit: A }, CASE.arms[1]!] }))).toBe(0);
   });
 
-  it("count one child of each arm and one A/A child, on each point, in each round", () => {
+  it("count one child of each arm and one A/A child, on each point, in each round, and one first start of each arm for each point with the field after", () => {
     expect(childrenOf(CASE)).toBe(2 * 2 * 3);
+    expect(firstStartsOf(CASE)).toBe(0);
+    const again = start({ points: [...CASE.points, { id: "again", at: CASE.points[1]!.at, after: "large" }] });
+    expect(childrenOf(again)).toBe(3 * 2 * 3);
+    expect(firstStartsOf(again)).toBe(2);
   });
 
   it("give the longest job: the margin of each step of the image, of each tree and of each type check, the seeds at the lowest rate and the longest child", () => {
     const child = 300 + 120 + CHILD_MARGIN.value;
     expect(IMAGE_STEPS * IMAGE_MARGIN.value).toBe(900);
     expect(startWindowOf(CASE)).toEqual({ value: 900 + (3 + 1) * TREE_MARGIN.value + (83 * MIB) / SEED_RATE + 12 * child, unit: "s" });
+    // A point with the field after has no seed, and it adds 6 children and 2 first starts.
+    const again = start({ points: [...CASE.points, { id: "again", at: CASE.points[1]!.at, after: "large" }] });
+    expect(startWindowOf(again)).toEqual({ value: 900 + (3 + 1) * TREE_MARGIN.value + (83 * MIB) / SEED_RATE + 20 * child, unit: "s" });
   });
 
   it("find the subject of a case, and tell a start case from a case of load", () => {
