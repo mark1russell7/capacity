@@ -77,6 +77,7 @@ type ProblemCode: build/instance.chunk.d.ts#ProblemCode
 RATE: build/instance.chunk.d.ts#RATE
 RESOURCE_UNITS: build/instance.chunk.d.ts#RESOURCE_UNITS
 type Range: build/instance.chunk.d.ts#Range
+type Reach: build/index.d.ts#Reach
 type ResidualKind: build/instance.chunk.d.ts#ResidualKind
 type ResourceCeiling: build/instance.chunk.d.ts#ResourceCeiling
 type Run: build/instance.chunk.d.ts#Run
@@ -112,6 +113,7 @@ instancePointOf: build/instance.chunk.d.ts#instancePointOf
 instanceProblems: build/index.d.ts#instanceProblems
 isLawTerm: build/instance.chunk.d.ts#isLawTerm
 lawKnee: build/index.d.ts#lawKnee
+lawReach: build/index.d.ts#lawReach
 lawValue: build/instance.chunk.d.ts#lawValue
 leastCount: build/instance.chunk.d.ts#leastCount
 limitAmount: build/index.d.ts#limitAmount
@@ -250,6 +252,18 @@ interface Points {
   readonly y: readonly number[];
 }
 
+### build/index.d.ts#Reach
+interface Reach {
+  readonly variable: string;
+  readonly unit: string;
+  readonly amount: number;
+  readonly level: number;
+  readonly search: Range;
+  readonly crossing: Crossing;
+  readonly edge: Crossing;
+  readonly outside: readonly string[];
+}
+
 ### build/index.d.ts#SLUG
 export declare const SLUG: RegExp;
 
@@ -316,6 +330,9 @@ export declare const instanceProblems: (instance: Instance) => readonly Instance
 
 ### build/index.d.ts#lawKnee
 export declare const lawKnee: (law: Law, variable: string, rule: KneeRule, options?: KneeOptions) => Result<Knee, LawProblem>;
+
+### build/index.d.ts#lawReach
+export declare const lawReach: (law: Law, variable: string, amount: Quantity, options?: KneeOptions) => Result<Reach, LawProblem>;
 
 ### build/index.d.ts#limitAmount
 export declare const limitAmount: (limit: Limit, instance: Instance) => Result<Quantity, LimitProblem>;

@@ -141,6 +141,34 @@ The search finds a pole where the value grows as a power or as a logarithm, also
 
 Two edges in one step of the grid can hide the first edge. Increase `steps` for a law with poles near each other. A finite peak narrower than 1e-9 of a step can look like a pole.
 
+## The reach of a law
+
+The reach is the inverse query of one law. It gives the largest load that one amount holds, for example the largest age of a log that fits in a limit of memory.
+
+```ts
+import { quantity } from "@mark1russell7/quantity";
+import { lawReach, limitAmount } from "@mark1russell7/capacity";
+
+// The start memory: 200 MB, 40 MB for each day of the log, and 50 kB for each live report.
+const reach = lawReach(law, "days", quantity(0.9, "GiB"), { at: { reports: 2000 } });
+// reach.value.crossing: { value: 16.66, interval: { low: 15.2, high: 18.35 }, outside: false }
+
+// The amount of a limit on an instance is the ceiling less the headroom.
+const amount = limitAmount(limits.memory, instance);
+if (amount.tag === "ok") lawReach(law, "days", amount.value, { at: { reports: 2000 } });
+```
+
+`lawReach(law, variable, amount, options)` gives the first load where the law is more than the amount. Before that load, the law holds the amount. Thus for a law that grows along the variable, the crossing is the largest load that holds the amount.
+
+- The amount is a quantity. The function converts it to the unit of the measure of the law. The field `amount` of the result is that value.
+- When the law is more than the amount at the start of the search, the crossing is the start.
+- When the law holds the amount on all of the search, the crossing is `null`.
+- A pole is more than each amount, thus the crossing is before the pole.
+
+The options, the search and the fields `edge`, `search` and `outside` are as in a knee. The field `crossing` replaces the field `knee`.
+
+`lawReach` gives each problem of `lawKnee` that is not about a rule. It also gives a problem for an amount that is not finite, or that does not convert to the unit of the measure.
+
 ## The check of a law
 
 `checkLaw(law)` gives each problem of a law, with a code and the path of the field. `readLaw(data)` examines the shape of the data first, then it uses `checkLaw`.
