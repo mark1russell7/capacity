@@ -142,6 +142,21 @@ The plan `floor` has 5 A/A pairs. The two cases of a pair are equal: each one is
 - The bias is information, not a limit.
 - A law keeps the floor of its measure in its field `noise`, with the CPU model and the runs. A difference below the floor is not a result.
 
+| Measure | The limit of the floor | The floors of the 5 runs | The levels of the 5 runs |
+| --- | --- | --- | --- |
+| `cpu.request` | 0.148 ms | 0.012 to 0.079 ms | 0.152 to 0.309 ms |
+| `memory` | 1690514 B | 1137509 to 1414011 B | 29845504 to 30003200 B |
+| `memory.high` | 1654583 B | 1011498 to 1333040 B | 30384128 to 30554112 B |
+| `network.rx.request` | 0.193 B | 0 to 0.096 B | 106.198 B |
+| `network.tx.request` | 0 B | 0 B in each run | 165.132 B |
+| `latency.p50` | 0.210 ms | 0.021 to 0.116 ms | 0.226 to 0.418 ms |
+| `latency.p90` | 0.705 ms | 0.023 to 0.364 ms | 0.279 to 0.689 ms |
+| `latency.p99` | 3.302 ms | 0.116 to 1.709 ms | 0.511 to 3.509 ms |
+
+Each limit is the worst floor plus the spread of the floors, rounded outward. The runs are the 5 runs of the Lab run 44467543161, on four CPU models. The run on an AMD EPYC 9V45 has the worst floor of `latency.p90` and `latency.p99`, and the worst lag of the driver, 8.7 ms.
+
+`LAG_LIMIT` is 19.4 ms. It comes from the worst lag of 27 jobs: the 22 runs of the plan `control` and the 5 runs of the plan `floor`. The worst lags are 0.626 to 10.004 ms.
+
 The floor holds for the load of `control/base` and for the cases of one job on one runner. Two runners can have more noise than the cases of one job. The gate of the laws (CAP-26) compares runs on two runners, thus it measures that noise too. CAP-27 gives a factor for each CPU model.
 
 The plan runs each night, not on each pull request. Its time limit is 54 minutes, and the floor is a property of the runners, not of the code. A test examines the check with records, with no Docker.

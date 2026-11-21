@@ -39,17 +39,27 @@ export const FLOOR_MEASURES: readonly FloorMeasure[] = [
  * These limits are the highest noise floor of each measure that the check accepts. A higher floor
  * tells that the runners became noisier. Then a law cannot see a change of that size.
  *
- * PHASE 1: no limit. The 5 runs of the plan `floor` in CI give the limits before the pull request.
+ * The limits come from the 5 runs of the plan `floor` in the Lab run 44467543161, on four CPU models
+ * (AMD EPYC 9V45 and 9V74, Intel Xeon 6975P-C and Xeon Platinum 8573C). Each limit is the worst
+ * floor plus the spread of the floors (the highest less the lowest), rounded outward.
  */
 export const FLOOR_LIMITS: Readonly<Record<FloorMeasure, number>> = {
-  "cpu.request": Number.POSITIVE_INFINITY,
-  memory: Number.POSITIVE_INFINITY,
-  "memory.high": Number.POSITIVE_INFINITY,
-  "network.rx.request": Number.POSITIVE_INFINITY,
-  "network.tx.request": Number.POSITIVE_INFINITY,
-  "latency.p50": Number.POSITIVE_INFINITY,
-  "latency.p90": Number.POSITIVE_INFINITY,
-  "latency.p99": Number.POSITIVE_INFINITY,
+  // the floors 0.011546 to 0.079390 ms, spread 0.067844: 0.147233
+  "cpu.request": 0.148,
+  // the floors 1137509 to 1414011 B, spread 276503: 1690514
+  memory: 1_690_514,
+  // the floors 1011498 to 1333040 B, spread 321542: 1654582.02
+  "memory.high": 1_654_583,
+  // the floors 0 to 0.096191 B, spread 0.096191: 0.192383. Two runs have the floor 0.
+  "network.rx.request": 0.193,
+  // the floor 0 in each run: each of the 50 cases sends 165.132 B for each request. Thus a floor above 0 is a change.
+  "network.tx.request": 0,
+  // the floors 0.021488 to 0.115659 ms, spread 0.094171: 0.209829
+  "latency.p50": 0.21,
+  // the floors 0.023403 to 0.364098 ms, spread 0.340695: 0.704793
+  "latency.p90": 0.705,
+  // the floors 0.116415 to 1.709008 ms, spread 1.592593: 3.301601
+  "latency.p99": 3.302,
 };
 
 /** The ids of the two cases of one A/A pair. */

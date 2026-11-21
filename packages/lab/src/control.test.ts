@@ -41,7 +41,7 @@ describe("the check of the positive control", () => {
   it("gives a problem of the code read, and no value, for a run with no read of a measure", () => {
     const blind = eachRun(MORE, (run) => (run.index === 1 ? withMeasures(run, { "cpu.request": null }) : run));
     const verdict = verdictOf("control", [BASE, blind]);
-    expect(verdict.values).not.toHaveProperty("cpu.request");
+    expect(Object.keys(verdict.values)).not.toContain("cpu.request");
     expect(verdict.problems).toEqual([{ code: "read", path: "control/more run 1", message: "The run has no read of cpu.request." }]);
   });
 

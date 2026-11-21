@@ -31,7 +31,10 @@ const caseOf = (id: string): CaseRecord => ({ ...BASE, case: { ...BASE.case, id 
 const plan = (differences: Partial<Record<FloorMeasure, readonly number[]>> = {}): CaseRecord[] =>
   Array.from({ length: FLOOR_PAIRS }, (_, index) => floorPair(index + 1)).flatMap(({ a, b }, index) => {
     let more = caseOf(b);
-    for (const [name, list] of Object.entries(differences)) more = shifted(more, name as FloorMeasure, list?.[index] ?? 0);
+    for (const name of FLOOR_MEASURES) {
+      const list = differences[name];
+      if (list !== undefined) more = shifted(more, name, list[index] ?? 0);
+    }
     return [caseOf(a), more];
   });
 
@@ -98,8 +101,7 @@ describe("the check of the noise floor", () => {
     const records = changeRun(plan(), "floor/a2", 1, (run) => withMeasures(run, { "memory.high": null }));
     const { values, problems } = floorCheck(records);
     expect(problems).toEqual([{ code: "read", path: "floor/a2 run 1", message: "The run has no read of memory.high." }]);
-    expect(values).not.toHaveProperty("memory.high.floor");
-    expect(values).not.toHaveProperty("memory.high.level");
+    expect(Object.keys(values).filter((name) => name.startsWith("memory.high."))).toEqual([]);
     expect(values["cpu.request.floor"]).toBe(0);
   });
 

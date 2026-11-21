@@ -7,9 +7,11 @@ import type { CaseRecord, LoadMeasure, RunMeasure } from "./record.ts";
  * This time is the most lag of the driver in one run of the plans `control` and `floor`, in ms.
  * These plans send a light load. A run with more lag has latencies of the driver, not of the subject.
  *
- * PHASE 1: no limit. The 5 runs of the plan `floor` in CI give the limit before the pull request.
+ * The limit comes from 27 jobs of `lab.yml` on five CPU models: the 22 runs of the plan `control`
+ * from 44448319523 to 44892024907, and the 5 runs of the plan `floor` in 44467543161. The worst lag
+ * of each job is 0.626 to 10.004 ms, spread 9.379: 19.383, rounded outward.
  */
-export const LAG_LIMIT: number = Number.POSITIVE_INFINITY;
+export const LAG_LIMIT: number = 19.4;
 
 /** This function gives the planned requests of one run of a case with uniform arrivals: each rate times the duration. */
 const plannedOf = (record: CaseRecord): number =>
