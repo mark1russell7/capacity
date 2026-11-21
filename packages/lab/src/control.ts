@@ -19,19 +19,20 @@ export type ControlValue = "cpu.request" | "network.tx.request" | "memory" | "la
  * These limits are the limits of the positive control. The case `control/more` adds 1 ms of CPU
  * work, a reply of 16 KiB and a live heap of 64 MiB to each request of the case `control/base`.
  *
- * The limits come from 6 runs of `lab.yml` on two CPU models (AMD EPYC 9V74 and Intel Xeon 6975P-C):
- * the run 44448319523 and the 5 runs of 44449842625. Each limit is the worst run less or plus the
- * spread of the runs (the highest value less the lowest value), rounded outward.
+ * The limits come from 22 runs of `lab.yml` on four CPU models (AMD EPYC 7763, 9V45 and 9V74, and
+ * Intel Xeon 6975P-C): each run of the plan from 44448319523 to 44892024907. Each limit is the worst
+ * run less or plus the spread of the runs (the highest value less the lowest value), rounded outward.
+ * The run 44555583909 on an AMD EPYC 9V45 has the highest CPU time and the worst lag of the driver.
  */
 export const CONTROL_LIMITS: Readonly<Record<ControlValue, Limit>> = {
-  // the changes 0.990243 to 1.024453 ms, spread 0.034210: 0.956033 to 1.058663
-  "cpu.request": { low: 0.956, high: 1.059 },
+  // the changes 0.990243 to 1.144525 ms, spread 0.154282: 0.835961 to 1.298807
+  "cpu.request": { low: 0.835, high: 1.299 },
   // the change 16388.198 B in each run, spread 0, rounded to whole bytes. It is more than the reply, 16384 B.
   "network.tx.request": { low: 16_388, high: 16_389 },
-  // the changes 65683456 to 70078464 B, spread 4395008: 61288448 to 74473472
-  memory: { low: 61_288_448, high: 74_473_472 },
-  // the median latency of the second case, 1.224058 to 1.360200 ms, spread 0.136142: 1.087916 to 1.496342. It is more than the work, 1 ms.
-  "latency.p50": { low: 1.08, high: 1.5 },
+  // the changes 65671168 to 70430720 B, spread 4759552: 60911616 to 75190272
+  memory: { low: 60_911_616, high: 75_190_272 },
+  // the median latency of the second case, 1.208555 to 1.424102 ms, spread 0.215547: 0.993008 to 1.639649. Each run is more than the work, 1 ms.
+  "latency.p50": { low: 0.99, high: 1.64 },
 };
 
 /** This function gives the planned requests of one run of a case with uniform arrivals: each rate times the duration. */
