@@ -3,8 +3,8 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { verdictOf } from "./check.ts";
 import { readPlans } from "./plan.ts";
-import { RATE_MEASURES, coresOf, rateCheck } from "./rate.ts";
-import { LAG_LIMIT, caseValue } from "./reads.ts";
+import { RATE_LAG_LIMIT, RATE_MEASURES, coresOf, rateCheck } from "./rate.ts";
+import { LAG_LIMIT, caseValue, worstLag } from "./reads.ts";
 import type { CaseRecord, RunRecord } from "./record.ts";
 import { isStartCase } from "./start.ts";
 
@@ -43,7 +43,8 @@ describe("the check of the request rate", () => {
       expect(values[`${id}.cores`]).toBeCloseTo(cores, 12);
       for (const name of RATE_MEASURES) expect(values[`${id}.${name}`]).toBe(caseValue(BASE, name));
     }
-    expect(Object.keys(values)).toHaveLength(2 * (1 + RATE_MEASURES.length));
+    expect(values["lag.max.worst"]).toBe(worstLag([LOW, HIGH]));
+    expect(Object.keys(values)).toHaveLength(2 * (1 + RATE_MEASURES.length) + 1);
     expect(coresOf(LOW)).toBeCloseTo(cores, 12);
   });
 
@@ -51,10 +52,19 @@ describe("the check of the request rate", () => {
     const count = (value: number) => ({ value, unit: "{request}" });
     const failed = changed(LOW, FIRST, { failed: count(1) });
     const unfinished = changed(HIGH, FIRST, { answered: count(999), unfinished: count(1) });
-    const late = changed(HIGH, FIRST, { "lag.max": { value: LAG_LIMIT + 1, unit: "ms" } });
+    const late = changed(HIGH, FIRST, { "lag.max": { value: RATE_LAG_LIMIT + 1, unit: "ms" } });
     expect(rateCheck([failed]).problems.map((each) => `${each.code} ${each.path}`)).toEqual([`run rate/100 run ${FIRST}`]);
     expect(rateCheck([unfinished]).problems.map((each) => `${each.code} ${each.path}`)).toEqual([`run rate/36000 run ${FIRST}`, `run rate/36000 run ${FIRST}`]);
-    expect(rateCheck([late]).problems).toEqual([{ code: "limit", path: `rate/36000 run ${FIRST}`, message: `The lag of the driver is ${LAG_LIMIT + 1} ms. Its limit is ${LAG_LIMIT} ms.` }]);
+    expect(rateCheck([late]).problems).toEqual([{ code: "limit", path: `rate/36000 run ${FIRST}`, message: `The lag of the driver is ${RATE_LAG_LIMIT + 1} ms. Its limit is ${RATE_LAG_LIMIT} ms.` }]);
+    expect(rateCheck([late]).values["lag.max.worst"]).toBe(RATE_LAG_LIMIT + 1);
+  });
+
+  it("has its own limit of the lag of the driver, above the limit of the light plans", () => {
+    expect(RATE_LAG_LIMIT).toBeGreaterThan(LAG_LIMIT);
+    // The worst lag of the Lab run 44948617847: job 5, rate/33000, past the limit of the subject.
+    const busy = changed(HIGH, FIRST, { "lag.max": { value: 20.382914110810134, unit: "ms" } });
+    expect(rateCheck([busy]).problems).toEqual([]);
+    expect(rateCheck([changed(HIGH, FIRST, { "lag.max": { value: RATE_LAG_LIMIT, unit: "ms" } })]).problems).toEqual([]);
   });
 
   it("gives a problem for a run with no read, and for a plan with no record", () => {

@@ -94,7 +94,7 @@ The measures of the driver are also in `classes`, for each class of the demand.
 
 - **An unfinished request** counts at its age at the end. Thus a quantile of a run with an unfinished request is a low bound. The CPU time of an unfinished request counts, thus `cpu.request` of such a run is too high.
 - **The idle cost** of the subject is in each measure of a run. A run of an idle subject needs a hold with no load in the harness. Thus the idle base is CAP-48.
-- **The lag of the driver** has no limit in the record. The checks `control` and `floor` give a limit at their light load: `LAG_LIMIT`.
+- **The lag of the driver** has no limit in the record. The checks `control` and `floor` give a limit at their light load: `LAG_LIMIT`. The check `rate` gives its own limit: `RATE_LAG_LIMIT`.
 
 ## The plans
 
@@ -187,7 +187,11 @@ The check `rate` (`rateCheck`) gives these values for each case:
 | `<case>.<measure>` | The median of the runs, for each measure of `RATE_MEASURES`: `cpu.request`, `memory`, `memory.high`, `latency.p50`, `latency.p90`, `latency.p99` and `lag.max`. |
 
 - Each run must answer each planned request, with no failure and no unfinished request. Past the limit, a run drains its queue in the 30 s of its drain.
-- The driver of each run must have a lag of `LAG_LIMIT` or less, else the latencies are of the driver.
+- `lag.max.worst` is the largest lag of the driver in a run of the plan.
+- The driver of each run must have a lag of `RATE_LAG_LIMIT` (30.9 ms) or less. The plan drives the subject past its limit. Thus its driver has more lag than in the light plans.
+  - The limit comes from the worst lag of the 5 jobs of the Lab run 44948617847: 9.909 to 20.383 ms, spread 10.474.
+  - The worst lag is at `rate/33000` in job 5. There, the latency is 329 ms at p50. Thus the lag is a small part of the latency.
+  - Below the limit of the subject, a latency near the lag of its run can be a latency of the driver. The values give `lag.max` and the latencies of each case.
 - The plan has no trigger: a person starts it. Its time limit is 74 minutes.
 
 ## The timed runs
