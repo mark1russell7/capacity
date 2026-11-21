@@ -58,13 +58,13 @@ const lagsOf = (record: CaseRecord): readonly (number | null)[] =>
 
 /**
  * This function gives the problems of the lag of the driver in each run of a record. Each run must
- * have a lag of `LAG_LIMIT` or less. A run with no read of the lag is a problem.
+ * have a lag of `limit` or less, in ms. The default is `LAG_LIMIT`. A run with no read of the lag is a problem.
  */
-export const lagProblems = (record: CaseRecord): readonly CheckProblem[] =>
+export const lagProblems = (record: CaseRecord, limit: number = LAG_LIMIT): readonly CheckProblem[] =>
   lagsOf(record).flatMap((lag, index): CheckProblem[] => {
     const path = `${record.case.id} run ${record.runs[index]?.index ?? index}`;
     if (lag === null) return [{ code: "read", path, message: "The run has no read of lag.max." }];
-    return lag <= LAG_LIMIT ? [] : [{ code: "limit", path, message: `The lag of the driver is ${lag} ms. Its limit is ${LAG_LIMIT} ms.` }];
+    return lag <= limit ? [] : [{ code: "limit", path, message: `The lag of the driver is ${lag} ms. Its limit is ${limit} ms.` }];
   });
 
 /** This function gives the largest lag of the driver in a run of some records, in ms, or undefined when no run has a read. */
