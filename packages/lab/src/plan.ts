@@ -7,6 +7,7 @@ import { errorMessage } from "@mark1russell7/text";
 import { caseProblems, type Case } from "./case.ts";
 import { windowOf } from "./cell.ts";
 import { CHECKS } from "./check.ts";
+import { isStartCase, startCaseProblems, startWindowOf, type StartCase } from "./start.ts";
 
 /** This text is the format of a plan file. */
 export const PLAN_FORMAT = "capacity-plan/1";
@@ -40,7 +41,8 @@ export const MAX_JOBS = 256;
  * plan file is this record as JSON, in the folder `plans`, with the id of the plan as its name.
  *
  * The cases of one plan share one runner, thus one CPU model. Thus a check can compare two cases of
- * a plan, and the points of a law come from one machine.
+ * a plan, and the points of a law come from one machine. A case is a case of load (`capacity-case/1`)
+ * or a start case (`capacity-start/1`). A check judges only the cases of load.
  */
 export interface Plan {
   readonly format: typeof PLAN_FORMAT;
@@ -50,7 +52,7 @@ export interface Plan {
   readonly check: string | null;
   /** These triggers are the events that start the plan with no selection by hand. */
   readonly triggers: readonly PlanTrigger[];
-  readonly cases: readonly Case[];
+  readonly cases: readonly (Case | StartCase)[];
 }
 
 /** A plan problem code names the part of a plan that is not correct. */
@@ -64,10 +66,10 @@ const problem = (code: PlanProblemCode, path: string, message: string): PlanProb
 /**
  * This function gives the time limit of the job of a plan, in minutes. It is `SETUP_MINUTES` and the
  * window of each run of each case, with its warm-up run. The window of a run is the longest time of
- * the run (`windowOf`), thus a job in its limit cannot stop a run.
+ * the run (`windowOf`), thus a job in its limit cannot stop a run. A start case adds its longest time (`startWindowOf`).
  */
 export const planMinutes = (plan: Plan): number => {
-  const seconds = plan.cases.reduce((sum, value) => sum + (value.runs + 1) * valueIn(windowOf(value), "s"), 0);
+  const seconds = plan.cases.reduce((sum, value) => sum + (isStartCase(value) ? valueIn(startWindowOf(value), "s") : (value.runs + 1) * valueIn(windowOf(value), "s")), 0);
   return SETUP_MINUTES + Math.ceil(seconds / 60);
 };
 
@@ -76,7 +78,7 @@ export const planMinutes = (plan: Plan): number => {
  * an empty list.
  *
  * It examines the format, the id, the title, the check and the triggers. It examines each case with
- * `caseProblems`, and the ids of the cases must differ. Then the time limit of the job of the plan
+ * `caseProblems`, or a start case with `startCaseProblems`. The ids of the cases must differ. Then the time limit of the job of the plan
  * (`planMinutes`) must be `MAX_JOB_MINUTES` or less.
  */
 export const planProblems = (plan: Plan): readonly PlanProblem[] => {
@@ -103,7 +105,8 @@ export const planProblems = (plan: Plan): readonly PlanProblem[] => {
   const ids = new Set<string>();
   plan.cases.forEach((value, index) => {
     const path = `cases[${index}]`;
-    problems.push(...caseProblems(value).map((each) => problem("case", each.path === "" ? path : `${path}.${each.path}`, each.message)));
+    const found = isStartCase(value) ? startCaseProblems(value) : caseProblems(value);
+    problems.push(...found.map((each) => problem("case", each.path === "" ? path : `${path}.${each.path}`, each.message)));
     const id: unknown = isRecord(value) ? value["id"] : undefined;
     if (typeof id === "string") {
       if (ids.has(id)) problems.push(problem("case", `${path}.id`, `The case id "${id}" is in the plan two times.`));

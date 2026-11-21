@@ -1,0 +1,24 @@
+{
+  "format": "alerts-config/1",
+  "places": [
+    {
+      "id": "place-1",
+      "label": "Place",
+      "at": [-98.55, 28.3],
+      "codes": [
+        { "system": "state", "code": "TX" },
+        { "system": "ugc", "code": "TXC311" },
+        { "system": "same", "code": "048311" },
+        { "system": "iso3166", "code": "US" }
+      ],
+      "bufferKm": 5
+    }
+  ],
+  "people": [{ "watch": { "person": "person-1", "places": ["place-1"], "rules": [] } }],
+  "contacts": [{ "person": "person-1", "channel": "pushover", "address": { "user": { "secret": "PUSHOVER_USER_KEY" } } }],
+  "policies": [
+    { "level": "life-safety", "steps": [{ "channel": "pushover", "at": 0 }], "exhaustedAfter": 1200000 },
+    { "level": "urgent", "steps": [{ "channel": "pushover", "at": 0 }], "exhaustedAfter": 1200000 },
+    { "level": "notice", "steps": [{ "channel": "pushover", "at": 0 }], "exhaustedAfter": 1200000 }
+  ]
+}

@@ -3,8 +3,8 @@ import { controlCheck } from "./control.ts";
 import { floorCheck } from "./floor.ts";
 import type { CaseRecord } from "./record.ts";
 
-/** A check problem code names the kind of a problem in the records of a plan. */
-export type CheckProblemCode = "record" | "run" | "read" | "limit";
+/** A check problem code names the kind of a problem in the records of a plan. The code `observed` is a fact of a target that the record does not agree with. */
+export type CheckProblemCode = "record" | "run" | "read" | "limit" | "observed";
 
 /** A check problem tells what is not correct in the records, and where: `path` names the case and the run. */
 export type CheckProblem = Problem<CheckProblemCode>;

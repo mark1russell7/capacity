@@ -9,6 +9,8 @@ import type { Case } from "./case.ts";
 import type { Measurement } from "./measure.ts";
 import { readPlans, type Plan } from "./plan.ts";
 import type { CaseRecord } from "./record.ts";
+import type { StartCase } from "./start.ts";
+import { START_RECORD_FORMAT, type StartMeasurement, type StartRecord } from "./start-measure.ts";
 import { MANIFEST, TIMED_FORMAT, filesOf, runOf, summaryOf, timePlan, utcOf, type Timed } from "./timed.ts";
 
 /** The two records of the Lab run 44453927945 on main, on an Intel Xeon 6975P-C. */
@@ -89,6 +91,43 @@ describe("a timed run of a plan", () => {
     const timed = await timePlan(CONTROL, { out, measure: fake, env: {}, now: clock() });
     expect(timed.run).toBeNull();
     expect(timed.attempt).toBeNull();
+  });
+
+  it("measures a start case with the option start in the run of the job, and judges each start record", async () => {
+    out = mkdtempSync(join(tmpdir(), "capacity-timed-"));
+    const value = readPlans(fileURLToPath(new URL("../plans/", import.meta.url))).plans.find((each) => each.id === "alerts-start")!.cases[0] as StartCase;
+    const plan: Plan = { ...CONTROL, id: "alerts-start", check: null, cases: [value] };
+    const machine = { cpu: "Test CPU", cores: 4, kernel: "6.8.0", architecture: "x64", node: "v26.13.1", memory: { value: 16, unit: "GiB" } };
+    const env = { cpu: "Test CPU", cores: 4, os: "linux", arch: "x64", node: "v26.13.1" };
+    const record: StartRecord = {
+      format: START_RECORD_FORMAT,
+      case: value,
+      machine,
+      at: { started: "2026-11-18T14:00:00.250Z", ended: "2026-11-18T14:00:00.250Z" },
+      job: "3",
+      image: { name: value.target.image, id: `sha256:${"d".repeat(64)}`, digest: null },
+      check: { node: value.target.node, memoryMax: "1011425280", swapMax: "2147483648", hostSwap: { value: 4, unit: "GiB" }, heapLimit: { value: 556269568, unit: "B" }, cpus: 2, start: { value: 700, unit: "ms" } },
+      trees: [],
+      pairs: ["new", "base~aa"],
+      points: [],
+      readings: [],
+      orders: [],
+      failures: [],
+      skipped: [],
+    };
+    const runs: number[] = [];
+    const start = async (each: StartCase, run: number): Promise<StartMeasurement> => {
+      runs.push(run);
+      return { record: { ...record, case: each }, result: { env, job: String(run), pairs: {}, skipped: [], orders: [] } };
+    };
+    const timed = await timePlan(plan, { out, measure: fake, start, run: 3, env: ENV, now: clock() });
+    expect(runs).toEqual([3]);
+    expect(timed.machine).toEqual(machine);
+    expect(timed.files).toEqual([filesOf(value.id)]);
+    expect(JSON.parse(readFileSync(join(out, filesOf(value.id).record), "utf8"))).toEqual(record);
+    // The record has no round and no reading. Thus the record and each observation of the machine are problems of the verdict.
+    expect(timed.verdict.check).toBeNull();
+    expect(timed.verdict.problems.map((each) => each.code)).toEqual(["record", ...value.observed.map(() => "observed")]);
   });
 
   it("stops at a case that throws, with no manifest, and keeps the files of the cases before it", async () => {
