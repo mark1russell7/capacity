@@ -1,6 +1,7 @@
 import { err, ok, type Result } from "@mark1russell7/optional";
+import { convertible, isQuantity, type Quantity, valueIn, whyNotConvertible } from "@mark1russell7/quantity";
 import type { Expr } from "@mark1russell7/vex";
-import { DEFAULT_LEVEL, type Law, type LawProblem } from "./law.ts";
+import { DEFAULT_LEVEL, type Law, type LawProblem, type Variable } from "./law.ts";
 import { recordOf, valuesAt } from "./program.ts";
 import { intervalOf, levelProblem, type LevelOptions, type LoadPoint, type Range } from "./value.ts";
 
@@ -181,18 +182,31 @@ const edgeOf = (curve: Curve, grid: readonly number[], values: readonly (number 
 const stepAt = (load: number, unit: number): number => STEP * Math.max(Math.abs(load), unit);
 
 /**
- * This function gives the knee of one row of a law: the first load before the edge where the law
- * obeys the rule. It gives Infinity when the law does not obey the rule before the edge or the end of the grid.
+ * A test tells if the law passes a mark at one load. The value at the load is optional: without
+ * it, the test reads the curve. A load with no finite value does not pass.
+ */
+type Test = (load: number, value?: number) => boolean;
+
+/** The context of the test of one row: its curve, its start value, its path, its start load and its step unit. */
+interface TestContext {
+  readonly curve: Curve;
+  readonly start: number;
+  readonly path: string;
+  readonly from: number;
+  readonly unit: number;
+}
+
+/** A test maker gives the test of one row, or the problem that stops the test at the start of the search. */
+type TestOf = (context: TestContext) => Result<Test, LawProblem>;
+
+/**
+ * This function gives the first load before the edge where the test holds. It gives Infinity when
+ * the test does not hold before the edge or the end of the grid.
  *
  * The search tests the loads of the grid before the edge, and one load near the edge. A bisection
  * then finds the load between the last load that fails the test and the first load that passes it.
  */
-const kneeOf = (
-  holds: (load: number, value?: number) => boolean,
-  grid: readonly number[],
-  values: readonly (number | undefined)[],
-  edge: number,
-): number => {
+const firstHolds = (holds: Test, grid: readonly number[], values: readonly (number | undefined)[], edge: number): number => {
   const loads = grid.map((load, index) => ({ load, value: values[index] })).filter(({ load }) => load < edge);
   if (Number.isFinite(edge)) {
     const before = loads.at(-1)?.load ?? (grid[0] as number);
@@ -206,36 +220,40 @@ const kneeOf = (
   return Infinity;
 };
 
-/** The knee and the edge of one row of a law, or the problem of the row. */
+/** The crossing and the edge of one row of a law, or the problem of the row. */
 interface RowResult {
-  readonly knee: number;
+  readonly crossing: number;
   readonly edge: number;
 }
 
-const rowOf = (
-  curve: Curve,
-  path: string,
-  rule: KneeRule,
-  grid: readonly number[],
-  unit: number,
-): Result<RowResult, LawProblem> => {
+/** This function gives the first load where one row of a law passes its test, and the edge of the row. */
+const rowOf = (curve: Curve, path: string, testOf: TestOf, grid: readonly number[], unit: number): Result<RowResult, LawProblem> => {
   const values = curve(grid);
   const start = values[0];
   const from = grid[0] as number;
   if (start === undefined) return err(problem("value", path, `The law has no value at the start of the search, ${from}.`));
-  const slopeAt = (load: number, value: number | undefined = valueOf(curve, load)): number | undefined => {
-    const step = stepAt(load, unit);
-    const before = valueOf(curve, load - step);
-    return value === undefined || before === undefined ? undefined : (value - before) / step;
-  };
-  let holds: (load: number, value?: number) => boolean;
-  if (rule.kind === "rise") {
-    if (!(start > 0)) {
-      return err(problem("knee", path, `The rule "rise" needs a value above 0 at the start of the search. The value is ${start}.`));
+  const test = testOf({ curve, start, path, from, unit });
+  if (test.tag === "err") return test;
+  const edge = edgeOf(curve, grid, values, start);
+  return ok({ crossing: firstHolds(test.value, grid, values, edge), edge });
+};
+
+/** This function gives the test of a knee rule: the value or the slope is above its mark from the start of the search. */
+const ruleTest =
+  (rule: KneeRule): TestOf =>
+  ({ curve, start, path, from, unit }) => {
+    if (rule.kind === "rise") {
+      if (!(start > 0)) {
+        return err(problem("knee", path, `The rule "rise" needs a value above 0 at the start of the search. The value is ${start}.`));
+      }
+      const limit = (1 + rule.share) * start;
+      return ok((load, value = valueOf(curve, load)) => value !== undefined && value > limit);
     }
-    const limit = (1 + rule.share) * start;
-    holds = (load, value = valueOf(curve, load)) => value !== undefined && value > limit;
-  } else {
+    const slopeAt = (load: number, value: number | undefined): number | undefined => {
+      const step = stepAt(load, unit);
+      const before = valueOf(curve, load - step);
+      return value === undefined || before === undefined ? undefined : (value - before) / step;
+    };
     const step = stepAt(from, unit);
     const after = valueOf(curve, from + step);
     const first = after === undefined ? undefined : (after - start) / step;
@@ -243,14 +261,17 @@ const rowOf = (
       return err(problem("knee", path, `The rule "slope" needs a slope above 0 at the start of the search. The slope is ${String(first)}.`));
     }
     const limit = rule.factor * first;
-    holds = (load, value) => {
+    return ok((load, value) => {
       const slope = slopeAt(load, value ?? valueOf(curve, load));
       return slope !== undefined && slope > limit;
-    };
-  }
-  const edge = edgeOf(curve, grid, values, start);
-  return ok({ knee: kneeOf(holds, grid, values, edge), edge });
-};
+    });
+  };
+
+/** This function gives the test of an amount: the value is above the amount. */
+const amountTest =
+  (amount: number): TestOf =>
+  ({ curve }) =>
+    ok((load, value = valueOf(curve, load)) => value !== undefined && value > amount);
 
 /** This function gives the problem of a knee rule, or undefined. */
 const ruleProblem = (rule: KneeRule): LawProblem | undefined => {
@@ -280,29 +301,28 @@ const crossingFrom = (values: readonly number[], level: number, range: Range, en
   };
 };
 
+/** The result of a search along one variable of a law: the first load that passes the test, and the edge. */
+interface Along {
+  readonly target: Variable;
+  readonly level: number;
+  readonly search: Range;
+  readonly crossing: Crossing;
+  readonly edge: Crossing;
+  readonly outside: readonly string[];
+}
+
 /**
- * This function gives the knee of a law along one variable, with an interval. It also gives the
- * edge: the first load where the law has no finite value.
- *
- * The point `at` of the options gives each other variable of the law. The function evaluates the
- * law with its constants, then with each replicate. The interval of the knee and of the edge is the
- * share `level` of the values of the replicates, made wider to hold the value.
- *
- * The search tests a grid of loads, then a bisection finds each crossing. A crossing between two
- * loads of the grid is found. Two edges in one step of the grid can hide the first edge.
- *
- * The function gives a problem for a variable or a point that the law cannot read. A bad search
- * range, rule or count of steps, and a level that the law cannot show, also give a problem. The last
- * problems are a law with no value at the start of the search, and a rule that cannot apply there.
+ * This function searches along one variable of a law for the first load that passes a test, in the
+ * constants and in each replicate. The function `check` gives the problem of the test before the search.
  */
-export const lawKnee = (law: Law, variable: string, rule: KneeRule, options: KneeOptions = {}): Result<Knee, LawProblem> => {
+const along = (law: Law, variable: string, options: KneeOptions, check: () => LawProblem | undefined, testOf: TestOf): Result<Along, LawProblem> => {
   const level = options.level ?? DEFAULT_LEVEL;
   const noLevel = levelProblem(law, level, false);
   if (noLevel !== undefined) return err(noLevel);
   const target = law.variables.find((entry) => entry.id === variable);
   if (target === undefined) return err(problem("point", "variable", `The law has no variable "${variable}".`));
-  const badRule = ruleProblem(rule);
-  if (badRule !== undefined) return err(badRule);
+  const badTest = check();
+  if (badTest !== undefined) return err(badTest);
 
   const at = options.at ?? {};
   for (const name of Object.keys(at)) {
@@ -343,13 +363,13 @@ export const lawKnee = (law: Law, variable: string, rule: KneeRule, options: Kne
     { path: "constants", values: law.constants.map((constant) => constant.value) },
     ...law.replicates.map((row, index) => ({ path: `replicates[${index}]`, values: row })),
   ];
-  const knees: number[] = [];
+  const crossings: number[] = [];
   const edges: number[] = [];
   for (const row of rows) {
     const curve: Curve = (loads) => valuesAt(program, loads.map((load) => recordOf(names, row.values, { ...base, [variable]: load })));
-    const result = rowOf(curve, row.path, rule, grid, unit);
+    const result = rowOf(curve, row.path, testOf, grid, unit);
     if (result.tag === "err") return result;
-    knees.push(result.value.knee);
+    crossings.push(result.value.crossing);
     edges.push(result.value.edge);
   }
 
@@ -358,13 +378,78 @@ export const lawKnee = (law: Law, variable: string, rule: KneeRule, options: Kne
     .filter((entry) => entry.id !== variable && ((base[entry.id] as number) < entry.min || (base[entry.id] as number) > entry.max))
     .map((entry) => entry.id);
   return ok({
-    variable,
-    unit: target.unit,
-    rule,
+    target,
     level,
     search: { low: from, high: to },
-    knee: crossingFrom(knees, level, range, to),
+    crossing: crossingFrom(crossings, level, range, to),
     edge: crossingFrom(edges, level, range, to),
     outside,
   });
+};
+
+/**
+ * This function gives the knee of a law along one variable, with an interval. It also gives the
+ * edge: the first load where the law has no finite value.
+ *
+ * The point `at` of the options gives each other variable of the law. The function evaluates the
+ * law with its constants, then with each replicate. The interval of the knee and of the edge is the
+ * share `level` of the values of the replicates, made wider to hold the value.
+ *
+ * The search tests a grid of loads, then a bisection finds each crossing. A crossing between two
+ * loads of the grid is found. Two edges in one step of the grid can hide the first edge.
+ *
+ * The function gives a problem for a variable or a point that the law cannot read. A bad search
+ * range, rule or count of steps, and a level that the law cannot show, also give a problem. The last
+ * problems are a law with no value at the start of the search, and a rule that cannot apply there.
+ */
+export const lawKnee = (law: Law, variable: string, rule: KneeRule, options: KneeOptions = {}): Result<Knee, LawProblem> => {
+  const found = along(law, variable, options, () => ruleProblem(rule), ruleTest(rule));
+  if (found.tag === "err") return found;
+  const { target, level, search, crossing, edge, outside } = found.value;
+  return ok({ variable, unit: target.unit, rule, level, search, knee: crossing, edge, outside });
+};
+
+/**
+ * A reach is the result of a search along one variable for the first load where a law is above an
+ * amount. The loads are in the unit of the variable. Before the `crossing`, the law holds the amount.
+ *
+ * Thus for a law that grows along the variable, the crossing is the largest load that holds the
+ * amount. The `edge` and the list `outside` are as in a knee.
+ */
+export interface Reach {
+  readonly variable: string;
+  readonly unit: string;
+  /** This amount is the amount of the search, in the unit of the measure of the law. */
+  readonly amount: number;
+  readonly level: number;
+  readonly search: Range;
+  readonly crossing: Crossing;
+  readonly edge: Crossing;
+  readonly outside: readonly string[];
+}
+
+/**
+ * This function gives the first load along one variable where a law is above an amount, with an
+ * interval. This is the inverse query of one law: the largest load that one limit holds.
+ *
+ * The options are the options of `lawKnee`. When the law is above the amount at the start of the
+ * search, the crossing is the start. When the law holds the amount on all of the search, the
+ * crossing is null. A pole is above each amount, so the crossing is before the pole.
+ *
+ * The function gives each problem of `lawKnee` that is not about a rule. An amount that is not finite
+ * gives a problem. An amount that does not convert to the unit of the measure also gives a problem.
+ */
+export const lawReach = (law: Law, variable: string, amount: Quantity, options: KneeOptions = {}): Result<Reach, LawProblem> => {
+  if (!isQuantity(amount) || !Number.isFinite(amount.value)) {
+    return err(problem("value", "amount", "The amount is not a finite quantity."));
+  }
+  if (!convertible(amount.unit, law.measure.unit)) {
+    const why = whyNotConvertible(amount.unit, law.measure.unit) ?? "the units are different";
+    return err(problem("unit", "amount", `The amount is in "${amount.unit}", and the measure of the law is in "${law.measure.unit}": ${why}.`));
+  }
+  const value = valueIn(amount, law.measure.unit);
+  const found = along(law, variable, options, () => undefined, amountTest(value));
+  if (found.tag === "err") return found;
+  const { target, level, search, crossing, edge, outside } = found.value;
+  return ok({ variable, unit: target.unit, amount: value, level, search, crossing, edge, outside });
 };

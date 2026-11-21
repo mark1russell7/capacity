@@ -1,10 +1,11 @@
 import type { Result } from "@mark1russell7/optional";
+import { quantity, type Quantity } from "@mark1russell7/quantity";
 import { quantile } from "@mark1russell7/rigor-statistics";
 import { app, ref, type Expr } from "@mark1russell7/vex";
 import { describe, expect, it } from "vitest";
 import { checkLaw } from "./check.ts";
 import { catalogForm, constantIdsOf, formOf } from "./forms.ts";
-import { lawKnee, type Knee, type KneeOptions, type KneeRule } from "./knee.ts";
+import { lawKnee, lawReach, type Knee, type KneeOptions, type KneeRule, type Reach } from "./knee.ts";
 import type { Law, LawProblem, Variable } from "./law.ts";
 import { hinge, sampleLaw, wave } from "./sample.fixture.ts";
 
@@ -285,5 +286,105 @@ describe("the problems of lawKnee", () => {
     const first = spread.replicates.findIndex((row) => (row[0] as number) <= 0);
     expect(first).toBeGreaterThanOrEqual(0);
     expect(problemOf(lawKnee(spread, "rate", { kind: "rise", share: 1 }))).toMatchObject({ code: "knee", path: `replicates[${first}]` });
+  });
+});
+
+/** The start memory of a service: a base, a cost for each day of its log, and a cost for each live report. */
+const startMemory: Expr = app("add", ref("base"), app("add", app("multiply", ref("perDay"), ref("days")), app("multiply", ref("perReport"), ref("reports"))));
+const MEMORY = { base: 200e6, perDay: 40e6, perReport: 50e3 };
+
+/** This function gives a law of the start memory in bytes. The cost of each day of each replicate is in 10 % of the estimate. */
+const memoryLaw = (): Law => ({
+  ...programLaw(startMemory, MEMORY, [
+    { id: "days", unit: "d", min: 0, max: 30, scale: "linear" },
+    { id: "reports", unit: "{report}", min: 0, max: 20_000, scale: "linear" },
+  ]),
+  measure: { id: "memory", unit: "B" },
+  replicates: Array.from({ length: 40 }, (_, row) => [MEMORY.base, MEMORY.perDay * (1 + 0.1 * wave(row, 1)), MEMORY.perReport]),
+});
+
+/** The amount of a limit of 1 GiB with a headroom of 10 %, in bytes. */
+const AMOUNT = 0.9 * 2 ** 30;
+
+const reachOf = (law: Law, variable: string, amount: Quantity, options: KneeOptions = {}): Reach => must(lawReach(law, variable, amount, options));
+
+const reachProblem = (result: Result<Reach, LawProblem>): LawProblem => {
+  if (result.tag === "ok") throw new Error("The search gave a reach, not a problem.");
+  return result.error;
+};
+
+describe("lawReach", () => {
+  it("gives the largest age of the log that holds an amount, as the algebra of the law gives it", () => {
+    const law = memoryLaw();
+    expect(checkLaw(law)).toEqual([]);
+    const found = reachOf(law, "days", quantity(AMOUNT, "B"), { at: { reports: 2000 } });
+    const free = AMOUNT - MEMORY.base - MEMORY.perReport * 2000;
+    expect(found.crossing.value).toBeCloseTo(free / MEMORY.perDay, 6);
+    expect(found).toMatchObject({ variable: "days", unit: "d", amount: AMOUNT, level: 0.95, search: { low: 0, high: 30 }, outside: [] });
+    expect(found.edge).toEqual(NO_CROSSING);
+    // The interval comes from the cost of each day of the replicates: a larger cost gives a smaller age.
+    const ages = law.replicates.map((row) => free / (row[1] as number));
+    const { low, high } = found.crossing.interval;
+    expect(low as number).toBeLessThan(found.crossing.value as number);
+    expect(high as number).toBeGreaterThan(found.crossing.value as number);
+    expect(low as number).toBeCloseTo(Math.min(found.crossing.value as number, quantile(ages, 0.025)), 4);
+    expect(high as number).toBeCloseTo(Math.max(found.crossing.value as number, quantile(ages, 0.975)), 4);
+  });
+
+  it("converts the amount to the unit of the measure of the law", () => {
+    const law = memoryLaw();
+    const inBytes = reachOf(law, "days", quantity(AMOUNT, "B"), { at: { reports: 2000 } });
+    const inMebibytes = reachOf(law, "days", quantity(AMOUNT / 2 ** 20, "MiB"), { at: { reports: 2000 } });
+    expect(inMebibytes.amount).toBeCloseTo(AMOUNT, 3);
+    expect(inMebibytes.crossing.value).toBeCloseTo(inBytes.crossing.value as number, 9);
+  });
+
+  it("goes along each variable of the law", () => {
+    const found = reachOf(memoryLaw(), "reports", quantity(AMOUNT, "B"), { at: { days: 10 } });
+    expect(found.crossing.value).toBeCloseTo((AMOUNT - MEMORY.base - MEMORY.perDay * 10) / MEMORY.perReport, 4);
+    expect(found.unit).toBe("{report}");
+  });
+
+  it("gives the start when the law is above the amount at the start, and no crossing when the law holds it on all of the search", () => {
+    const law = memoryLaw();
+    expect(reachOf(law, "days", quantity(100e6, "B"), { at: { reports: 0 } }).crossing.value).toBe(0);
+    expect(reachOf(law, "days", quantity(10 * 2 ** 30, "B"), { at: { reports: 0 } }).crossing).toEqual(NO_CROSSING);
+  });
+
+  it("marks a crossing outside the range of the variable, and each other variable outside its range", () => {
+    const found = reachOf(memoryLaw(), "days", quantity(4 * 2 ** 30, "B"), { at: { reports: 30_000 }, to: 200 });
+    expect(found.crossing.outside).toBe(true);
+    expect(found.crossing.value as number).toBeGreaterThan(30);
+    expect(found.outside).toEqual(["reports"]);
+  });
+
+  it("gives the knee of the rule rise at an amount of 1 + share times the start value", () => {
+    const law = lawOf("queue", QUEUE, QUEUE_RANGE);
+    const start = 0.5 + 100 / 99;
+    for (const share of [0.1, 1, 3]) {
+      const found = reachOf(law, "rate", quantity(start * (1 + share), law.measure.unit));
+      expect(found.crossing.value).toBeCloseTo(kneeOf(law, { kind: "rise", share }).knee.value as number, 9);
+    }
+  });
+
+  it("finds the crossing before a pole, for an amount of any size", () => {
+    const rate: Variable = { id: "rate", unit: "{request}/s", min: 0, max: 99, scale: "linear" };
+    const law = programLaw(lostValue, { base: 10, capacity: 100 }, [rate]);
+    // The law is 10 - ln(100 - rate). It is 20 where 100 - rate is e^-10.
+    const found = reachOf(law, "rate", quantity(20, law.measure.unit), { to: 150 });
+    expect(found.crossing.value).toBeCloseTo(100 - Math.exp(-10), 9);
+    expect(found.crossing.value as number).toBeLessThan(found.edge.value as number);
+    expect(found.edge.value).toBeCloseTo(100, 9);
+  });
+
+  it("gives a problem for an amount in another kind of unit, for an amount that is not finite, and for the problems of a search", () => {
+    const law = memoryLaw();
+    const at = { reports: 2000 };
+    expect(reachProblem(lawReach(law, "days", quantity(1, "s"), { at }))).toMatchObject({ code: "unit", path: "amount" });
+    expect(reachProblem(lawReach(law, "days", { value: Number.NaN, unit: "B" } as Quantity, { at }))).toMatchObject({ code: "value", path: "amount" });
+    expect(reachProblem(lawReach(law, "hours", quantity(AMOUNT, "B"), { at }))).toMatchObject({ code: "point", path: "variable" });
+    expect(reachProblem(lawReach(law, "days", quantity(AMOUNT, "B")))).toMatchObject({ code: "point", path: "at.reports" });
+    expect(reachProblem(lawReach(law, "days", quantity(AMOUNT, "B"), { at, from: 5, to: 5 }))).toMatchObject({ code: "range", path: "from" });
+    expect(reachProblem(lawReach(law, "days", quantity(AMOUNT, "B"), { at, level: 0.999 }))).toMatchObject({ code: "level" });
   });
 });
