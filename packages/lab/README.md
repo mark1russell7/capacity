@@ -285,13 +285,14 @@ The container does not model all of the target machine:
 - The CPUs of the host of the lab are not the CPUs of the target. Thus a time of the lab is a time on the CPU of the record.
 - The copy of the store is in the container. The page cache of the copy counts in the memory of the container. The kernel takes back clean cache first.
 
-Two plans measure the start of alerts. Each one has no check and no trigger. The arm `cloud` is the build of the cloud machine with the graft of the measured start, and the arm `new` is the current build.
+Three plans measure the start of alerts. Each one has no check and no trigger. The arm `cloud` is the build of the cloud machine with the graft of the measured start, and the arm `new` is the current build.
 
 - `alerts-start` measures logs from 16 MiB to 512 MiB, and the log of the cloud machine, with the shapes and the transit copy of the cloud machine. It reads the windows of 90 s, of 308.012 s and of 600 s.
 - `alerts-start-files` measures a log of 64 MiB with 3 sizes of the shapes file and 3 sizes of the transit copy. Its second case is the knee of the cloud log:
   - The point `cut-1030` is the log at the last start that was ready in 90 s. A count of the events of the cloud log gives its size.
   - The point `file-1844` is the log when the starts stopped at 90 s. The two points are 3% apart.
   - When the lab reads the two points the same, the size of the log does not explain the change.
+- `alerts-start-horizon` measures the two points of the knee in 3 rounds, with a third arm. The arm `horizon` is the build of the horizon change of the state of alerts.
 
 A person starts a plan by hand, for example with 5 runs:
 

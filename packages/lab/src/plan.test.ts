@@ -89,14 +89,19 @@ describe("the plan files of the lab", () => {
     expect(planMinutes(rate!)).toBeLessThanOrEqual(MAX_JOB_MINUTES);
   });
 
-  it("have the two plans of the start of alerts: no check, no trigger, only start cases, in the time of one job", () => {
-    for (const [id, cases] of [["alerts-start", ["alerts-start/log"]], ["alerts-start-files", ["alerts-start/files", "alerts-start/knee"]]] as const) {
+  it("have the three plans of the start of alerts: no check, no trigger, only start cases, in the time of one job", () => {
+    const plans = [
+      ["alerts-start", ["alerts-start/log"], ["cloud", "new"]],
+      ["alerts-start-files", ["alerts-start/files", "alerts-start/knee"], ["cloud", "new"]],
+      ["alerts-start-horizon", ["alerts-start/horizon"], ["cloud", "new", "horizon"]],
+    ] as const;
+    for (const [id, cases, arms] of plans) {
       const start = readPlans(PLANS).plans.find((each) => each.id === id);
       expect(start?.check).toBeNull();
       expect(start?.triggers).toEqual([]);
       const values = (start?.cases ?? []).filter(isStartCase);
       expect(values.map((value) => value.id)).toEqual(cases);
-      for (const value of values) expect(value.arms.map((arm) => arm.id)).toEqual(["cloud", "new"]);
+      for (const value of values) expect(value.arms.map((arm) => arm.id)).toEqual(arms);
       const seconds = values.reduce((sum, value) => sum + valueIn(startWindowOf(value), "s"), 0);
       expect(planMinutes(start!)).toBe(SETUP_MINUTES + Math.ceil(seconds / 60));
       expect(planMinutes(start!)).toBeLessThanOrEqual(MAX_JOB_MINUTES);
@@ -106,6 +111,12 @@ describe("the plan files of the lab", () => {
   it("bracket the knee of the cloud log with one ready fact and one late fact of the cloud arm", () => {
     const knee = readPlans(PLANS).plans.find((each) => each.id === "alerts-start-files")?.cases.find((each) => each.id === "alerts-start/knee");
     if (!isStartCase(knee)) throw new Error("The plan alerts-start-files has no knee case.");
+    // The horizon case is the knee case with the arm of AL-109 and more rounds. Thus its points and its facts are the same.
+    const [horizon] = readPlans(PLANS).plans.find((each) => each.id === "alerts-start-horizon")?.cases ?? [];
+    if (!isStartCase(horizon)) throw new Error("The plan alerts-start-horizon has no start case.");
+    expect({ ...horizon, id: knee.id, title: knee.title, arms: knee.arms, rounds: knee.rounds }).toEqual(knee);
+    expect(horizon.arms.at(-1)).toEqual({ id: "horizon", commit: "79860e0eb2341e3ddd794ca772aee036bd2cffdf" });
+    expect(horizon.rounds).toBe(3);
     // The cut point is the file of 18:44Z times the share of the body characters up to the last good start.
     expect(knee.points.map((point) => [point.id, point.at["log"]?.value])).toEqual([
       ["cut-1030", Math.round((197156864 * 154047519) / 158938576)],
