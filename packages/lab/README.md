@@ -101,11 +101,11 @@ A plan is a set of cases that one CI job measures on one runner, and the check o
 | `id` | Lower-case words joined by `-`. It is a part of the name of the artifact of each run. |
 | `check` | The name of a check of `CHECKS`, or `null`. The check judges the records of the plan. |
 | `triggers` | The events that start the plan with no selection by hand: `pull_request` and `schedule`. A person can start each plan by its id. |
-| `cases` | The cases of the plan, each a case record. The ids of the cases are different. |
+| `cases` | The cases of the plan, each a case record or a start case. The ids of the cases are different. |
 
 - **One runner for each plan.** The cases of a plan share one runner, thus one CPU model. Thus a check can compare two cases, and the points of a law come from one machine.
-- **The check.** `planProblems` gives each problem of a plan. It examines each case with `caseProblems`. `readPlans` reads each plan file of a folder, and the id of each plan must be the name of its file.
-- **The time of a job.** `planMinutes` gives the time limit of the job of a plan. It is `SETUP_MINUTES` and the window of each run of each case, with the warm-up runs. A plan that needs more than 360 minutes is a problem. Put some of its cases in a second plan.
+- **The check.** `planProblems` gives each problem of a plan. It examines each case with `caseProblems`, and each start case with `startCaseProblems`. `readPlans` reads each plan file of a folder, and the id of each plan must be the name of its file.
+- **The time of a job.** `planMinutes` gives the time limit of the job of a plan. It is `SETUP_MINUTES` and the window of each run of each case, with the warm-up runs. A start case adds `startWindowOf`. A plan that needs more than 360 minutes is a problem. Put some of its cases in a second plan.
 
 ### The positive control
 
@@ -183,15 +183,15 @@ gh workflow run lab.yml -R mark1russell7/capacity --ref <branch> -f plans=contro
 The workflow has three steps:
 
 1. The job `plan` reads and examines each plan file. Then `selectPlans` gives the plans of the event, and `matrixOf` gives one job for each run of each plan. A plan with a problem, an unknown id and a selection with no plan stop the workflow.
-2. Each job measures its plan with `timePlan`: each case with `measureCase`, then the check of the plan with `verdictOf`. A verdict with a problem fails the job. The summary of the job has the CPU model, each value of the check and each problem.
+2. Each job measures its plan with `timePlan`: each case with `measureCase`, and each start case with `measureStart`. Then the check of the plan gives the verdict (`verdictOf`), with the problems of each start record. A verdict with a problem fails the job. The summary of the job has the CPU model, each value of the check and each problem.
 3. Each job uploads its folder as the artifact `lab-<plan>-<run>-<attempt>`.
 
 ### The folder of a run
 
 | File | What it is |
 | --- | --- |
-| `<case>.record.json` | The record of each case, with the format `capacity-record/1`. The id of the case has `-` for each `/`. |
-| `<case>.result.json` | The raw result of the cell of each case. A later analysis can judge it again. |
+| `<case>.record.json` | The record of each case, with the format `capacity-record/1` or `capacity-start-record/1`. The id of the case has `-` for each `/`. |
+| `<case>.result.json` | The raw result of the cell of each case, or of the run of the children of a start case. A later analysis can judge it again. |
 | `timed.json` | The manifest of the run, with the format `capacity-timed/1`. |
 
 The manifest has the plan, the CI run and its `attempt`. It also has the machine of the first record, the times, the files of each case and the verdict. The CI run (`runOf`) has the form of a run of the evidence of a law: its address, its commit and its UTC time. Thus a law file gets its evidence from the manifest (CAP-17).
@@ -199,7 +199,80 @@ The manifest has the plan, the CI run and its `attempt`. It also has the machine
 - **The CPU model** of a run is `machine.cpu` of the manifest and of each record. The summary of the job also tells it.
 - **The commit** of a pull request is the merge commit, because the job measures the code of that commit.
 - **A case that throws** stops the plan with no manifest. The files of the cases before it stay in the artifact.
-- **The command.** `node src/timed.main.ts plan --event <event>` gives the matrix as JSON, with no Docker. `node src/timed.main.ts measure --plan <id> --out <folder>` measures a plan. Only CI starts `measure`.
+- **The command.** `node src/timed.main.ts plan --event <event>` gives the matrix as JSON, with no Docker. `node src/timed.main.ts measure --plan <id> --out <folder> --run <number>` measures a plan. Only CI starts `measure`. The run turns the order of the arms of a start case.
+
+## The start cases
+
+A start case measures the start of an application, not its load. It gives the time to ready and the memory of a start, at each size of the store, on a model of the target machine. A start case is a record with the format `capacity-start/1`, in a plan.
+
+| Field | What it is |
+| --- | --- |
+| `subject` | The name of a subject of `START_SUBJECTS`. A subject is data: its repository, its install command, its type check, its variables and its two programs. |
+| `seeder` | The commit of the tree that writes the stores. Each arm opens the same stores. |
+| `arms` | 2 trees or more of the subject, each at a commit. The first arm is the base. A `graft` puts a file of another commit into a tree. |
+| `points` | The stores of the case. A point gives an amount of each variable of the subject, for example the byte size of the log. |
+| `seed` | The seed of each store. One seed gives the same files. |
+| `rounds` | The rounds of one job, from 1 to 10. |
+| `watch` | The time of the live loop after the ready time, 600 s or less. |
+| `limit` | The longest start to the end of the first pass, 1800 s or less. |
+| `windows` | The ready windows of the supervisor of the subject, up to the limit, in ascending order. |
+| `probe` | The interval of the ready probe of the supervisor, 60 s or less. |
+| `target` | The machine that the case models: the image with its Node, the memory, the swap, the CPUs and the heap limit of V8. |
+| `observed` | The facts of the target machine: the start of an arm on a point was ready in a window, or it was not. |
+
+`measureStart` does the job of a start case in four steps:
+
+1. It pulls the image of the target. A check child in a container of the target reads the Node version, the limits of the cgroup and the swap of the host. It also reads the heap limit and the CPUs. A fact that is not the fact of the target stops the case.
+2. It makes a tree for each arm: a shallow fetch of the commit, each graft and the install. A tree with a graft gets the type check of the subject, because the start program strips the types. The seed uses an arm at the commit of the seeder with no graft, or one more tree.
+3. The seed program writes the store of each point one time.
+4. `freshRun` of `@mark1russell7/rigor-bench/fresh` starts the children in the order `arms`, with the scope `child`. Each round starts one child of each arm and one A/A child of the base, on each point.
+
+Each child is the start program in a new container of the target, with the Node of the image and `--expose-gc`. The container has the memory, the swap and the CPUs of the target. Node sizes the heap of V8 from the memory limit of the container, as on the target. The child copies the store and opens the copy with no network and no key. It is ready at the end of its first pass. Then it reads its memory and does the passes of a live loop for the time of the watch.
+
+| Measure | What it is |
+| --- | --- |
+| `ready` | The time to ready: the import of the runtime, the open of the store and the first pass. |
+| `readiness` | The time from the start of the process to the end of the open, less the copy. The ready probe passes after this point. |
+| `firstPass` | The time from the end of the open to ready. |
+| `copy`, `close`, `end` | The time of the copy of the store, the time of the close, and the time from the start of the process to the line. |
+| `peak` | VmHWM at ready: the peak of the resident set of the start. |
+| `rss`, `anon`, `file`, `heap`, `external` | The memory at ready. `anon` and `file` are `null` on a machine with no `/proc`. |
+| `live` | The used heap after a full GC at ready. |
+| `heapPeak`, `livePeak`, `gc`, `fullGc` | The peaks of the used heap and of the live heap over the start, its GC time and its count of full GC events, from the GC profiler. |
+| `watchPeak`, `watchRss`, `watchAnon`, `watchHeap` | The peaks of the memory over the watch. |
+| `watchHeapPeak`, `watchLive`, `watchGc` | The heap peaks and the GC time of the watch, from the GC profiler. |
+| `passes` | The count of passes in the watch. |
+| `limit` | The heap size limit of V8 in the child. |
+
+- **A start that does not fit.** A child that passes a limit of the target is a failure of its arm on its point, with a kind. The kind `time` is the time limit of the child. The kind `memory` is the memory limit of the container. The kind `heap` is the heap limit of V8. A failure has no reading, and the other arms still start.
+- **The ready windows.** `windowReads` gives the read of each child in each window. A child with a reading is `ready` when its readiness and one probe interval are in the window. Else it is `late`.
+- **A failure in a window.** A child over the time limit is `late` in a window when the window and its late margin are in the limit of the child. The late margin is the start of the container, the longest copy of the point and the longest time of a child after its open. Each other failure has `no read`.
+- **The observations.** `observationReads` compares each fact of the target machine with the reads of the children of its arm and its A/A copy. A disagreement is a problem: the lab does not model the time of the machine. A fact with a child of `no read` is a problem too.
+- **A stalled loop.** A pass can give a wake time that is not after the pass. Then the watch has no more passes. The reading records `stalled`, and the summary tells it.
+- **The problems of a record.** `startRecordProblems` examines each start record. Each reading has each needed measure. Each arm and the A/A pair have a child of each point in each round: a reading, a failure or a skip. Each observation agrees with the record.
+- **The time of a job.** `startWindowOf` gives the longest time of one job. It is `IMAGE_MARGIN` for each of the 3 steps of the image, `TREE_MARGIN` for each tree and each type check, and the seeds at `SEED_RATE`. Each child adds its limit, the watch and `CHILD_MARGIN`.
+
+The container does not model all of the target machine:
+
+- It does not have the other load of the target: its other processes, the traffic of its swap and its waits on the disk.
+- The CPUs of the host of the lab are not the CPUs of the target. Thus a time of the lab is a time on the CPU of the record.
+- The copy of the store is in the container. The page cache of the copy counts in the memory of the container. The kernel takes back clean cache first.
+
+Two plans measure the start of alerts. Each one has no check and no trigger. The arm `cloud` is the build of the cloud machine with the graft of the measured start, and the arm `new` is the current build.
+
+- `alerts-start` measures logs from 16 MiB to 512 MiB, and the log of the cloud machine, with the shapes and the transit copy of the cloud machine. It reads the windows of 90 s, of 308.012 s and of 600 s.
+- `alerts-start-files` measures a log of 64 MiB with 3 sizes of the shapes file and 3 sizes of the transit copy. Its second case is the knee of the cloud log:
+  - The point `cut-1030` is the log at the last start that was ready in 90 s. A count of the events of the cloud log gives its size.
+  - The point `file-1844` is the log when the starts stopped at 90 s. The two points are 3% apart.
+  - When the lab reads the two points the same, the size of the log does not explain the change.
+
+A person starts a plan by hand, for example with 5 runs:
+
+```sh
+gh workflow run lab.yml -R mark1russell7/capacity --ref <branch> -f plans=alerts-start -f runs='[1,2,3,4,5]'
+```
+
+The programs of alerts are in `src/subject`. `alerts-seed.main.ts` writes a store with `seedStore` of the testkit of the tree. The seed writes the events at the rate of a live log, thus a larger log has more days of events. `alerts-start.main.ts` opens the store with `openMeasuredRuntime` of the runtime of the tree. `alerts-config.json` is the configuration of each store: one place, one person and one channel, with made-up codes.
 
 ## The request classes
 

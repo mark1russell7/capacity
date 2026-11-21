@@ -4,27 +4,30 @@
  *
  * ```text
  * node src/timed.main.ts plan --event <event> [--plans <id,id>] [--runs <JSON list>]
- * node src/timed.main.ts measure --plan <id> --out <folder>
+ * node src/timed.main.ts measure --plan <id> --out <folder> [--run <number>]
  * ```
  *
  * - `plan` reads each plan file of `plans` and examines it. It writes the matrix of the workflow as
  *   JSON on its standard output: one entry for each run of each plan of the selection.
- * - `measure` measures each case of one plan (`timePlan`). It writes the records, the raw results and
- *   the manifest into the folder, and a summary into `GITHUB_STEP_SUMMARY`. A verdict with a problem
+ * - `measure` measures each case of one plan (`timePlan`) in the run `--run` of the matrix. The default
+ *   run is 1. It writes the records, the raw results and the manifest into the folder. It writes a
+ *   summary into `GITHUB_STEP_SUMMARY`, with a table for each start record. A verdict with a problem
  *   gives the exit code 1.
  */
-import { appendFileSync } from "node:fs";
+import { appendFileSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { errorMessage } from "@mark1russell7/text";
 import { matrixOf, readPlans, selectPlans } from "./plan.ts";
+import { START_RECORD_FORMAT, startSummaryOf, type StartRecord } from "./start-measure.ts";
 import { summaryOf, timePlan } from "./timed.ts";
 
 /** This folder holds the plan files of the lab. */
 const PLANS = fileURLToPath(new URL("../plans/", import.meta.url));
 
 const USAGE = `node src/timed.main.ts plan --event <event> [--plans <id,id>] [--runs <JSON list>]
-node src/timed.main.ts measure --plan <id> --out <folder>`;
+node src/timed.main.ts measure --plan <id> --out <folder> [--run <number>]`;
 
 /** This function gives the plans of the folder, or it throws with each problem of a plan file. */
 const plans = () => {
@@ -47,12 +50,18 @@ const plan = (args: readonly string[]): void => {
 };
 
 const measure = async (args: readonly string[]): Promise<void> => {
-  const { values } = parseArgs({ args: [...args], options: { plan: { type: "string" }, out: { type: "string" } } });
-  if (values.plan === undefined || values.out === undefined) throw new Error(`The command needs --plan and --out.\n${USAGE}`);
+  const { values } = parseArgs({ args: [...args], options: { plan: { type: "string" }, out: { type: "string" }, run: { type: "string", default: "1" } } });
+  const { out } = values;
+  if (values.plan === undefined || out === undefined) throw new Error(`The command needs --plan and --out.\n${USAGE}`);
+  const run = Number(values.run);
+  if (!Number.isSafeInteger(run) || run < 1) throw new Error(`--run is not a whole number of 1 or more: ${values.run}`);
   const [chosen] = selectPlans(plans(), { event: "workflow_dispatch", ids: [values.plan] });
   if (chosen === undefined) throw new Error(`No plan has the id "${values.plan}".`);
-  const timed = await timePlan(chosen, { out: values.out });
-  const summary = summaryOf(timed);
+  const timed = await timePlan(chosen, { out, run });
+  const starts = timed.files
+    .map((each) => JSON.parse(readFileSync(join(out, each.record), "utf8")) as { readonly format?: unknown })
+    .filter((record): record is StartRecord => record.format === START_RECORD_FORMAT);
+  const summary = [summaryOf(timed), ...starts.map(startSummaryOf)].join("\n");
   process.stdout.write(summary);
   const file = process.env["GITHUB_STEP_SUMMARY"];
   if (file) appendFileSync(file, summary);

@@ -2,11 +2,14 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { valueIn } from "@mark1russell7/quantity";
 import { afterEach, describe, expect, it } from "vitest";
 import { CASE_FORMAT, type Case } from "./case.ts";
+import { windowOf } from "./cell.ts";
 import { CONTROL_CASES } from "./control.ts";
 import { FLOOR_PAIRS, floorPair } from "./floor.ts";
 import { MAX_JOB_MINUTES, MAX_JOBS, PLAN_FORMAT, SETUP_MINUTES, matrixOf, planMinutes, planProblems, readPlans, selectPlans, type Plan } from "./plan.ts";
+import { isStartCase, startWindowOf, type StartCase } from "./start.ts";
 
 const PLANS = fileURLToPath(new URL("../plans/", import.meta.url));
 
@@ -55,6 +58,34 @@ describe("the plan files of the lab", () => {
     // 10 cases: each one 4 runs with the warm-up, each run in a window of 2 x 10 s and a drain of 30 s
     expect(planMinutes(floor!)).toBe(SETUP_MINUTES + Math.ceil((10 * 4 * 50) / 60));
   });
+
+  it("have the two plans of the start of alerts: no check, no trigger, only start cases, in the time of one job", () => {
+    for (const [id, cases] of [["alerts-start", ["alerts-start/log"]], ["alerts-start-files", ["alerts-start/files", "alerts-start/knee"]]] as const) {
+      const start = readPlans(PLANS).plans.find((each) => each.id === id);
+      expect(start?.check).toBeNull();
+      expect(start?.triggers).toEqual([]);
+      const values = (start?.cases ?? []).filter(isStartCase);
+      expect(values.map((value) => value.id)).toEqual(cases);
+      for (const value of values) expect(value.arms.map((arm) => arm.id)).toEqual(["cloud", "new"]);
+      const seconds = values.reduce((sum, value) => sum + valueIn(startWindowOf(value), "s"), 0);
+      expect(planMinutes(start!)).toBe(SETUP_MINUTES + Math.ceil(seconds / 60));
+      expect(planMinutes(start!)).toBeLessThanOrEqual(MAX_JOB_MINUTES);
+    }
+  });
+
+  it("bracket the knee of the cloud log with one ready fact and one late fact of the cloud arm", () => {
+    const knee = readPlans(PLANS).plans.find((each) => each.id === "alerts-start-files")?.cases.find((each) => each.id === "alerts-start/knee");
+    if (!isStartCase(knee)) throw new Error("The plan alerts-start-files has no knee case.");
+    // The cut point is the file of 18:44Z times the share of the body characters up to the last good start.
+    expect(knee.points.map((point) => [point.id, point.at["log"]?.value])).toEqual([
+      ["cut-1030", Math.round((197156864 * 154047519) / 158938576)],
+      ["file-1844", 197156864],
+    ]);
+    expect(knee.observed.map((each) => [each.point, each.arm, each.ready])).toEqual([
+      ["cut-1030", "cloud", true],
+      ["file-1844", "cloud", false],
+    ]);
+  });
 });
 
 describe("the problems of a plan", () => {
@@ -85,6 +116,13 @@ describe("the problems of a plan", () => {
   it("examines each case, with the path of the case, and refuses a case id two times", () => {
     expect(paths(plan({ cases: [CASE, { ...CASE, runs: 0 }] }))).toEqual(["case cases[1].runs", "case cases[1].id"]);
     expect(paths(plan({ cases: [null as unknown as Case] }))).toEqual(["case cases[0]"]);
+  });
+
+  it("examines a start case with the rules of a start case, and puts its time in the time of the job", () => {
+    const start = readPlans(PLANS).plans.find((each) => each.id === "alerts-start")!.cases[0] as StartCase;
+    expect(paths(plan({ cases: [CASE, { ...start, rounds: 0 }] }))).toEqual(["case cases[1].rounds"]);
+    const seconds = valueIn(startWindowOf(start), "s") + (CASE.runs + 1) * valueIn(windowOf(CASE), "s");
+    expect(planMinutes(plan({ cases: [CASE, start] }))).toBe(SETUP_MINUTES + Math.ceil(seconds / 60));
   });
 
   it("refuses a plan whose job needs more than the time of one job", () => {
