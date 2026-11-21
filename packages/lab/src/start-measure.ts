@@ -1,4 +1,4 @@
-import { mkdirSync } from "node:fs";
+import { cpSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync } from "node:fs";
 import { arch, release, totalmem } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -6,13 +6,18 @@ import {
   benchEnv,
   childLine,
   containerStart,
+  diskOf,
+  dropPageCache,
   freshRun,
   startProcess,
+  type ChildTurn,
+  type DiskLimit,
   type CaseOrder,
   type ChildFields,
   type ContainerOptions,
   type FreshRun,
   type FreshSkip,
+  type IoSample,
   type SkipKind,
   type StartChild,
 } from "@mark1russell7/rigor-bench/fresh";
@@ -24,6 +29,7 @@ import type { CheckProblem } from "./check.ts";
 import type { Host, Measures } from "./record.ts";
 import {
   CHILD_MARGIN,
+  DISK_UNITS,
   IMAGE_MARGIN,
   SEED_RATE,
   TREE_MARGIN,
@@ -31,7 +37,10 @@ import {
   pointBytes,
   startCaseProblems,
   startSubjectOf,
+  type BallastMoment,
   type Graft,
+  type StartArm,
+  type StartBallast,
   type StartCase,
   type StartObservation,
   type StartPoint,
@@ -48,9 +57,11 @@ export const START_RECORD_FORMAT = "capacity-start-record/1";
  * - `ready` is the time to ready: the import of the runtime, the open and the first pass.
  * - `readiness` is the time from the start of the process to the end of the open, less the copy. `firstPass` is the time from that point to ready.
  * - `copy` and `close` are the times of the copy of the store before the start and of the close after the watch.
+ *   `ballast` is the time of the ballasts of the moment `start`, before the start. A child with a cold cache has no copy: it opens its home in place.
  * - `end` is the time from the start of the process to the line of the child.
  * - `peak`, `rss`, `anon`, `file`, `heap` and `external` are the memory at ready. `peak` is VmHWM, the peak of the resident set.
  * - `live` is the used heap after a full GC at ready.
+ * - `read` is the bytes that the process read from the disk up to ready. `faults` is the count of its major faults up to ready.
  * - `heapPeak` and `livePeak` are the peaks of the used heap and of the live heap over the start, from the GC profiler.
  * - `gc` is the GC time of the start, and `fullGc` is the count of its full GC events.
  * - The measures `watch...` are the peaks over the watch after ready, and `passes` is the count of passes in the watch.
@@ -61,6 +72,7 @@ export const START_MEASURES = {
   readiness: "ms",
   firstPass: "ms",
   copy: "ms",
+  ballast: "ms",
   close: "ms",
   end: "ms",
   peak: "B",
@@ -70,6 +82,8 @@ export const START_MEASURES = {
   heap: "B",
   external: "B",
   live: "B",
+  read: "B",
+  faults: "{fault}",
   heapPeak: "B",
   livePeak: "B",
   gc: "ms",
@@ -144,6 +158,20 @@ export interface SeededPoint {
   readonly args: readonly string[];
 }
 
+/** A held ballast is one ballast of a child: its bytes and its moment, the resident set that it held, and its time to fill. */
+export interface HeldBallast {
+  readonly bytes: Quantity;
+  readonly at: BallastMoment;
+  readonly rss: Quantity;
+  readonly time: Quantity;
+}
+
+/**
+ * A start sample is one sample of a child, as `watchIo` of `@mark1russell7/rigor-bench/fresh` gives it. The field `ms` is the
+ * time from the start of the process. The amounts are bytes and counts. A value that the child cannot read is null.
+ */
+export type StartSample = Omit<IoSample, "at"> & { readonly ms: number };
+
 /** A start reading is the measures of one child: the start of one arm on one point, in one round. */
 export interface StartReading {
   /** This id is the id of an arm, or the id of the A/A pair of the base, for example `cloud~aa`. */
@@ -157,6 +185,27 @@ export interface StartReading {
   readonly open: readonly string[];
   /** This flag tells that a pass gave a wake time that is not after the pass. Then no pass followed in the watch. */
   readonly stalled: boolean;
+  /** These ballasts are the ballasts of the child, in the order of their start. */
+  readonly ballasts: readonly HeldBallast[];
+  /** These samples are the samples of the child, for a case with the field `samples`. */
+  readonly samples: readonly StartSample[];
+}
+
+/**
+ * A first start is the start of one arm on the earlier point of a point with the field `after`. It is not measured.
+ * Its home is the store of the arm on the later point. Thus a second start reads what a first start wrote.
+ */
+export interface FirstStart {
+  /** This id is the id of the later point. */
+  readonly point: string;
+  /** This id is the id of the earlier point. */
+  readonly after: string;
+  readonly arm: string;
+  readonly time: Quantity;
+  /** This count is the passes of the watch of the first start. An arm with a snapshot writes it at the first pass of the watch. */
+  readonly passes: number;
+  /** These sizes are the byte size of each file of the home after the first start, by its name. */
+  readonly files: Readonly<Record<string, Quantity>>;
 }
 
 /**
@@ -179,6 +228,10 @@ export interface StartRecord {
   /** These ids are the pairs of the run: each other arm with the base, then the A/A pair of the base, for example `cloud~aa`. */
   readonly pairs: readonly string[];
   readonly points: readonly SeededPoint[];
+  /** These first starts give the store of each arm on each point with the field `after`. */
+  readonly firsts: readonly FirstStart[];
+  /** These limits are the limits of the disks of the host for each child, from the disk of the target. */
+  readonly disks: readonly StartDiskRecord[];
   readonly readings: readonly StartReading[];
   readonly orders: readonly CaseOrder[];
   /** These children passed a limit of the target. Each one has the kind `time`, `memory` or `heap`. */
@@ -192,6 +245,33 @@ export interface StartMeasurement {
   readonly record: StartRecord;
   readonly result: FreshRun;
 }
+
+/** The record of a disk is one disk of the host, its paths of the host, and the limits of each child on it. */
+export interface StartDiskRecord {
+  readonly device: string;
+  /** These paths are the paths of the host on this disk: the work folder, the data of Docker and each swap file. */
+  readonly paths: readonly string[];
+  readonly limit: DiskLimit;
+}
+
+/** The host disk is the access of a measure to the disks and the page cache of the host. A test gives its own. */
+export interface HostDisk {
+  /** This function gives the device of the whole disk of a path, for example `/dev/sda`. */
+  readonly of: (path: string) => string;
+  /** This function drops the page cache of the host. */
+  readonly drop: () => Promise<void>;
+  /** This function gives the path of each swap file of the host. A swap partition is not a file. */
+  readonly swaps: () => readonly string[];
+}
+
+/** This function gives the path of each swap file of the host, from `/proc/swaps`. */
+const swapFiles = (): readonly string[] =>
+  readFileSync("/proc/swaps", "utf8")
+    .split("\n")
+    .slice(1)
+    .map((line) => line.trim().split(/\s+/))
+    .filter((fields) => fields[1] === "file" && fields[0] !== undefined)
+    .map((fields) => fields[0]!.replaceAll("\\040", " "));
 
 /** The options of the measure of a start case. Each one has a default for a real run, and a test gives its own. */
 export interface StartMeasureOptions {
@@ -207,6 +287,8 @@ export interface StartMeasureOptions {
   readonly host?: Host;
   /** This function gives the time. The default is the clock of the system. */
   readonly now?: () => Date;
+  /** This access gives the disks and the page cache of the host. The default is `diskOf` and `dropPageCache` of `@mark1russell7/rigor-bench/fresh`, and `/proc/swaps`. */
+  readonly disk?: HostDisk;
 }
 
 /** This folder is the root of the repository of the lab. Each child mounts it, for the start program and its packages. */
@@ -334,6 +416,39 @@ const makeTree = async (start: StartChild, subject: StartSubject, id: string, co
   return { id, commit, graft, time: since(begun) };
 };
 
+/** This function gives the flags of the start program for a list of ballasts. */
+const ballastFlags = (list: readonly StartBallast[] | undefined): readonly string[] => (list ?? []).flatMap((each) => ["--ballast", `${valueIn(each.bytes, "B")}@${each.at}`]);
+
+/** This function gives the byte size of each file of a folder and of its folders, by its path in the folder with `/`. */
+const filesOf = (dir: string, prefix = ""): Record<string, Quantity> => {
+  const out: Record<string, Quantity> = {};
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const name = `${prefix}${entry.name}`;
+    if (entry.isDirectory()) Object.assign(out, filesOf(join(dir, entry.name), `${name}/`));
+    else if (entry.isFile()) out[name] = quantity(statSync(join(dir, entry.name)).size, "B");
+  }
+  return out;
+};
+
+/**
+ * This function gives the id of the seed point of a point. It is the point itself, or the seed point of the earlier
+ * point of a point with the field `after`. The seed program wrote the store of the seed point. It is undefined for an id that is not a point.
+ */
+export const seedPointOf = (points: readonly StartPoint[], id: string): string | undefined => {
+  const point = points.find((each) => each.id === id);
+  if (point === undefined) return undefined;
+  return point.after === undefined ? point.id : seedPointOf(points, point.after);
+};
+
+/** This function gives the limit of a child on a disk from the disk of the target, in bytes and in operations each second. */
+const limitOf = (device: string, disk: NonNullable<StartTarget["disk"]>): DiskLimit => ({
+  device,
+  readBytes: valueIn(disk.readBytes, DISK_UNITS.readBytes),
+  readOps: valueIn(disk.readOps, DISK_UNITS.readOps),
+  writeBytes: valueIn(disk.writeBytes, DISK_UNITS.writeBytes),
+  writeOps: valueIn(disk.writeOps, DISK_UNITS.writeOps),
+});
+
 /** This function reads the child line of the seed program, or it throws. */
 const seededOf = (point: StartPoint, stdout: string, time: Quantity, subject: StartSubject): SeededPoint => {
   const line = childLine(stdout);
@@ -377,6 +492,7 @@ export const startMeasures = (ms: number, fields: ChildFields): Measures<StartMe
     readiness: amount("readiness", numberIn(extra, "readiness")),
     firstPass: amount("firstPass", numberIn(extra, "firstPass")),
     copy: amount("copy", numberIn(extra, "copyMs")),
+    ballast: amount("ballast", numberIn(extra, "ballastMs")),
     close: amount("close", numberIn(extra, "closeMs")),
     end: amount("end", numberIn(extra, "endMs")),
     peak: amount("peak", fields.peakRss ?? numberIn(ready, "peakRss")),
@@ -386,6 +502,8 @@ export const startMeasures = (ms: number, fields: ChildFields): Measures<StartMe
     heap: amount("heap", numberIn(ready, "heapUsed")),
     external: amount("external", numberIn(ready, "external")),
     live: amount("live", numberIn(extra, "live")),
+    read: amount("read", numberIn(extra["io"], "readBytes")),
+    faults: amount("faults", numberIn(extra["io"], "majorFaults")),
     heapPeak: amount("heapPeak", numberIn(startHeap, "used")),
     livePeak: amount("livePeak", numberIn(startHeap, "live")),
     gc: amount("gc", numberIn(startHeap, "gcMs")),
@@ -400,6 +518,51 @@ export const startMeasures = (ms: number, fields: ChildFields): Measures<StartMe
     passes: amount("passes", numberIn(extra, "passes")),
     limit: amount("limit", numberIn(extra, "limit")),
   };
+};
+
+/** This function gives the ballasts of the fields of a child. An entry with a field of a wrong type is not in the list. */
+export const ballastsOf = (fields: ChildFields): readonly HeldBallast[] => {
+  const list = fields.extra?.["ballasts"];
+  if (!Array.isArray(list)) return [];
+  return list.flatMap((each: unknown) => {
+    const bytes = numberIn(each, "bytes");
+    const rss = numberIn(each, "rss");
+    const ms = numberIn(each, "ms");
+    const at = isRecord(each) ? each["at"] : undefined;
+    if (bytes === null || rss === null || ms === null || (at !== "start" && at !== "ready")) return [];
+    return [{ bytes: quantity(bytes, "B"), at, rss: quantity(rss, "B"), time: quantity(ms, "ms") }];
+  });
+};
+
+/** This function gives a number or null from a field of a record. A field with no number is null. */
+const orNull = (value: unknown, key: string): number | null => numberIn(value, key);
+
+/** This function gives the samples of the fields of a child. A sample with no time is not in the list. */
+export const samplesOf = (fields: ChildFields): readonly StartSample[] => {
+  const list = fields.extra?.["samples"];
+  if (!Array.isArray(list)) return [];
+  return list.flatMap((each: unknown) => {
+    const ms = numberIn(each, "ms");
+    if (ms === null || !isRecord(each)) return [];
+    const cgroup = each["cgroup"];
+    return [
+      {
+        ms,
+        readBytes: orNull(each, "readBytes"),
+        writeBytes: orNull(each, "writeBytes"),
+        majorFaults: orNull(each, "majorFaults"),
+        rss: orNull(each, "rss"),
+        cgroup: {
+          memory: orNull(cgroup, "memory"),
+          swap: orNull(cgroup, "swap"),
+          readBytes: orNull(cgroup, "readBytes"),
+          writeBytes: orNull(cgroup, "writeBytes"),
+          reads: orNull(cgroup, "reads"),
+          writes: orNull(cgroup, "writes"),
+        },
+      },
+    ];
+  });
 };
 
 /** This function gives the names of the open resources of the fields of a child. */
@@ -442,13 +605,28 @@ export const measureStart = async (value: StartCase, options: StartMeasureOption
   const { target } = value;
 
   const image = await pullImage(start, target.image);
-  const child = container({
-    image: target.image,
-    memory: valueIn(target.memory, "B"),
-    swap: valueIn(target.swap, "B"),
-    cpuset: cpuSetsOf(target.cpus, host.cores).subject,
-    mounts: [options.work, REPO_ROOT],
-  });
+  const disk = options.disk ?? { of: diskOf, drop: () => dropPageCache(start), swaps: swapFiles };
+  const disks: StartDiskRecord[] = [];
+  if (target.disk !== undefined) {
+    // Each child reads the store and the trees from the work folder, the image from the data of Docker, and its swap from the swap files.
+    const root = (await command(start, ["docker", "info", "--format", "{{.DockerRootDir}}"], undefined, IMAGE_MARGIN)).trim();
+    for (const path of [options.work, root, ...disk.swaps()]) {
+      const device = disk.of(path);
+      const known = disks.findIndex((each) => each.device === device);
+      if (known === -1) disks.push({ device, paths: [path], limit: limitOf(device, target.disk) });
+      else disks[known] = { ...disks[known]!, paths: [...disks[known]!.paths, path] };
+    }
+  }
+  const containerOf = (limited: boolean): StartChild =>
+    container({
+      image: target.image,
+      memory: valueIn(target.memory, "B"),
+      swap: valueIn(target.swap, "B"),
+      cpuset: cpuSetsOf(target.cpus, host.cores).subject,
+      mounts: [options.work, REPO_ROOT],
+      ...(limited && disks.length > 0 ? { disks: disks.map((each) => each.limit) } : {}),
+    });
+  const child = containerOf(true);
   const check = await checkTarget(child, target);
 
   const [base, ...candidates] = value.arms;
@@ -463,6 +641,7 @@ export const measureStart = async (value: StartCase, options: StartMeasureOption
   const storeOf = (id: string): string => join(options.work, "stores", id);
   const points: SeededPoint[] = [];
   for (const point of value.points) {
+    if (point.after !== undefined) continue;
     const amounts = pointAmounts(subject, point);
     const flags = Object.entries(amounts).flatMap(([name, each]) => [`--${name}`, String(Math.round(each))]);
     const limit = quantity(valueIn(CHILD_MARGIN, "s") + pointBytes(subject, point) / SEED_RATE, "s");
@@ -473,8 +652,60 @@ export const measureStart = async (value: StartCase, options: StartMeasureOption
   }
 
   // The program of the child is the Node of the image. Node sizes the heap of V8 from the memory limit of the container.
-  const armOf = (arm: StartCase["arms"][number]) => ({ id: arm.id, command: ["node", "--expose-gc", programOf(subject.start), "--tree", treeOf(arm.id)], cwd: treeOf(arm.id), commit: arm.commit });
-  const argsOf = new Map(points.map((point) => [point.id, ["--case", point.id, "--seeded", storeOf(point.id), ...point.args, "--watch", String(valueIn(value.watch, "ms"))]]));
+  const programFor = (arm: StartArm): string[] => ["node", "--expose-gc", programOf(subject.start), "--tree", treeOf(arm.id), ...(arm.snapshot === true ? ["--snapshot"] : [])];
+  // The ballasts of the target and of the arm model the processes of the target that the program does not run.
+  const armOf = (arm: StartArm) => ({ id: arm.id, command: [...programFor(arm), ...ballastFlags(target.others), ...ballastFlags(arm.ballast)], cwd: treeOf(arm.id), commit: arm.commit });
+  // A point with the field after has the seeded store of its seed point.
+  const seededFor = (point: StartPoint): SeededPoint => {
+    const root = seedPointOf(value.points, point.id);
+    const seeded = points.find((each) => each.id === root);
+    if (seeded === undefined) throw new RangeError(`The point "${point.id}" has no seeded store.`);
+    return seeded;
+  };
+  const watchFlags = ["--watch", String(valueIn(value.watch, "ms")), ...(value.samples === undefined ? [] : ["--samples", String(valueIn(value.samples, "ms"))])];
+  const firstOf = (point: string, arm: string): string => join(options.work, "firsts", point, arm);
+  const storeFor = (point: StartPoint, arm: string): string => (point.after === undefined ? storeOf(point.id) : firstOf(point.id, arm));
+
+  // A point with the field after gets one first start of each arm on its earlier point, with no limit of the disk and no ballast.
+  const firsts: FirstStart[] = [];
+  const unlimited = containerOf(false);
+  for (const point of value.points) {
+    if (point.after === undefined) continue;
+    const earlier = value.points.find((each) => each.id === point.after)!;
+    for (const arm of value.arms) {
+      const home = firstOf(point.id, arm.id);
+      rmSync(home, { recursive: true, force: true });
+      mkdirSync(join(home, ".."), { recursive: true });
+      cpSync(storeFor(earlier, arm.id), home, { recursive: true });
+      const begun = performance.now();
+      const argv = [...programFor(arm), "--case", earlier.id, "--home", home, ...seededFor(earlier).args, "--watch", String(valueIn(value.watch, "ms"))];
+      const line = childLine(await command(unlimited, argv, treeOf(arm.id), childLimitOf(value)));
+      if (line.skipped !== undefined) throw new Error(`The first start of the arm "${arm.id}" on "${earlier.id}" skipped: ${line.skipped}`);
+      const passes = numberIn(line.extra, "passes") ?? 0;
+      // The snapshot of the start is written at the first pass of the watch. With no pass, the second start reads no snapshot.
+      if (arm.snapshot === true && passes < 1) throw new Error(`The first start of the arm "${arm.id}" on "${earlier.id}" did no pass in its watch. It wrote no snapshot.`);
+      firsts.push({ point: point.id, after: earlier.id, arm: arm.id, time: since(begun), passes, files: filesOf(home) });
+    }
+  }
+
+  // A child with a cold cache, or of a point with the field after, opens a home that the lab places before the child.
+  const cold = target.cache === "cold";
+  const placed = cold || value.points.some((point) => point.after !== undefined);
+  const childHome = join(options.work, "home");
+  const argsOf = new Map(
+    value.points.map((point) => {
+      const store = placed ? [cold ? "--home" : "--seeded", childHome] : ["--seeded", storeOf(point.id)];
+      return [point.id, ["--case", point.id, ...store, ...seededFor(point).args, ...watchFlags]];
+    }),
+  );
+  // The turn of a child of the A/A copy has the id of the base, thus the copy opens the store of the base.
+  const before = async (turn: ChildTurn): Promise<void> => {
+    const point = value.points.find((each) => each.id === turn.case);
+    if (point === undefined) throw new RangeError(`The turn has no point "${turn.case}".`);
+    rmSync(childHome, { recursive: true, force: true });
+    cpSync(storeFor(point, turn.arm), childHome, { recursive: true });
+    if (cold) await disk.drop();
+  };
   const fresh = await freshRun({
     base: armOf(base),
     candidates: candidates.map(armOf),
@@ -490,11 +721,22 @@ export const measureStart = async (value: StartCase, options: StartMeasureOption
     job: String(run),
     env: { ...benchEnv(), ...host },
     start: child,
+    ...(placed ? { before } : {}),
   });
 
   const readings: StartReading[] = (fresh.children ?? []).map((each) => {
     const fields = each.fields ?? {};
-    return { arm: each.arm, point: each.case, round: each.round, position: each.position, measures: startMeasures(each.ms, fields), open: openOf(fields), stalled: fields.extra?.["stalled"] === true };
+    return {
+      arm: each.arm,
+      point: each.case,
+      round: each.round,
+      position: each.position,
+      measures: startMeasures(each.ms, fields),
+      open: openOf(fields),
+      stalled: fields.extra?.["stalled"] === true,
+      ballasts: ballastsOf(fields),
+      samples: samplesOf(fields),
+    };
   });
   const ended = now();
   const record: StartRecord = {
@@ -516,6 +758,8 @@ export const measureStart = async (value: StartCase, options: StartMeasureOption
     trees,
     pairs: Object.keys(fresh.pairs),
     points,
+    firsts,
+    disks,
     readings,
     orders: fresh.orders ?? [],
     failures: fresh.skipped.filter((skip) => skip.kind !== "line"),
@@ -547,10 +791,12 @@ const lateMarginOf = (record: StartRecord, point: string): number | null => {
   const after: number[] = [];
   const copies: number[] = [];
   for (const reading of record.readings) {
-    const { end, readiness, copy } = reading.measures;
+    const { end, readiness, copy, ballast } = reading.measures;
     if (end === null || readiness === null || copy === null) continue;
-    after.push(valueIn(end, "ms") - valueIn(readiness, "ms") - valueIn(copy, "ms"));
-    if (reading.point === point) copies.push(valueIn(copy, "ms"));
+    // A record of a version with no measure ballast has no ballast. Then the preparation is the copy.
+    const prepared = valueIn(copy, "ms") + (ballast === null ? 0 : valueIn(ballast, "ms"));
+    after.push(valueIn(end, "ms") - valueIn(readiness, "ms") - prepared);
+    if (reading.point === point) copies.push(prepared);
   }
   return after.length === 0 || copies.length === 0 ? null : valueIn(record.check.start, "ms") + Math.max(...copies) + Math.max(...after);
 };
@@ -606,7 +852,7 @@ export const observationReads = (record: StartRecord, reads: readonly StartWindo
   });
 
 /** These measures are the measures that each reading has. The others are null on a machine with no `/proc`, or with no full GC. */
-const NEEDED: readonly StartMeasure[] = ["ready", "readiness", "firstPass", "end", "peak", "rss", "heap", "live", "heapPeak", "gc", "watchPeak", "watchRss", "watchHeapPeak", "limit"];
+const NEEDED: readonly StartMeasure[] = ["ready", "readiness", "firstPass", "end", "peak", "rss", "heap", "live", "read", "faults", "heapPeak", "gc", "watchPeak", "watchRss", "watchHeapPeak", "limit"];
 
 /**
  * This function examines a start record and gives each problem that it finds.
@@ -650,6 +896,26 @@ const shown = (amount: Quantity | null | undefined): string => {
   return String(amount.value);
 };
 
+/** This function gives the lines of the machine model of a start record: the disks, the cache, the ballasts and the first starts. */
+const machineLines = (record: StartRecord): readonly string[] => {
+  const { target } = record.case;
+  const lines: string[] = [];
+  const rate = (bytes: number | undefined, ops: number | undefined, verb: string): string => `${shown(quantity(bytes ?? 0, "B"))}/s and ${ops ?? 0} ${verb}s/s`;
+  for (const disk of record.disks) {
+    const { limit } = disk;
+    lines.push(`- The disk \`${disk.device}\` (${disk.paths.map((path) => `\`${path}\``).join(", ")}): each child reads at ${rate(limit.readBytes, limit.readOps, "read")}, and writes at ${rate(limit.writeBytes, limit.writeOps, "write")}.`);
+  }
+  if (target.cache === "cold") lines.push("- The cache is cold: the lab drops the page cache of the host before each child, and the child opens its home in place.");
+  const ballasts = (list: readonly StartBallast[] | undefined): string => (list ?? []).map((each) => `${shown(each.bytes)} at ${each.at}`).join(", ");
+  if ((target.others ?? []).length > 0) lines.push(`- The other processes of the target: ${ballasts(target.others)}.`);
+  for (const arm of record.case.arms) if ((arm.ballast ?? []).length > 0) lines.push(`- The ballasts of the arm \`${arm.id}\`: ${ballasts(arm.ballast)}.`);
+  for (const first of record.firsts) {
+    const bytes = Object.values(first.files).reduce((sum, each) => sum + valueIn(each, "B"), 0);
+    lines.push(`- The first start of \`${first.arm}\` on \`${first.after}\` for \`${first.point}\`: ${shown(first.time)}, ${first.passes} passes, ${Object.keys(first.files).length} files of ${shown(quantity(bytes, "B"))}.`);
+  }
+  return lines;
+};
+
 /**
  * This function gives the summary of a start record as Markdown, for the summary of a job. The summary has the
  * target, the check, the trees and one row for each child. Each skip and each problem follows the table.
@@ -670,20 +936,23 @@ export const startSummaryOf = (record: StartRecord): string => {
     `- The target: ${escapeMarkdown(`${target.cpus} CPUs, ${shown(target.memory)} of memory, ${shown(target.swap)} of swap, Node ${target.node}`)}. The image: \`${image.digest ?? image.id}\`.`,
     `- The check child: the heap limit of V8 is ${shown(check.heapLimit)}, and the container starts in ${shown(check.start)}.`,
     `- The trees: ${record.trees.map((tree) => `\`${tree.id}\` ${tree.commit.slice(0, 7)}${tree.graft.length > 0 ? ` with ${tree.graft.length} graft` : ""} in ${shown(tree.time)}`).join(", ")}`,
+    ...machineLines(record),
     "",
-    `| Point | ${names.map((name) => `\`${name}\``).join(" | ")} | Arm | Readiness | ${windows.map((window) => `In ${shown(window)}`).join(" | ")} | Ready | VmHWM at ready | Heap peak | Live heap | GC | VmHWM of the watch | Passes |`,
-    `|${" --- |".repeat(names.length + windows.length + 10)}`,
+    `| Point | ${names.map((name) => `\`${name}\``).join(" | ")} | Arm | Readiness | ${windows.map((window) => `In ${shown(window)}`).join(" | ")} | Ready | Read to ready | Major faults | VmHWM at ready | Heap peak | Live heap | GC | VmHWM of the watch | Passes |`,
+    `|${" --- |".repeat(names.length + windows.length + 12)}`,
   ];
-  for (const point of record.points) {
-    const sizes = names.map((name) => shown(point.sizes[name]));
+  // A point with the field after has the sizes of its seed point.
+  for (const point of record.case.points) {
+    const seeded = record.points.find((each) => each.id === seedPointOf(record.case.points, point.id));
+    const sizes = names.map((name) => shown(seeded?.sizes[name]));
     for (const reading of record.readings.filter((each) => each.point === point.id)) {
       const m = reading.measures;
-      const cells = [`\`${point.id}\``, ...sizes, `\`${reading.arm}\``, shown(m.readiness), readOf(point.id, reading.arm, reading.round), shown(m.ready), shown(m.peak), shown(m.heapPeak), shown(m.live), shown(m.gc), shown(m.watchPeak)];
+      const cells = [`\`${point.id}\``, ...sizes, `\`${reading.arm}\``, shown(m.readiness), readOf(point.id, reading.arm, reading.round), shown(m.ready), shown(m.read), shown(m.faults), shown(m.peak), shown(m.heapPeak), shown(m.live), shown(m.gc), shown(m.watchPeak)];
       cells.push(m.passes === null ? "no read" : String(m.passes.value));
       lines.push(`| ${cells.join(" | ")} |`);
     }
     for (const failure of record.failures.filter((each) => each.case === point.id)) {
-      const cells = [`\`${point.id}\``, ...sizes, `\`${failure.arm}\``, `does not fit: ${failure.kind}`, readOf(point.id, failure.arm, failure.round), ...Array<string>(7).fill("")];
+      const cells = [`\`${point.id}\``, ...sizes, `\`${failure.arm}\``, `does not fit: ${failure.kind}`, readOf(point.id, failure.arm, failure.round), ...Array<string>(9).fill("")];
       lines.push(`| ${cells.join(" | ")} |`);
     }
   }
