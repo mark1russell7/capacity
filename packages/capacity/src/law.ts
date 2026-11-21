@@ -94,12 +94,28 @@ export interface Evidence {
 }
 
 /**
+ * The noise of a law is the noise floor of its measure on one CPU model. A difference of two
+ * measurements below the floor is not a result. Thus a gate does not read it as a change.
+ */
+export interface Noise {
+  /**
+   * This amount is the noise floor, in the unit of the measure. It is two standard deviations of
+   * the differences of A/A pairs: two equal cases, each in its own container.
+   */
+  readonly floor: number;
+  /** This name is the CPU model of the runs that measured the floor. */
+  readonly cpu: string;
+  /** These runs measured the floor. They are not always the runs of the evidence. */
+  readonly runs: readonly Run[];
+}
+
+/**
  * A law gives one measure of a subject as a function of its load variables. It holds for the
  * ranges of its variables and for its conditions.
  *
  * Each row of `replicates` is one more fit of the constants, in the order of `constants`. The rows
  * come from resamples of the points. Thus the spread of the rows is the doubt of the constants
- * together, and each query gets its interval from them.
+ * together, and each query gets its interval from them. `noise` is the noise of one measurement.
  */
 export interface Law {
   readonly format: typeof LAW_FORMAT;
@@ -114,6 +130,7 @@ export interface Law {
   readonly replicates: readonly (readonly number[])[];
   readonly fit: Fit;
   readonly evidence: Evidence;
+  readonly noise: Noise;
 }
 
 /** A problem code names the part of a law, or of a query, that is not correct. */
@@ -131,6 +148,7 @@ export type ProblemCode =
   | "value"
   | "fit"
   | "evidence"
+  | "noise"
   | "point"
   | "level"
   | "knee";

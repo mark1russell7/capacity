@@ -15,6 +15,11 @@ const withRun = (change: Partial<Law["evidence"]["runs"][number]>): Change => (l
   ...law,
   evidence: { runs: [{ ...(law.evidence.runs[0] as Law["evidence"]["runs"][number]), ...change }] },
 });
+const withNoise = (change: Partial<Law["noise"]>): Change => (law) => ({ ...law, noise: { ...law.noise, ...change } });
+const withNoiseRun = (change: Partial<Law["noise"]["runs"][number]>): Change => (law) => ({
+  ...law,
+  noise: { ...law.noise, runs: [{ ...(law.noise.runs[0] as Law["noise"]["runs"][number]), ...change }] },
+});
 
 /** Each case breaks one rule of a law. The check must find the problem with this code at this path. */
 const cases: readonly (readonly [name: string, change: Change, code: string, path: string])[] = [
@@ -125,6 +130,13 @@ const cases: readonly (readonly [name: string, change: Change, code: string, pat
   ["a run with a short commit", withRun({ commit: "0123456" }), "evidence", "evidence.runs[0].commit"],
   ["a run with a date and no time", withRun({ date: "2026-11-18" }), "evidence", "evidence.runs[0].date"],
   ["a run with a date that does not exist", withRun({ date: "2026-13-40T00:00:00Z" }), "evidence", "evidence.runs[0].date"],
+  ["a noise floor below 0", withNoise({ floor: -0.001 }), "noise", "noise.floor"],
+  ["a noise floor that is not finite", withNoise({ floor: Number.POSITIVE_INFINITY }), "noise", "noise.floor"],
+  ["a noise with no CPU model", withNoise({ cpu: " " }), "noise", "noise.cpu"],
+  ["a noise with no run", withNoise({ runs: [] }), "noise", "noise.runs"],
+  ["a noise run with no secure address", withNoiseRun({ url: "http://example.com/run" }), "noise", "noise.runs[0].url"],
+  ["a noise run with a short commit", withNoiseRun({ commit: "89abcde" }), "noise", "noise.runs[0].commit"],
+  ["a noise run with a date and no time", withNoiseRun({ date: "2026-11-19" }), "noise", "noise.runs[0].date"],
 ];
 
 describe("checkLaw", () => {

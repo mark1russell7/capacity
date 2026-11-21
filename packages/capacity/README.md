@@ -30,6 +30,7 @@ A law is plain data, thus a law file is JSON. Its format is `capacity-law/1`.
 | `replicates` | More fits of the constants, from resamples of the points. Each row has one number for each constant. |
 | `fit` | The method, the residuals of the law, and each form that lost with its error. |
 | `evidence` | The CI runs that measured the points: an address, a commit and a time for each. |
+| `noise` | The noise floor of the measure on one CPU model, the CPU model, and the CI runs that measured the floor. |
 
 A law holds for the ranges of its variables and for its conditions. A value outside a range is an extrapolation, and the answer says so.
 
@@ -152,6 +153,9 @@ Two edges in one step of the grid can hide the first edge. Increase `steps` for 
 - Each constant is in the range of its replicates.
 - Each form that lost has an error, and the form of the law is not in that list.
 - The evidence names one run or more, each with an `https` address, a full commit and a UTC time.
+- The noise has a floor of 0 or more and a CPU model. It names its runs as the evidence does.
+
+The noise floor is two standard deviations of the differences of A/A pairs: two equal cases, each in its own container. A difference of two measurements below the floor is not a result. The plan `floor` of the lab measures it each night, on the CPU model of the runner.
 
 A law has 8 variables at most.
 

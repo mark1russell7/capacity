@@ -60,4 +60,15 @@ export const sampleLaw = (): Law => ({
       },
     ],
   },
+  noise: {
+    floor: 0.012,
+    cpu: "Intel(R) Xeon(R) Platinum 8370C CPU @ 2.80GHz",
+    runs: [
+      {
+        url: "https://github.com/mark1russell7/capacity/actions/runs/2",
+        commit: "89abcdef0123456789abcdef0123456789abcdef",
+        date: "2026-11-19T06:00:00Z",
+      },
+    ],
+  },
 });

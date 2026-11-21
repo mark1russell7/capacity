@@ -1,5 +1,6 @@
 import type { Problem } from "@mark1russell7/capacity";
 import { controlCheck } from "./control.ts";
+import { floorCheck } from "./floor.ts";
 import type { CaseRecord } from "./record.ts";
 
 /** A check problem code names the kind of a problem in the records of a plan. */
@@ -24,7 +25,7 @@ export interface Verdict {
 export type Check = (records: readonly CaseRecord[]) => Pick<Verdict, "values" | "problems">;
 
 /** These checks are the checks that a plan can name, by their names. */
-export const CHECKS: Readonly<Record<string, Check>> = { control: controlCheck };
+export const CHECKS: Readonly<Record<string, Check>> = { control: controlCheck, floor: floorCheck };
 
 /**
  * This function gives the problems of a record that each plan refuses:

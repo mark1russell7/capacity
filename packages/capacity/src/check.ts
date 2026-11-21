@@ -1,6 +1,6 @@
 import { isCanonicalUnit, isQuantity } from "@mark1russell7/quantity";
 import { deps, parse } from "@mark1russell7/vex";
-import { DEFAULT_LEVEL, LAW_FORMAT, MAX_VARIABLES, leastCount, type Law, type LawProblem, type Variable } from "./law.ts";
+import { DEFAULT_LEVEL, LAW_FORMAT, MAX_VARIABLES, leastCount, type Law, type LawProblem, type Run, type Variable } from "./law.ts";
 import { NAME, SLUG, finite, isUtc, repeated } from "./names.ts";
 import { LAW_DOMAINS, recordOf, valuesOf } from "./program.ts";
 
@@ -26,7 +26,8 @@ const cornersOf = (variables: readonly Variable[]): readonly (readonly number[])
  * It examines the ids, the units and the ranges. It examines that the program reads each variable
  * and each constant, and no other name. It examines that the law has a finite value at each corner
  * and at the middle of its ranges. It examines that the replicates and the residuals can show an
- * interval of the level 0.95, and that the evidence names its runs.
+ * interval of the level 0.95, and that the evidence names its runs. It examines that the noise
+ * has a floor of 0 or more, a CPU model and its runs.
  */
 export const checkLaw = (law: Law): readonly LawProblem[] => {
   const problems: LawProblem[] = [];
@@ -158,16 +159,23 @@ export const checkLaw = (law: Law): readonly LawProblem[] => {
   const twoLosers = repeated(law.fit.losers.map((loser) => loser.form));
   if (twoLosers !== undefined) add("fit", "fit.losers", `Two losers have the form "${twoLosers}".`);
 
+  // The runs of the evidence and of the noise: each one names its address, its commit and its time.
+  const runs = (code: "evidence" | "noise", path: string, list: readonly Run[]): void => {
+    if (list.length === 0) add(code, path, "The law names no run.");
+    list.forEach((run, index) => {
+      const at = `${path}[${index}]`;
+      if (!run.url.startsWith("https://")) add(code, `${at}.url`, `The address "${run.url}" does not start with "https://".`);
+      if (!COMMIT.test(run.commit)) add(code, `${at}.commit`, `The commit "${run.commit}" is not 40 hexadecimal digits.`);
+      if (!isUtc(run.date)) add(code, `${at}.date`, `The date "${run.date}" is not a UTC time, for example "2026-11-18T14:00:00Z".`);
+    });
+  };
   // The evidence: the runs that measured the points.
-  if (law.evidence.runs.length === 0) add("evidence", "evidence.runs", "The law names no run.");
-  law.evidence.runs.forEach((run, index) => {
-    const path = `evidence.runs[${index}]`;
-    if (!run.url.startsWith("https://")) add("evidence", `${path}.url`, `The address "${run.url}" does not start with "https://".`);
-    if (!COMMIT.test(run.commit)) add("evidence", `${path}.commit`, `The commit "${run.commit}" is not 40 hexadecimal digits.`);
-    if (!isUtc(run.date)) {
-      add("evidence", `${path}.date`, `The date "${run.date}" is not a UTC time, for example "2026-11-18T14:00:00Z".`);
-    }
-  });
+  runs("evidence", "evidence.runs", law.evidence.runs);
+
+  // The noise: the floor of the measure on one CPU model, and the runs that measured it.
+  if (!finite(law.noise.floor) || law.noise.floor < 0) add("noise", "noise.floor", "The noise floor is not a finite number, 0 or more.");
+  if (law.noise.cpu.trim() === "") add("noise", "noise.cpu", "The noise names no CPU model.");
+  runs("noise", "noise.runs", law.noise.runs);
 
   return problems;
 };

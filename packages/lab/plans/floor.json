@@ -1,0 +1,149 @@
+{
+  "format": "capacity-plan/1",
+  "id": "floor",
+  "title": "The noise floor of each measure: 5 A/A pairs of two equal cases",
+  "check": "floor",
+  "triggers": ["schedule"],
+  "cases": [
+    {
+      "format": "capacity-case/1",
+      "id": "floor/a1",
+      "title": "The A/A pair 1, case a: the load of control/base",
+      "subject": "node-http",
+      "instance": { "resources": { "cpu": { "value": 1, "unit": "{core}" }, "memory": { "value": 512, "unit": "MiB" } } },
+      "demand": {
+        "classes": [{ "id": "control", "rate": { "value": 100, "unit": "{request}/s" }, "request": {} }],
+        "levels": {}
+      },
+      "duration": { "value": 10, "unit": "s" },
+      "arrivals": { "arrivals": "uniform" },
+      "runs": 3
+    },
+    {
+      "format": "capacity-case/1",
+      "id": "floor/b1",
+      "title": "The A/A pair 1, case b: the load of control/base",
+      "subject": "node-http",
+      "instance": { "resources": { "cpu": { "value": 1, "unit": "{core}" }, "memory": { "value": 512, "unit": "MiB" } } },
+      "demand": {
+        "classes": [{ "id": "control", "rate": { "value": 100, "unit": "{request}/s" }, "request": {} }],
+        "levels": {}
+      },
+      "duration": { "value": 10, "unit": "s" },
+      "arrivals": { "arrivals": "uniform" },
+      "runs": 3
+    },
+    {
+      "format": "capacity-case/1",
+      "id": "floor/a2",
+      "title": "The A/A pair 2, case a: the load of control/base",
+      "subject": "node-http",
+      "instance": { "resources": { "cpu": { "value": 1, "unit": "{core}" }, "memory": { "value": 512, "unit": "MiB" } } },
+      "demand": {
+        "classes": [{ "id": "control", "rate": { "value": 100, "unit": "{request}/s" }, "request": {} }],
+        "levels": {}
+      },
+      "duration": { "value": 10, "unit": "s" },
+      "arrivals": { "arrivals": "uniform" },
+      "runs": 3
+    },
+    {
+      "format": "capacity-case/1",
+      "id": "floor/b2",
+      "title": "The A/A pair 2, case b: the load of control/base",
+      "subject": "node-http",
+      "instance": { "resources": { "cpu": { "value": 1, "unit": "{core}" }, "memory": { "value": 512, "unit": "MiB" } } },
+      "demand": {
+        "classes": [{ "id": "control", "rate": { "value": 100, "unit": "{request}/s" }, "request": {} }],
+        "levels": {}
+      },
+      "duration": { "value": 10, "unit": "s" },
+      "arrivals": { "arrivals": "uniform" },
+      "runs": 3
+    },
+    {
+      "format": "capacity-case/1",
+      "id": "floor/a3",
+      "title": "The A/A pair 3, case a: the load of control/base",
+      "subject": "node-http",
+      "instance": { "resources": { "cpu": { "value": 1, "unit": "{core}" }, "memory": { "value": 512, "unit": "MiB" } } },
+      "demand": {
+        "classes": [{ "id": "control", "rate": { "value": 100, "unit": "{request}/s" }, "request": {} }],
+        "levels": {}
+      },
+      "duration": { "value": 10, "unit": "s" },
+      "arrivals": { "arrivals": "uniform" },
+      "runs": 3
+    },
+    {
+      "format": "capacity-case/1",
+      "id": "floor/b3",
+      "title": "The A/A pair 3, case b: the load of control/base",
+      "subject": "node-http",
+      "instance": { "resources": { "cpu": { "value": 1, "unit": "{core}" }, "memory": { "value": 512, "unit": "MiB" } } },
+      "demand": {
+        "classes": [{ "id": "control", "rate": { "value": 100, "unit": "{request}/s" }, "request": {} }],
+        "levels": {}
+      },
+      "duration": { "value": 10, "unit": "s" },
+      "arrivals": { "arrivals": "uniform" },
+      "runs": 3
+    },
+    {
+      "format": "capacity-case/1",
+      "id": "floor/a4",
+      "title": "The A/A pair 4, case a: the load of control/base",
+      "subject": "node-http",
+      "instance": { "resources": { "cpu": { "value": 1, "unit": "{core}" }, "memory": { "value": 512, "unit": "MiB" } } },
+      "demand": {
+        "classes": [{ "id": "control", "rate": { "value": 100, "unit": "{request}/s" }, "request": {} }],
+        "levels": {}
+      },
+      "duration": { "value": 10, "unit": "s" },
+      "arrivals": { "arrivals": "uniform" },
+      "runs": 3
+    },
+    {
+      "format": "capacity-case/1",
+      "id": "floor/b4",
+      "title": "The A/A pair 4, case b: the load of control/base",
+      "subject": "node-http",
+      "instance": { "resources": { "cpu": { "value": 1, "unit": "{core}" }, "memory": { "value": 512, "unit": "MiB" } } },
+      "demand": {
+        "classes": [{ "id": "control", "rate": { "value": 100, "unit": "{request}/s" }, "request": {} }],
+        "levels": {}
+      },
+      "duration": { "value": 10, "unit": "s" },
+      "arrivals": { "arrivals": "uniform" },
+      "runs": 3
+    },
+    {
+      "format": "capacity-case/1",
+      "id": "floor/a5",
+      "title": "The A/A pair 5, case a: the load of control/base",
+      "subject": "node-http",
+      "instance": { "resources": { "cpu": { "value": 1, "unit": "{core}" }, "memory": { "value": 512, "unit": "MiB" } } },
+      "demand": {
+        "classes": [{ "id": "control", "rate": { "value": 100, "unit": "{request}/s" }, "request": {} }],
+        "levels": {}
+      },
+      "duration": { "value": 10, "unit": "s" },
+      "arrivals": { "arrivals": "uniform" },
+      "runs": 3
+    },
+    {
+      "format": "capacity-case/1",
+      "id": "floor/b5",
+      "title": "The A/A pair 5, case b: the load of control/base",
+      "subject": "node-http",
+      "instance": { "resources": { "cpu": { "value": 1, "unit": "{core}" }, "memory": { "value": 512, "unit": "MiB" } } },
+      "demand": {
+        "classes": [{ "id": "control", "rate": { "value": 100, "unit": "{request}/s" }, "request": {} }],
+        "levels": {}
+      },
+      "duration": { "value": 10, "unit": "s" },
+      "arrivals": { "arrivals": "uniform" },
+      "runs": 3
+    }
+  ]
+}

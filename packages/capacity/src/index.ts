@@ -22,6 +22,7 @@ export type {
   LawProblem,
   Loser,
   Measure,
+  Noise,
   Problem,
   ProblemCode,
   ResidualKind,

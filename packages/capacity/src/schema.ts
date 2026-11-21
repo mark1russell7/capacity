@@ -41,6 +41,8 @@ const reader =
 
 const fitErrorSchema = z.strictObject({ mae: z.number(), rmse: z.number() });
 
+const runSchema = z.strictObject({ url: z.string(), commit: z.string(), date: z.string() });
+
 /**
  * This schema accepts the shape of a law file: each field with its type, and no other field. It
  * does not examine what the fields mean. The function `checkLaw` does that.
@@ -67,9 +69,8 @@ export const lawSchema: z.ZodType<Law> = z.strictObject({
     residuals: z.array(z.number()),
     losers: z.array(z.strictObject({ form: z.string(), error: fitErrorSchema })),
   }),
-  evidence: z.strictObject({
-    runs: z.array(z.strictObject({ url: z.string(), commit: z.string(), date: z.string() })),
-  }),
+  evidence: z.strictObject({ runs: z.array(runSchema) }),
+  noise: z.strictObject({ floor: z.number(), cpu: z.string(), runs: z.array(runSchema) }),
 });
 
 /**

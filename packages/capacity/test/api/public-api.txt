@@ -63,6 +63,7 @@ type MetricsSource: build/instance.chunk.d.ts#MetricsSource
 NO_DEMAND: build/instance.chunk.d.ts#NO_DEMAND
 type NestedPart: build/instance.chunk.d.ts#NestedPart
 type NestedTerm: build/instance.chunk.d.ts#NestedTerm
+type Noise: build/instance.chunk.d.ts#Noise
 type Observation: build/index.d.ts#Observation
 type ObservedClass: build/index.d.ts#ObservedClass
 type OpenRange: build/index.d.ts#OpenRange
@@ -489,6 +490,7 @@ interface Law {
   readonly replicates: readonly (readonly number[])[];
   readonly fit: Fit;
   readonly evidence: Evidence;
+  readonly noise: Noise;
 }
 
 ### build/instance.chunk.d.ts#LawPart
@@ -592,6 +594,13 @@ interface NestedTerm {
   readonly factor?: number | undefined;
 }
 
+### build/instance.chunk.d.ts#Noise
+interface Noise {
+  readonly floor: number;
+  readonly cpu: string;
+  readonly runs: readonly Run[];
+}
+
 ### build/instance.chunk.d.ts#Over
 type Over = "instance" | "each" | readonly string[];
 
@@ -617,7 +626,7 @@ interface Problem<Code extends string> {
 }
 
 ### build/instance.chunk.d.ts#ProblemCode
-type ProblemCode = "shape" | "format" | "id" | "unit" | "range" | "condition" | "program" | "read" | "constant" | "replicates" | "value" | "fit" | "evidence" | "point" | "level" | "knee";
+type ProblemCode = "shape" | "format" | "id" | "unit" | "range" | "condition" | "program" | "read" | "constant" | "replicates" | "value" | "fit" | "evidence" | "noise" | "point" | "level" | "knee";
 
 ### build/instance.chunk.d.ts#RATE
 declare const RATE = "rate";

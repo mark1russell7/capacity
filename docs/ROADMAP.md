@@ -43,7 +43,7 @@ capacity holds the models and the rules. Each other part has a home package. A f
 | Fits, intervals and noise floors | `@mark1russell7/rigor-statistics` | Fits of a form with parameters, and of a hinge (CAP-14) |
 | Load schedules and the measure of a load run | `@mark1russell7/rigor-chaos` | None |
 | Designs of load points with a seed | `@mark1russell7/rigor-generators` | None |
-| Labs in containers and the open-loop driver | `@mark1russell7/harness` | Resource readings of a container (CAP-11), and the connections of the driver (CAP-47) |
+| Labs in containers and the open-loop driver | `@mark1russell7/harness` | Resource readings of a container (CAP-11), the connections of the driver (CAP-47), and a hold with no load (CAP-48) |
 | Event-loop lag | `@mark1russell7/lag` | An entry for Node (CAP-12) |
 | Amounts with units | `@mark1russell7/quantity` | None |
 | The program of a form and its evaluation | `@mark1russell7/vex` | None |
@@ -90,14 +90,15 @@ The other laws of layer 1 and the laws of layer 2 follow. They tell where the co
 | ID | Item | Status | Priority | Size | Needs | Summary |
 | --- | --- | --- | --- | --- | --- | --- |
 | CAP-18 | The subjects of bare Node | done | P0 | S |  | A subject is a small server of `node:http` with its request classes as data: a body of n bytes, an allocation of n bytes, work of d microseconds of CPU time, a wait of d milliseconds, and a reply of n bytes. A flag sets the live heap. Thus each load variable can move alone. |
-| CAP-19 | The floor of each measure | later | P0 | S | CAP-16 | An idle process gives the base of each measure. A/A pairs give the noise floor of each measure on each CPU model of the CI runners. Each law states its noise. |
+| CAP-19 | The floor of each measure | done | P0 | S | CAP-16 | Each night, 5 A/A pairs give the noise floor of each measure on the CPU model of the runner. Each law states its noise. The idle base moved to CAP-48. |
+| CAP-48 | The idle base of each measure | later | P1 | S | CAP-19 | An idle process gives the base of each measure: the CPU time and the memory with no request. The harness gets a hold with no load. The change is a pull request to the harness. |
 | CAP-20 | Laws of the request rate | later | P0 | M | CAP-1, CAP-19, CAP-47 | CPU time, memory and latency against the request rate, up to and past the limit of one core. The knee is the rate where the latency leaves its floor. |
 | CAP-21 | Laws of the request size | later | P1 | M | CAP-20 | CPU time and memory for each byte of a request and of a reply, and the network bytes on the wire for each byte of payload. The knees are at the sizes of the buffers. |
 | CAP-22 | Laws of duration and concurrency | later | P1 | M | CAP-12, CAP-20, CAP-47 | Memory for each request in flight and for each open connection. The lag from work that blocks the loop, as a queue law of its duration and its rate. |
 | CAP-23 | Laws of the heap and garbage collection | later | P1 | M | CAP-13, CAP-20 | The share of time in garbage collection against the live heap and the allocation rate. The knee is near the heap limit, where collection takes most of the time. |
 | CAP-24 | Laws of the process age | later | P1 | M | CAP-20 | The drift of memory and of lag in a long run. A slope with an interval that holds zero is no drift. A slope above zero is a leak, with its rate. |
 | CAP-25 | The variables together | later | P1 | M | CAP-15, CAP-21, CAP-22, CAP-23 | A design with a seed moves all variables together. The composed law must predict the held-out points. Where it fails, the law gets a term for the two variables. A ranking tells which variables matter. |
-| CAP-26 | The gate of the Node laws | later | P0 | M | CAP-20 | The gate measures sample points again and fails when a measure leaves the interval of its law. A noisy run cannot decide. As proof, the gate fails once on a subject with an added cost. |
+| CAP-26 | The gate of the Node laws | later | P0 | M | CAP-20 | The gate measures sample points again and fails when a measure leaves the interval of its law. A noisy run cannot decide. The noise between two runners adds to the floor of one job (CAP-19). As proof, the gate fails once on a subject with an added cost. |
 | CAP-27 | Node versions and CPU models | later | P2 | M | CAP-26 | The same laws on each supported version of Node and on each CPU model of the runners, x64 and arm64. A factor for each CPU model moves a law to a different machine. |
 | CAP-28 | More protocols | later | P2 | L | CAP-26 | The same laws for a new connection for each request, for TLS, for HTTP/2 and for WebSocket. Each one is a subject with the same request classes. |
 
