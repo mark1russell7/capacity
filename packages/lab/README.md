@@ -115,14 +115,16 @@ The plan `control` has two cases. The case `control/more` adds 1 ms of CPU work,
 - The driver of each run must have a lag of `LAG_LIMIT` or less.
 - The medians of the records must show each cost in its own measure, inside the limits of `CONTROL_LIMITS`:
 
-| Measure | The limits of the check | The 6 runs |
+| Measure | The limits of the check | The 22 runs |
 | --- | --- | --- |
-| The change of `cpu.request` | 0.956 to 1.059 ms | 0.990 to 1.024 ms |
+| The change of `cpu.request` | 0.835 to 1.299 ms | 0.990 to 1.145 ms |
 | The change of `network.tx.request` | 16388 to 16389 B | 16388.198 B in each run |
-| The change of `memory` | 61288448 to 74473472 B | 65683456 to 70078464 B |
-| `latency.p50` of the second case | 1.08 to 1.50 ms | 1.224 to 1.360 ms |
+| The change of `memory` | 60911616 to 75190272 B | 65671168 to 70430720 B |
+| `latency.p50` of the second case | 0.99 to 1.64 ms | 1.209 to 1.424 ms |
 
-Each limit is the worst of the runs, less or plus the spread of the runs, rounded outward. The runs are 44448319523 and the 5 runs of 44449842625, on two CPU models. A run outside a limit is a question about the measure first.
+Each limit is the worst of the runs, less or plus the spread of the runs, rounded outward. The runs are each run of the plan from 44448319523 to 44892024907, on four CPU models. A run outside a limit is a question about the measure first.
+
+The first limits came from 6 runs on two CPU models. The run 44555583909 on an AMD EPYC 9V45 was outside them, with a change of 1.145 ms. The same commit passed in the next two runs. Thus the cause was the noise of the runner, not the code. Its driver had a lag of 10.0 ms, and the other runs had 2.8 ms or less.
 
 The check is a function of the records, with no Docker. Thus a test examines it with the two records of the Lab run 44453927945, in `test/fixtures`.
 
