@@ -118,12 +118,19 @@ jobs:
           node-version: 26
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # A start case models the memory and the swap of a target. Its check child stops the case when the runner cannot model them.
+      - name: The memory and the swap of the runner
+        run: |
+          free -b
+          swapon --show
+          docker info --format 'cgroup {{.CgroupVersion}}, memory limit {{.MemoryLimit}}, swap limit {{.SwapLimit}}'
       # The image of the harness builds once, in the first case. A verdict with a problem fails the step.
       - name: The timed run of the plan
         env:
           PLAN: ${{ matrix.plan }}
+          RUN: ${{ matrix.run }}
           OUT: ${{ runner.temp }}/lab-records
-        run: node packages/lab/src/timed.main.ts measure --plan "$PLAN" --out "$OUT"
+        run: node packages/lab/src/timed.main.ts measure --plan "$PLAN" --out "$OUT" --run "$RUN"
       - name: The records of the run
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

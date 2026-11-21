@@ -1,0 +1,476 @@
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { basename, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import type { ChildExit, ContainerOptions, FreshSkip, StartChild } from "@mark1russell7/rigor-bench/fresh";
+import { afterEach, describe, expect, it } from "vitest";
+import { START_FORMAT, type StartCase } from "./start.ts";
+import {
+  CHECK_PROGRAM,
+  START_RECORD_FORMAT,
+  childLimitOf,
+  measureStart,
+  observationReads,
+  startMeasures,
+  startRecordProblems,
+  startSummaryOf,
+  targetCheckOf,
+  targetMismatches,
+  windowReads,
+  type StartReading,
+  type StartRecord,
+} from "./start-measure.ts";
+
+const MIB = 1024 * 1024;
+const GIB = 1024 * MIB;
+const A = "a".repeat(40);
+const B = "b".repeat(40);
+const C = "c".repeat(40);
+const ID = `sha256:${"d".repeat(64)}`;
+const DIGEST = `node@sha256:${"e".repeat(64)}`;
+const GRAFT = "packages/runtime/src/measured-start.ts";
+const SEED = fileURLToPath(new URL("./subject/alerts-seed.main.ts", import.meta.url));
+const START = fileURLToPath(new URL("./subject/alerts-start.main.ts", import.meta.url));
+const REPO = fileURLToPath(new URL("../../../", import.meta.url)).replace(/[\\/]+$/, "");
+const OOM = "<--- Last few GCs --->\nFATAL ERROR: Reached heap limit Allocation failed - JavaScript heap out of memory\n";
+const s = (value: number) => ({ value, unit: "s" });
+
+const CASE: StartCase = {
+  format: START_FORMAT,
+  id: "alerts-start/test",
+  title: "Two points",
+  subject: "alerts",
+  seeder: C,
+  arms: [
+    { id: "base", commit: A, graft: [{ path: GRAFT, commit: B }] },
+    { id: "new", commit: B },
+  ],
+  points: [
+    { id: "small", at: { log: { value: 16, unit: "MiB" } } },
+    { id: "large", at: { log: { value: 64, unit: "MiB" }, shapes: { value: 2, unit: "MiB" } } },
+  ],
+  seed: "test-1",
+  rounds: 2,
+  watch: s(120),
+  limit: { value: 5, unit: "min" },
+  windows: [s(90), s(240)],
+  probe: { value: 500, unit: "ms" },
+  target: { image: "node:24.21.0-bookworm-slim", node: "v24.21.0", memory: { value: 1011425280, unit: "B" }, swap: { value: 2, unit: "GiB" }, cpus: 2, heapLimit: { value: 556269568, unit: "B" } },
+  observed: [{ point: "large", arm: "base", window: s(90), ready: false, source: "the supervisor of the machine: 3 stops" }],
+};
+
+/** The line of the check child in a container of the target of `CASE`. */
+const CHECK = { uptime: 60_000, node: "v24.21.0", memoryMax: "1011425280", swapMax: String(2 * GIB), hostSwap: 4 * GIB, heapLimit: 556269568, cpus: 2 };
+
+interface Call {
+  readonly argv: readonly string[];
+  readonly cwd: string | undefined;
+  readonly timeoutMs: number;
+}
+
+const ok = (stdout: string): ChildExit => ({ stdout, stderr: "", code: 0 });
+const flagOf = (argv: readonly string[], name: string): string => argv[argv.indexOf(`--${name}`) + 1]!;
+const armOf = (argv: readonly string[]): string => basename(flagOf(argv, "tree"));
+
+/** The peak of the resident set of each arm: the arm `new` uses less memory. */
+const PEAK: Readonly<Record<string, number>> = { base: 200 * MIB, new: 150 * MIB };
+
+/** The readiness of each child: the base on the large point ends its open after 2 minutes, and each other child after 4 seconds. */
+const readinessOf = (arm: string, point: string): number => (arm === "base" && point === "large" ? 120_000 : 4000);
+
+/** This function gives the line of the start program for one child, as the real program prints it. */
+const startLine = (arm: string, point: string): string => {
+  const peak = PEAK[arm]!;
+  const readiness = readinessOf(arm, point);
+  const ready = { rss: peak - MIB, peakRss: peak, anon: peak / 2, file: null, heapUsed: 80 * MIB, external: 8 * MIB };
+  const watch = { rss: peak, peakRss: peak + MIB, anon: peak / 2, file: null, heapUsed: 70 * MIB, external: 8 * MIB };
+  const startHeap = { used: 120 * MIB, live: 60 * MIB, gc: 30, fullGc: 2, gcMs: 250, limit: 556269568 };
+  const watchHeap = { used: 90 * MIB, live: 58 * MIB, gc: 12, fullGc: 1, gcMs: 40, limit: 556269568 };
+  const line = {
+    ms: readiness + 1000,
+    readiness,
+    firstPass: 1500,
+    peakRss: peak,
+    ready,
+    live: 60 * MIB,
+    startHeap,
+    watch,
+    watchHeap,
+    passes: 10,
+    stalled: false,
+    limit: 556269568,
+    copyMs: 500,
+    closeMs: 20,
+    open: ["FSReqCallback"],
+    endMs: readiness + 500 + 1500 + 120_000 + 20,
+  };
+  return `${JSON.stringify(line)}\n`;
+};
+
+/** This start answers each command of the host: the pull and the inspect of the image, git, the install and the seed program. */
+const fakeStart = (calls: Call[], fails: (argv: readonly string[]) => ChildExit | undefined = () => undefined): StartChild =>
+  async (argv, options) => {
+    calls.push({ argv, cwd: options.cwd, timeoutMs: options.timeoutMs });
+    const failed = fails(argv);
+    if (failed !== undefined) return failed;
+    if (argv[0] === "docker" && argv[1] === "image") return ok(`${ID} ${JSON.stringify([DIGEST])}\n`);
+    if (argv.includes(SEED)) {
+      const sizes = { log: Number(flagOf(argv, "log")), shapes: Number(flagOf(argv, "shapes")), transit: Number(flagOf(argv, "transit")) };
+      return ok(`seeding\n${JSON.stringify({ ms: 12, sizes, args: ["--end", "1767227897200"], logEvents: 759 })}\n`);
+    }
+    return ok("");
+  };
+
+/** This container gives the check line to the check child and the start line to each child, and keeps its options and its calls. */
+const fakeContainer = (seen: ContainerOptions[], calls: Call[], fails: (argv: readonly string[]) => ChildExit | undefined = () => undefined, check: object = CHECK) =>
+  (options: ContainerOptions): StartChild =>
+    async (argv, limits) => {
+      seen.push(options);
+      calls.push({ argv, cwd: limits.cwd, timeoutMs: limits.timeoutMs });
+      const failed = fails(argv);
+      if (failed !== undefined) return failed;
+      if (argv[1] === "-e") return ok(`${JSON.stringify(check)}\n`);
+      return ok(startLine(armOf(argv), flagOf(argv, "case")));
+    };
+
+const folders: string[] = [];
+const work = (): string => {
+  const folder = mkdtempSync(join(tmpdir(), "start-measure-"));
+  folders.push(folder);
+  return folder;
+};
+afterEach(() => {
+  for (const folder of folders.splice(0)) rmSync(folder, { recursive: true, force: true });
+});
+
+const HOST = { cpu: "Test CPU", cores: 4 };
+const clock = (): (() => Date) => {
+  let calls = 0;
+  return () => new Date(Date.UTC(2026, 10, 21, 14, calls++));
+};
+
+/** This function measures a case with the fake host and the fake container, and gives the record. */
+const recorded = async (value: StartCase = CASE, fails?: (argv: readonly string[]) => ChildExit | undefined): Promise<StartRecord> =>
+  (await measureStart(value, { work: work(), start: fakeStart([]), container: fakeContainer([], [], fails), host: HOST })).record;
+
+describe("measureStart", () => {
+  it("pulls the image, checks the target, makes each tree, seeds each point once, and starts each child in a container of the target", async () => {
+    const calls: Call[] = [];
+    const inside: Call[] = [];
+    const seen: ContainerOptions[] = [];
+    const folder = work();
+    const { record, result } = await measureStart(CASE, { work: folder, start: fakeStart(calls), container: fakeContainer(seen, inside), host: HOST, now: clock() });
+    const tree = (id: string): string => join(folder, "trees", id);
+    const store = (id: string): string => join(folder, "stores", id);
+
+    expect(calls.slice(0, 2).map((call) => call.argv.join(" "))).toEqual([
+      "docker pull --quiet node:24.21.0-bookworm-slim",
+      "docker image inspect --format {{.Id}} {{json .RepoDigests}} node:24.21.0-bookworm-slim",
+    ]);
+    expect(record.image).toEqual({ name: "node:24.21.0-bookworm-slim", id: ID, digest: DIGEST });
+    // Each child of the case starts in a container with the memory, the swap and 2 CPUs of the target, and the two mounts.
+    expect(seen[0]).toEqual({ image: "node:24.21.0-bookworm-slim", memory: 1011425280, swap: 2 * GIB, cpuset: "0-1", mounts: [folder, REPO] });
+    expect(inside[0]?.argv).toEqual(["node", "-e", CHECK_PROGRAM]);
+    expect(record.check).toMatchObject({ node: "v24.21.0", memoryMax: "1011425280", heapLimit: { value: 556269568, unit: "B" }, cpus: 2 });
+
+    const git = calls.filter((call) => call.argv[0] === "git").map((call) => call.argv.slice(1).join(" "));
+    expect(git.slice(0, 6)).toEqual([
+      `-C ${tree("base")} init -q`,
+      `-C ${tree("base")} remote add origin https://github.com/metrograph-labs/alerts.git`,
+      `-C ${tree("base")} fetch -q --depth 1 origin ${A}`,
+      `-C ${tree("base")} checkout -q FETCH_HEAD`,
+      `-C ${tree("base")} fetch -q --depth 1 origin ${B}`,
+      `-C ${tree("base")} checkout ${B} -- ${GRAFT}`,
+    ]);
+    expect(git).toHaveLength(6 + 4 + 4);
+    // Only the tree with a graft gets the type check.
+    expect(calls.filter((call) => call.argv[0] === "pnpm").map((call) => [call.argv.join(" "), call.cwd])).toEqual([
+      ["pnpm install --frozen-lockfile", tree("base")],
+      ["pnpm --filter @mark1russell7/alerts-runtime run typecheck", tree("base")],
+      ["pnpm install --frozen-lockfile", tree("new")],
+      ["pnpm install --frozen-lockfile", tree("seeder")],
+    ]);
+    expect(record.trees.map((each) => [each.id, each.commit, each.graft.length])).toEqual([
+      ["base", A, 1],
+      ["new", B, 0],
+      ["seeder", C, 0],
+    ]);
+
+    // The seed program starts on the host, with the Node of the lab.
+    const seeds = calls.filter((call) => call.argv.includes(SEED));
+    expect(seeds.map((call) => call.argv)).toEqual([
+      [process.execPath, SEED, "--tree", tree("seeder"), "--out", store("small"), "--seed", "test-1", "--log", String(16 * MIB), "--shapes", "0", "--transit", "0"],
+      [process.execPath, SEED, "--tree", tree("seeder"), "--out", store("large"), "--seed", "test-1", "--log", String(64 * MIB), "--shapes", String(2 * MIB), "--transit", "0"],
+    ]);
+    expect(seeds.map((call) => call.timeoutMs)).toEqual([(60 + 16) * 1000, (60 + 66) * 1000]);
+    expect(record.points.map((point) => [point.id, point.sizes["log"], point.sizes["shapes"], point.events, point.args])).toEqual([
+      ["small", { value: 16 * MIB, unit: "B" }, { value: 0, unit: "B" }, 759, ["--end", "1767227897200"]],
+      ["large", { value: 64 * MIB, unit: "B" }, { value: 2 * MIB, unit: "B" }, 759, ["--end", "1767227897200"]],
+    ]);
+
+    // Each round starts one child of each arm and one A/A child of the base, on each point, with the Node of the image.
+    const children = inside.filter((call) => call.argv.includes(START));
+    expect(children).toHaveLength(2 * 2 * 3);
+    const first = children.find((call) => call.cwd === tree("new"))!;
+    expect(first.argv).toEqual(["node", "--expose-gc", START, "--tree", tree("new"), "--case", flagOf(first.argv, "case"), "--seeded", store(flagOf(first.argv, "case")), "--end", "1767227897200", "--watch", "120000"]);
+    expect(first.timeoutMs).toBe((300 + 120 + 60) * 1000);
+    expect(childLimitOf(CASE)).toEqual({ value: 480_000, unit: "ms" });
+
+    expect(record.format).toBe(START_RECORD_FORMAT);
+    expect(record.job).toBe("1");
+    expect(record.pairs).toEqual(["new", "base~aa"]);
+    expect(Object.keys(result.pairs)).toEqual(["new", "base~aa"]);
+    expect(record.readings).toHaveLength(12);
+    const peaks = Object.fromEntries(record.readings.map((reading) => [reading.arm, reading.measures.peak]));
+    expect(peaks).toEqual({ base: { value: 200 * MIB, unit: "B" }, new: { value: 150 * MIB, unit: "B" }, "base~aa": { value: 200 * MIB, unit: "B" } });
+    expect([...new Set(record.readings.map((reading) => reading.round))]).toEqual([0, 1]);
+    // The place of each child is its place in the order of its point and round.
+    for (const order of record.orders) {
+      const mine = record.readings.filter((reading) => reading.point === order.case && reading.round === order.round);
+      expect(mine.map((reading) => order.arms[reading.position])).toEqual(mine.map((reading) => reading.arm));
+    }
+    expect(record.readings.every((reading) => reading.open.length === 1 && !reading.stalled)).toBe(true);
+    expect(record.machine).toMatchObject({ cpu: "Test CPU", cores: 4, node: process.version });
+    expect(record.at).toEqual({ started: "2026-11-21T14:00:00.000Z", ended: "2026-11-21T14:01:00.000Z" });
+    expect(record.orders).toHaveLength(4);
+    expect(record.failures).toEqual([]);
+    expect(record.skipped).toEqual([]);
+    expect(startRecordProblems(record)).toEqual([]);
+  });
+
+  it("uses the tree of a plain arm for the seed", async () => {
+    const calls: Call[] = [];
+    const folder = work();
+    await measureStart({ ...CASE, seeder: B, rounds: 1, points: [CASE.points[1]!] }, { work: folder, start: fakeStart(calls), container: fakeContainer([], []), host: HOST });
+    expect(calls.filter((call) => call.argv[0] === "pnpm").map((call) => basename(call.cwd!))).toEqual(["base", "base", "new"]);
+    expect(calls.find((call) => call.argv.includes(SEED))?.argv).toContain(join(folder, "trees", "new"));
+  });
+
+  it("keeps a digest of the image only in its form, and throws for an inspect with no id", async () => {
+    const inspect = (stdout: string) => (argv: readonly string[]): ChildExit | undefined => (argv[1] === "image" ? ok(stdout) : undefined);
+    const imageOf = async (stdout: string) => (await measureStart({ ...CASE, rounds: 1 }, { work: work(), start: fakeStart([], inspect(stdout)), container: fakeContainer([], []), host: HOST })).record.image;
+    expect(await imageOf(`${ID} []\n`)).toEqual({ name: CASE.target.image, id: ID, digest: null });
+    expect((await imageOf(`${ID} ${JSON.stringify([`node\`x@sha256:${"e".repeat(64)}`])}\n`)).digest).toBeNull();
+    expect((await imageOf(`${ID} ${JSON.stringify(["node@sha256:short"])}\n`)).digest).toBeNull();
+    await expect(imageOf("sha256:abc []\n")).rejects.toThrow("The inspect of the image node:24.21.0-bookworm-slim gave no id: sha256:abc []");
+  });
+
+  it("turns the rounds by the run: the run 2 of 2 rounds has the rounds 2 and 3, and the job 2", async () => {
+    const { record } = await measureStart(CASE, { work: work(), start: fakeStart([]), container: fakeContainer([], []), host: HOST, run: 2 });
+    expect(record.job).toBe("2");
+    expect([...new Set(record.readings.map((reading) => reading.round))]).toEqual([2, 3]);
+  });
+
+  it("records a child over a limit of the target as a failure of its kind, and the other arms still start", async () => {
+    // The A/A child has the command of the base. Thus only the first child of the base on the small point passes the memory limit.
+    let baseSmall = 0;
+    const over = (argv: readonly string[]): ChildExit | undefined => {
+      if (!argv.includes(START)) return undefined;
+      const at = `${armOf(argv)} ${flagOf(argv, "case")}`;
+      if (at === "new large") return { stdout: "", stderr: OOM, code: 134 };
+      if (at === "base small" && baseSmall++ === 0) return { stdout: "", stderr: "", code: 137, oomKilled: true };
+      if (at === "new small") return { stdout: "", stderr: "", code: null, timedOut: true };
+      return undefined;
+    };
+    const record = await recorded({ ...CASE, rounds: 1 }, over);
+    expect(record.failures.map((each) => `${each.arm.replace("~aa", "")} ${each.case} ${each.kind}`).sort()).toEqual(["base small memory", "new large heap", "new small time"]);
+    expect(record.failures.find((each) => each.kind === "heap")?.reason).toMatch(/^reached the heap limit of V8: .*JavaScript heap out of memory$/);
+    expect(record.failures.find((each) => each.kind === "memory")?.reason).toBe("passed the memory limit of its container");
+    expect(record.skipped).toEqual([]);
+    expect(record.readings.map((reading) => `${reading.arm.replace("~aa", "")} ${reading.point}`).sort()).toEqual(["base large", "base large", "base small"]);
+    expect(startRecordProblems(record)).toEqual([]);
+  });
+
+  it("stops before the trees when the container does not model the target", async () => {
+    const calls: Call[] = [];
+    const other = { ...CHECK, heapLimit: 2181038080, cpus: 4, swapMax: "max", hostSwap: 0 };
+    await expect(measureStart(CASE, { work: work(), start: fakeStart(calls), container: fakeContainer([], [], undefined, other), host: HOST })).rejects.toThrow(
+      `The container does not model the target: the swap limit of the cgroup is max, not ${2 * GIB}, the host has 0 bytes of swap, less than ${2 * GIB}, the heap limit of V8 is 2181038080, not 556269568, the child has 4 CPUs, not 2.`,
+    );
+    expect(calls.filter((call) => call.argv[0] === "git")).toEqual([]);
+  });
+
+  it("throws with the tail of stderr (or of stdout when stderr is empty) when a command fails, and before each command for a case with a problem", async () => {
+    const refused = (argv: readonly string[]): ChildExit | undefined =>
+      argv[0] === "git" && argv.includes("fetch") ? { stdout: "", stderr: "fatal: could not read from the remote", code: 128 } : undefined;
+    const container = fakeContainer([], []);
+    await expect(measureStart(CASE, { work: work(), start: fakeStart([], refused), container, host: HOST })).rejects.toThrow(/fetch .* exited with the code 128\. The tail of stderr: fatal: could not read from the remote/);
+    const pull = (argv: readonly string[]): ChildExit | undefined => (argv[1] === "pull" ? { stdout: "", stderr: "toomanyrequests", code: 1 } : undefined);
+    await expect(measureStart(CASE, { work: work(), start: fakeStart([], pull), container, host: HOST })).rejects.toThrow(/docker pull .* exited with the code 1\. The tail of stderr: toomanyrequests/);
+    // tsc prints its errors on stdout. Thus a type check with an empty stderr gives the tail of its stdout.
+    const typed = (argv: readonly string[]): ChildExit | undefined =>
+      argv.includes("typecheck") ? { stdout: "src/measured-start.ts(12,5): error TS2353: Object literal may only specify known properties.\n", stderr: "", code: 2 } : undefined;
+    await expect(measureStart(CASE, { work: work(), start: fakeStart([], typed), container, host: HOST })).rejects.toThrow(
+      /run typecheck exited with the code 2\. The tail of stdout: src\/measured-start\.ts\(12,5\): error TS2353/,
+    );
+    const check = (argv: readonly string[]): ChildExit | undefined => (argv[1] === "-e" ? { stdout: "", stderr: "exec format error", code: 1 } : undefined);
+    await expect(measureStart(CASE, { work: work(), start: fakeStart([]), container: fakeContainer([], [], check), host: HOST })).rejects.toThrow(/check child .* failed\. The tail of stderr: exec format error/);
+
+    const calls: Call[] = [];
+    await expect(measureStart({ ...CASE, rounds: 0 }, { work: work(), start: fakeStart(calls), container, host: HOST })).rejects.toThrow(RangeError);
+    await expect(measureStart(CASE, { work: work(), start: fakeStart(calls), container, host: HOST, run: 0 })).rejects.toThrow(RangeError);
+    expect(calls).toEqual([]);
+  });
+
+  it("throws when the seed program skips a point or gives no sizes", async () => {
+    const container = fakeContainer([], []);
+    const skip = (argv: readonly string[]): ChildExit | undefined => (argv.includes(SEED) ? ok(`${JSON.stringify({ skipped: "no disk" })}\n`) : undefined);
+    await expect(measureStart(CASE, { work: work(), start: fakeStart([], skip), container, host: HOST })).rejects.toThrow(/skipped the point "small": no disk/);
+    const bare = (argv: readonly string[]): ChildExit | undefined => (argv.includes(SEED) ? ok(`${JSON.stringify({ ms: 1, args: [], logEvents: 1 })}\n`) : undefined);
+    await expect(measureStart(CASE, { work: work(), start: fakeStart([], bare), container, host: HOST })).rejects.toThrow(/gave no sizes/);
+  });
+});
+
+describe("targetCheckOf and targetMismatches", () => {
+  it("read the last line of the check child, and give the start of the container from the time of the command", () => {
+    const check = targetCheckOf(`warning\n${JSON.stringify(CHECK)}\n`, 60_900);
+    expect(check).toEqual({
+      node: "v24.21.0",
+      memoryMax: "1011425280",
+      swapMax: String(2 * GIB),
+      hostSwap: { value: 4 * GIB, unit: "B" },
+      heapLimit: { value: 556269568, unit: "B" },
+      cpus: 2,
+      start: { value: 900, unit: "ms" },
+    });
+    expect(targetCheckOf(JSON.stringify({ ...CHECK, hostSwap: null, memoryMax: null }), 10)).toMatchObject({ hostSwap: null, memoryMax: null, start: { value: 0, unit: "ms" } });
+    expect(targetMismatches(CASE.target, check)).toEqual([]);
+  });
+
+  it("throw for a line that is not JSON, not a record, or with a field of a wrong type", () => {
+    expect(() => targetCheckOf("Segmentation fault", 1)).toThrow(/printed no JSON line: Segmentation fault/);
+    expect(() => targetCheckOf("[1]", 1)).toThrow(/printed no record/);
+    for (const wrong of [{ cpus: 2.5 }, { heapLimit: "556269568" }, { node: 24 }, { swapMax: 0 }, { uptime: -1 }]) {
+      expect(() => targetCheckOf(JSON.stringify({ ...CHECK, ...wrong }), 1)).toThrow(/a field of a wrong type/);
+    }
+  });
+
+  it("give each fact that is not the fact of the target, and need no swap of the host for a target with no swap", () => {
+    const check = targetCheckOf(JSON.stringify({ ...CHECK, node: "v26.13.1", memoryMax: "max", swapMax: "0", hostSwap: null }), 100);
+    expect(targetMismatches(CASE.target, check)).toEqual([
+      "the Node version is v26.13.1, not v24.21.0",
+      "the memory limit of the cgroup is max, not 1011425280",
+      `the swap limit of the cgroup is 0, not ${2 * GIB}`,
+      `the host has no readable bytes of swap, less than ${2 * GIB}`,
+    ]);
+    const none = { ...CASE.target, swap: { value: 0, unit: "B" }, heapLimit: null };
+    expect(targetMismatches(none, targetCheckOf(JSON.stringify({ ...CHECK, swapMax: "0", hostSwap: null, heapLimit: 1 }), 100))).toEqual([]);
+  });
+});
+
+describe("startMeasures", () => {
+  it("gives each measure in its unit, and null for each field that the child did not give", () => {
+    const measures = startMeasures(1500, {
+      peakRss: 100,
+      extra: { ready: { rss: 90, peakRss: 80, anon: null, heapUsed: 40 }, live: 30, passes: 2, watch: { peakRss: 120 }, readiness: 1200, startHeap: { used: 50, live: null, gcMs: 7, fullGc: 0 }, endMs: 9000 },
+    });
+    expect(measures).toMatchObject({
+      ready: { value: 1500, unit: "ms" },
+      readiness: { value: 1200, unit: "ms" },
+      firstPass: null,
+      end: { value: 9000, unit: "ms" },
+      peak: { value: 100, unit: "B" },
+      rss: { value: 90, unit: "B" },
+      anon: null,
+      file: null,
+      heap: { value: 40, unit: "B" },
+      live: { value: 30, unit: "B" },
+      heapPeak: { value: 50, unit: "B" },
+      livePeak: null,
+      gc: { value: 7, unit: "ms" },
+      fullGc: { value: 0, unit: "{gc}" },
+      watchPeak: { value: 120, unit: "B" },
+      watchRss: null,
+      watchHeapPeak: null,
+      passes: { value: 2, unit: "{pass}" },
+      limit: null,
+      copy: null,
+      close: null,
+    });
+    expect(startMeasures(1, { extra: { ready: { peakRss: 80 } } }).peak).toEqual({ value: 80, unit: "B" });
+  });
+});
+
+describe("windowReads and observationReads", () => {
+  it("give ready for a child whose readiness and one probe are in the window, and late for each other child with a reading", async () => {
+    const record = await recorded({ ...CASE, rounds: 1, windows: [s(4.5), s(90), s(121)] });
+    const reads = windowReads(record);
+    const of = (arm: string, point: string): string[] => reads.filter((each) => each.arm === arm && each.point === point).map((each) => each.read);
+    expect(of("new", "small")).toEqual(["ready", "ready", "ready"]);
+    expect(of("base", "large")).toEqual(["late", "late", "ready"]);
+    expect(of("base~aa", "large")).toEqual(["late", "late", "ready"]);
+    // The readiness is 120 s and the probe is 500 ms: thus the window of 120.4 s is late, and the window of 120.5 s is ready.
+    const edge = windowReads(await recorded({ ...CASE, rounds: 1, windows: [{ value: 120_499, unit: "ms" }, { value: 120_500, unit: "ms" }], observed: [] }));
+    expect(edge.filter((each) => each.arm === "base" && each.point === "large").map((each) => each.read)).toEqual(["late", "ready"]);
+  });
+
+  it("give late for a child over the time limit only when the window and the late margin of its point are in its limit", async () => {
+    const record = await recorded({ ...CASE, rounds: 1 });
+    // The longest copy of the point is 500 ms, and the longest time of a child after its open is 121.52 s.
+    const late: FreshSkip = { arm: "new", case: "large", round: 0, reason: "took more than 480000 ms", kind: "time" };
+    const at = (ms: number, failure: FreshSkip, base: StartRecord = record): string | undefined =>
+      windowReads({ ...base, case: { ...base.case, windows: [{ value: ms, unit: "ms" }] }, failures: [failure] }).find((each) => each.failure !== undefined)?.read;
+    // With a container start of 1 s, the late margin is 123.02 s. The limit of 480 s less the margin is 356.98 s.
+    const check = { ...record.check, start: { value: 1000, unit: "ms" } };
+    expect(at(356_980, late, { ...record, check })).toBe("late");
+    expect(at(356_981, late, { ...record, check })).toBe("no read");
+    expect(at(90_000, late)).toBe("late");
+    expect(at(90_000, { ...late, kind: "memory" })).toBe("no read");
+    expect(at(90_000, { ...late, kind: "heap" })).toBe("no read");
+    expect(at(90_000, { ...late, case: "none" })).toBe("no read");
+  });
+
+  it("tell if each observation agrees with the reads of the children of its arm and its A/A copy", async () => {
+    const record = await recorded({ ...CASE, rounds: 1 });
+    expect(observationReads(record).map((each) => [each.reads, each.agrees])).toEqual([[["late", "late"], true]]);
+    const ready = { ...record, case: { ...record.case, observed: [{ ...record.case.observed[0]!, ready: true }] } };
+    expect(observationReads(ready)[0]?.agrees).toBe(false);
+    const failed = { ...record, readings: record.readings.filter((reading) => !(reading.arm === "base~aa" && reading.point === "large")), failures: [{ arm: "base~aa", case: "large", round: 0, reason: "passed the memory limit of its container", kind: "memory" as const }] };
+    expect(observationReads(failed).map((each) => [each.reads, each.agrees])).toEqual([[["late", "no read"], null]]);
+  });
+});
+
+describe("startRecordProblems and startSummaryOf", () => {
+  it("find a reading with no needed measure, an arm with no child in a round, and each observation that the record does not agree with", async () => {
+    const record = await recorded({ ...CASE, rounds: 1 });
+    const fewer: StartReading[] = record.readings
+      .filter((reading) => reading.arm !== "new" || reading.point !== "small")
+      .map((reading) => (reading.arm === "base" && reading.point === "large" ? { ...reading, measures: { ...reading.measures, live: null, end: null } } : reading));
+    const broken: StartRecord = { ...record, readings: fewer, case: { ...record.case, observed: [{ ...record.case.observed[0]!, ready: true }] } };
+    expect(startRecordProblems(broken).map((each) => `${each.code} ${each.path}: ${each.message}`)).toEqual([
+      "read alerts-start/test: base on large: The reading has no end, live.",
+      "record alerts-start/test: small, round 0: The point has no child of new.",
+      "observed alerts-start/test: base on large in 1 min 30 s: The children were late, late, and the machine was ready (the supervisor of the machine: 3 stops). The lab does not model the time of the machine.",
+    ]);
+    const none: StartRecord = { ...record, readings: record.readings.filter((reading) => reading.point !== "large" || reading.arm === "new"), failures: [{ arm: "base", case: "large", round: 0, reason: "passed the memory limit of its container", kind: "memory" }, { arm: "base~aa", case: "large", round: 0, reason: "passed the memory limit of its container", kind: "memory" }] };
+    expect(startRecordProblems(none).map((each) => `${each.code} ${each.path}: ${each.message}`)).toEqual([
+      "observed alerts-start/test: base on large in 1 min 30 s: The record has no read of each child, and the machine was not ready (the supervisor of the machine: 3 stops). The reads: no read, no read.",
+    ]);
+  });
+
+  it("give the host, the target, the image, the check, the trees, one row for each child with the read of each window, and each failure", async () => {
+    const record = await recorded({ ...CASE, rounds: 1 });
+    const failed: StartRecord = {
+      ...record,
+      readings: record.readings.map((reading, index) => (index === 0 ? { ...reading, stalled: true } : reading)).filter((reading) => reading.arm !== "new" || reading.point !== "large"),
+      failures: [{ arm: "new", case: "large", round: 0, reason: "reached the heap limit of V8: JavaScript heap out of memory", kind: "heap" }],
+      skipped: [{ arm: "base", case: "small", round: 0, reason: "no store", kind: "line" }],
+    };
+    const summary = startSummaryOf(failed);
+    expect(summary).toContain("### The start case `alerts-start/test`, job 1");
+    // The text of the target has an escape before each mark. The digest is in a code span with no escape.
+    expect(summary).toContain("- The target: 2 CPUs\\, ");
+    expect(summary).toContain(` of memory\\, 2 GiB of swap\\, Node v24\\.21\\.0. The image: \`${DIGEST}\`.`);
+    expect(summary).toContain("- The check child: the heap limit of V8 is 530.5 MiB, and the container starts in 0 ms.");
+    expect(summary).toContain(`\`base\` ${A.slice(0, 7)} with 1 graft in `);
+    expect(summary).toContain("| Point | `log` | `shapes` | `transit` | Arm | Readiness | In 1 min 30 s | In 4 min | Ready | VmHWM at ready | Heap peak | Live heap | GC | VmHWM of the watch | Passes |");
+    expect(summary).toContain(`|${" --- |".repeat(15)}\n`);
+    expect(summary).toContain("| `small` | 16 MiB | 0 B | 0 B | `new` | 4 s | ready | ready | 5 s | 150 MiB | 120 MiB | 60 MiB | 250 ms | 151 MiB | 10 |");
+    expect(summary).toContain("| `large` | 64 MiB | 2 MiB | 0 B | `base` | 2 min | late | ready |");
+    expect(summary).toContain("| `large` | 64 MiB | 2 MiB | 0 B | `new` | does not fit: heap | no read | no read |");
+    expect(summary).toContain("- **stalled** `");
+    expect(summary).toContain("- **heap** `large`, the arm `new`, round 0: reached the heap limit of V8\\: JavaScript heap out of memory");
+    expect(summary).toContain("- **skip** `small`, the arm `base`, round 0: no store");
+    expect(summary.split("\n").filter((line) => line.startsWith("| `"))).toHaveLength(6);
+  });
+});

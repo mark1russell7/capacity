@@ -1,4 +1,5 @@
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Run } from "@mark1russell7/capacity";
 import { escapeMarkdown } from "@mark1russell7/text";
@@ -7,6 +8,8 @@ import { verdictOf, type Verdict } from "./check.ts";
 import { measureCase, type Measurement } from "./measure.ts";
 import type { Plan } from "./plan.ts";
 import type { CaseRecord, Machine } from "./record.ts";
+import { isStartCase, type StartCase } from "./start.ts";
+import { measureStart, startRecordProblems, type StartMachine, type StartMeasurement, type StartRecord } from "./start-measure.ts";
 
 /** This text is the format of the manifest of a timed run. */
 export const TIMED_FORMAT = "capacity-timed/1";
@@ -17,7 +20,7 @@ export const MANIFEST = "timed.json";
 /** The files of one case of a timed run, by their names in the folder of the records. */
 export interface TimedFiles {
   readonly case: string;
-  /** This name is the file of the record of the case, with the format `capacity-record/1`. */
+  /** This name is the file of the record of the case, with the format `capacity-record/1` or `capacity-start-record/1`. */
   readonly record: string;
   /** This name is the file of the raw result of the cell of the case. A later analysis can judge it again. */
   readonly result: string;
@@ -36,7 +39,7 @@ export interface Timed {
   /** This count is `GITHUB_RUN_ATTEMPT` of the CI run, or null outside CI. A run that starts again gets the next count. */
   readonly attempt: number | null;
   /** This machine is the machine of the first record: it names the CPU model. All cases of a plan have one runner. */
-  readonly machine: Machine | null;
+  readonly machine: Machine | StartMachine | null;
   readonly at: { readonly started: string; readonly ended: string };
   readonly files: readonly TimedFiles[];
   readonly verdict: Verdict;
@@ -82,6 +85,10 @@ export interface TimeOptions {
   readonly out: string;
   /** This function measures a case. The default is `measureCase`, which needs Docker. */
   readonly measure?: (value: Case) => Promise<Measurement>;
+  /** This function measures a start case in the run `run`. The default is `measureStart` in a new folder of the system, which it deletes after the case. */
+  readonly start?: (value: StartCase, run: number) => Promise<StartMeasurement>;
+  /** This number is the number of the run of the plan in the matrix, 1 or more. It turns the order of the arms of a start case. The default is 1. */
+  readonly run?: number;
   /** These variables give the CI run. The default is `process.env`. */
   readonly env?: Environment;
   /** This function gives the time. The default is the clock of the system. */
@@ -91,40 +98,56 @@ export interface TimeOptions {
 /**
  * This function measures each case of a plan, in the order of the plan, on this machine. It writes
  * the record and the raw result of each case into `out` when the case ends. Then it judges the
- * records with the check of the plan (`verdictOf`), and it writes the manifest `timed.json`.
+ * records of load with the check of the plan (`verdictOf`), and each start record with
+ * `startRecordProblems`. It writes the manifest `timed.json`.
  *
  * It gives the manifest. A case that throws stops the plan with no manifest, and the files of the
  * cases before it stay in `out`.
  */
 export const timePlan = async (plan: Plan, options: TimeOptions): Promise<Timed> => {
   const measure = options.measure ?? measureCase;
+  const start = options.start ?? measureStartIn;
+  const run = options.run ?? 1;
   const env = options.env ?? process.env;
   const now = options.now ?? (() => new Date());
   mkdirSync(options.out, { recursive: true });
   const started = now();
   const records: CaseRecord[] = [];
+  const starts: StartRecord[] = [];
   const files: TimedFiles[] = [];
   for (const value of plan.cases) {
-    const { record, result } = await measure(value);
+    const { record, result } = isStartCase(value) ? await start(value, run) : await measure(value);
     const names = filesOf(value.id);
     writeFileSync(join(options.out, names.record), `${JSON.stringify(record, null, 2)}\n`);
     writeFileSync(join(options.out, names.result), `${JSON.stringify(result)}\n`);
-    records.push(record);
+    if ("readings" in record) starts.push(record);
+    else records.push(record);
     files.push(names);
   }
+  const verdict = verdictOf(plan.check, records);
   const ended = now();
   const timed: Timed = {
     format: TIMED_FORMAT,
     plan: plan.id,
     run: runOf(env, started),
     attempt: attemptOf(env),
-    machine: records[0]?.machine ?? null,
+    machine: records[0]?.machine ?? starts[0]?.machine ?? null,
     at: { started: started.toISOString(), ended: ended.toISOString() },
     files,
-    verdict: verdictOf(plan.check, records),
+    verdict: { ...verdict, problems: [...verdict.problems, ...starts.flatMap(startRecordProblems)] },
   };
   writeFileSync(join(options.out, MANIFEST), `${JSON.stringify(timed, null, 2)}\n`);
   return timed;
+};
+
+/** This function measures a start case with `measureStart` in a new folder of the system, and it deletes the folder after the case. */
+const measureStartIn = async (value: StartCase, run: number): Promise<StartMeasurement> => {
+  const work = mkdtempSync(join(tmpdir(), "capacity-start-"));
+  try {
+    return await measureStart(value, { work, run });
+  } finally {
+    rmSync(work, { recursive: true, force: true });
+  }
 };
 
 /**
