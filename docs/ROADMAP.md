@@ -53,6 +53,8 @@ capacity holds the models and the rules. Each other part has a home package. A f
 
 The first path gives one law with a gate: CAP-1, CAP-18 and CAP-11, then CAP-10, CAP-16, CAP-19, CAP-47, CAP-20 and CAP-26.
 
+CAP-49 comes first in layer 3. The start memory of alerts stops its start on a machine with 1 GB.
+
 The second path gives the scale rule of alerts: the rest of the algebra (CAP-2 to CAP-7), then CAP-34 to CAP-37. It needs the cell and the gate of the first path, and not the whole of layers 1 and 2.
 
 The other laws of layer 1 and the laws of layer 2 follow. They tell where the cost of an app comes from.
@@ -84,6 +86,7 @@ The other laws of layer 1 and the laws of layer 2 follow. They tell where the co
 | CAP-16 | The workflow of timed runs | done | P0 | M | CAP-10 | Timed runs start only in CI: on a schedule, by hand, and for a pull request that changes the lab. A plan file names the cases of one job and their check. Each run names its CPU model, and keeps its raw records and a manifest with the run as evidence. |
 | CAP-17 | From records to law files | later | P1 | S | CAP-2, CAP-14, CAP-16 | A command reads the records of a named run and writes each law file, with the run as its evidence. It keeps each form that lost, with its error. A pull request changes a law, and the gate measures it again. |
 | CAP-47 | The connections of the open-loop driver | done | P0 | M |  | The driver of `@mark1russell7/harness` keeps one connection for each stream and pipelines its requests. A real client sends one request at a time on each connection of a pool, or opens a new connection. A stream gets a pool of n connections, or a new connection for each request. The change is a pull request to the harness. |
+| CAP-50 | The gate Lab OK as a necessary check | later | P2 | XS | CAP-16 | The ruleset of the repository names the job `Lab OK` as a necessary check. The owner of the repository gives the word after the first version of alerts. |
 
 ## Layer 1: Node
 
@@ -116,6 +119,7 @@ The other laws of layer 1 and the laws of layer 2 follow. They tell where the co
 
 | ID | Item | Status | Priority | Size | Needs | Summary |
 | --- | --- | --- | --- | --- | --- | --- |
+| CAP-49 | The start memory of alerts | later | P0 | M | CAP-4, CAP-19 | A law gives the start memory of alerts over the age of its log, its live reports and its other stores. Each case opens a seeded store in a fresh process in CI. The law gives the knee and the stores that fit in 1 GB. alerts owns the fix of the cause, and its gate reads the limit. |
 | CAP-34 | The contract of an app | later | P1 | M | CAP-7, CAP-10 | An app gives its request classes, its load variables, a start command with fakes of its outside services, and its live metrics. Each app uses the same contract. |
 | CAP-35 | The workload of alerts | later | P1 | M | CAP-34 | The load variables of alerts: sources, events for each second, the share of duplicates, open incidents, routes and channels. A ladder of rungs goes from 1 source to 10,000 sources. |
 | CAP-36 | The laws of alerts | later | P1 | L | CAP-17, CAP-26, CAP-35 | The cost of each event, each poll of a source and each route. Memory for each open incident. The lag in a burst of events. Each law has its knee. |
