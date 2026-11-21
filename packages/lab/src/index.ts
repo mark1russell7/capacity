@@ -40,14 +40,17 @@ export {
   type CpuSets,
 } from "./cell.ts";
 export {
+  CPUSET_MEASURES,
   LOAD_MEASURES,
   RECORD_FORMAT,
   RUN_MEASURES,
+  cpusetMeasures,
   loadMeasures,
   recordOf,
   runMeasures,
   runRecordOf,
   type CaseRecord,
+  type CpusetMeasure,
   type Host,
   type LoadMeasure,
   type Machine,

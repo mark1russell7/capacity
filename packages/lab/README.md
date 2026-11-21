@@ -89,11 +89,14 @@ Each run record has the measures of the container and the measures of the driver
 | `planned`, `answered`, `failed`, `unsent`, `unfinished` | `{request}` | The counts of the driver. A failed request has a reply with a status outside 200 to 299. |
 | `latency.p50`, `latency.p90`, `latency.p99`, `latency.max` | `ms` | The quantiles of the time from the planned time to the reply. |
 | `lag.max` | `ms` | The largest delay of a send after its planned time. |
+| `cpuset.busy`, `cpuset.user`, `cpuset.nice`, `cpuset.system`, `cpuset.irq`, `cpuset.softirq`, `cpuset.steal` | `{core}` | The use of the CPUs of the subject. The time of each process and interrupt on them counts. |
+| `others.cpuset.busy` and the same parts | `{core}` | The use of the CPUs of the driver and of the reader. |
 
 The measures of the driver are also in `classes`, for each class of the demand.
 
 - **An unfinished request** counts at its age at the end. Thus a quantile of a run with an unfinished request is a low bound. The CPU time of an unfinished request counts, thus `cpu.request` of such a run is too high.
 - **The idle cost** of the subject is in each measure of a run. A run of an idle subject needs a hold with no load in the harness. Thus the idle base is CAP-48.
+- **The cpuset measures** come from `/proc/stat` between the readings of the resources, in the window of `elapsed`. `busy` is the CPUs less their idle time and their wait for the disk. The other measures are the parts of `busy`. A record of a lab before harness 0.16.23 has no cpuset measures.
 - **The lag of the driver** has no limit in the record. The checks `control` and `floor` give a limit at their light load: `LAG_LIMIT`. The check `rate` gives its own limit: `RATE_LAG_LIMIT`.
 
 ## The plans
@@ -184,10 +187,11 @@ The check `rate` (`rateCheck`) gives these values for each case:
 | Value | What it is |
 | --- | --- |
 | `<case>.cores` | The CPU use in cores: the median of the CPU time over the elapsed time of each run (`coresOf`). At the limit of one core, it is near 1. |
-| `<case>.<measure>` | The median of the runs, for each measure of `RATE_MEASURES`: `cpu.request`, `memory`, `memory.high`, `latency.p50`, `latency.p90`, `latency.p99` and `lag.max`. |
+| `<case>.<measure>` | The median of the runs, for each measure of `RATE_MEASURES`: `cpu.request`, `memory`, `memory.high`, `latency.p50`, `latency.p90`, `latency.p99`, `lag.max`, `cpuset.busy`, `cpuset.user`, `cpuset.system`, `cpuset.irq`, `cpuset.softirq` and `others.cpuset.busy`. |
 
 - Each run must answer each planned request, with no failure and no unfinished request. Past the limit, a run drains its queue in the 30 s of its drain.
 - `lag.max.worst` is the largest lag of the driver in a run of the plan.
+- `<case>.cpuset.busy` less `<case>.cores` is the use of the CPU of the subject outside its control group. Thus the values tell if the CPU of the subject is full, and which work fills it.
 - The driver of each run must have a lag of `RATE_LAG_LIMIT` (30.9 ms) or less. The plan drives the subject past its limit. Thus its driver has more lag than in the light plans.
   - The limit comes from the worst lag of the 5 jobs of the Lab run 44948617847: 9.909 to 20.383 ms, spread 10.474.
   - The worst lag is at `rate/33000` in job 5. There, the latency is 329 ms at p50. Thus the lag is a small part of the latency.

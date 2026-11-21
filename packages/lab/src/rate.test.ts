@@ -5,11 +5,20 @@ import { verdictOf } from "./check.ts";
 import { readPlans } from "./plan.ts";
 import { RATE_LAG_LIMIT, RATE_MEASURES, coresOf, rateCheck } from "./rate.ts";
 import { LAG_LIMIT, caseValue, worstLag } from "./reads.ts";
-import type { CaseRecord, RunRecord } from "./record.ts";
+import { CPUSET_MEASURES, type CaseRecord, type RunRecord } from "./record.ts";
 import { isStartCase } from "./start.ts";
 
-/** The record of the case control/base of the Lab run 44453927945 on main: 3 runs of the bare request. */
-const BASE = JSON.parse(readFileSync(new URL("../test/fixtures/control-base.record.json", import.meta.url), "utf8")) as CaseRecord;
+/** The record of the case control/base of the Lab run 44453927945 on main: 3 runs of the bare request. Its lab had no cpuset measures. */
+const OLDER = JSON.parse(readFileSync(new URL("../test/fixtures/control-base.record.json", import.meta.url), "utf8")) as CaseRecord;
+
+/** The record `OLDER` with cpuset measures, a different value in each run. The values are not of a lab run. */
+const BASE: CaseRecord = {
+  ...OLDER,
+  runs: OLDER.runs.map((run, i) => ({
+    ...run,
+    measures: { ...run.measures, ...Object.fromEntries(Object.keys(CPUSET_MEASURES).map((name, j) => [name, { value: (j + 1) / 10 + i / 100, unit: "{core}" }])) },
+  })),
+};
 
 const RATE = readPlans(fileURLToPath(new URL("../plans/", import.meta.url))).plans.find((each) => each.id === "rate");
 
@@ -75,6 +84,13 @@ describe("the check of the request rate", () => {
     expect(values["rate/100.latency.p50"]).toBe(caseValue(BASE, "latency.p50"));
     expect(coresOf({ ...LOW, runs: [] })).toEqual({ code: "read", path: "rate/100", message: "The record has no run, thus no read of cpu." });
     expect(rateCheck([]).problems).toEqual([{ code: "record", path: "", message: "The plan has no record." }]);
+  });
+
+  it("gives a problem, not a throw, for a record of an older lab with no cpuset measures", () => {
+    const { problems } = rateCheck([{ ...OLDER, case: LOW.case }]);
+    const names = RATE_MEASURES.filter((name) => name.includes("cpuset"));
+    expect(names).toHaveLength(6);
+    expect(problems).toEqual(names.map((name) => ({ code: "read", path: `rate/100 run ${FIRST}`, message: `The run has no read of ${name}.` })));
   });
 
   it("is the check rate of the verdict of a plan", () => {

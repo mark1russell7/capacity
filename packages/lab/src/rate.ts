@@ -4,10 +4,40 @@ import { caseValue, countProblems, lagProblems, worstLag } from "./reads.ts";
 import type { CaseRecord } from "./record.ts";
 
 /** A rate measure is the name of a measure that the check `rate` gives for each case. Each one is a measure of a law of the rate. */
-export type RateMeasure = "cpu.request" | "memory" | "memory.high" | "latency.p50" | "latency.p90" | "latency.p99" | "lag.max";
+export type RateMeasure =
+  | "cpu.request"
+  | "memory"
+  | "memory.high"
+  | "latency.p50"
+  | "latency.p90"
+  | "latency.p99"
+  | "lag.max"
+  | "cpuset.busy"
+  | "cpuset.user"
+  | "cpuset.system"
+  | "cpuset.irq"
+  | "cpuset.softirq"
+  | "others.cpuset.busy";
 
-/** These measures are the measures that the check `rate` gives for each case, in the order of the summary. */
-export const RATE_MEASURES: readonly RateMeasure[] = ["cpu.request", "memory", "memory.high", "latency.p50", "latency.p90", "latency.p99", "lag.max"];
+/**
+ * These measures are the measures that the check `rate` gives for each case, in the order of the summary. The
+ * cpuset measures tell if the CPU of the subject is full, and which work fills it.
+ */
+export const RATE_MEASURES: readonly RateMeasure[] = [
+  "cpu.request",
+  "memory",
+  "memory.high",
+  "latency.p50",
+  "latency.p90",
+  "latency.p99",
+  "lag.max",
+  "cpuset.busy",
+  "cpuset.user",
+  "cpuset.system",
+  "cpuset.irq",
+  "cpuset.softirq",
+  "others.cpuset.busy",
+];
 
 /**
  * This time is the most lag of the driver in one run of the plan `rate`, in ms. The plan sends loads up to
@@ -45,6 +75,7 @@ export const coresOf = (record: CaseRecord): number | CheckProblem => {
  *   less, else the driver is not the driver of the 5 runs of the limit.
  * - `<case>.cores` is the CPU use of the case in cores (`coresOf`). At the limit of one core it is near 1.
  * - `<case>.<measure>` is the median over the runs of each measure of `RATE_MEASURES`.
+ * - `<case>.cpuset.busy` less `<case>.cores` is the use of the CPU of the subject outside its control group.
  * - `lag.max.worst` is the largest lag of the driver in a run of the plan.
  *
  * A plan with no record, and a run with no read of a measure, are problems.
