@@ -6,6 +6,7 @@ import { readPlans } from "./plan.ts";
 import { RATE_MEASURES, coresOf, rateCheck } from "./rate.ts";
 import { LAG_LIMIT, caseValue } from "./reads.ts";
 import type { CaseRecord, RunRecord } from "./record.ts";
+import { isStartCase } from "./start.ts";
 
 /** The record of the case control/base of the Lab run 44453927945 on main: 3 runs of the bare request. */
 const BASE = JSON.parse(readFileSync(new URL("../test/fixtures/control-base.record.json", import.meta.url), "utf8")) as CaseRecord;
@@ -15,7 +16,8 @@ const RATE = readPlans(fileURLToPath(new URL("../plans/", import.meta.url))).pla
 /** This function gives a record of the case `index` of the plan `rate`, with the runs of `BASE`. */
 const rateRecord = (index: number): CaseRecord => {
   const value = RATE?.cases[index];
-  if (value === undefined) throw new Error(`The plan rate has no case ${index}.`);
+  // A plan can hold start cases too. The plan rate holds only load cases.
+  if (value === undefined || isStartCase(value)) throw new Error(`The plan rate has no load case ${index}.`);
   return { ...BASE, case: value };
 };
 

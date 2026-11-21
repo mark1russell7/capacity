@@ -49,7 +49,7 @@ The case uses the records of `@mark1russell7/capacity`. Thus a measurement and a
   - `pipeline` is the default: one connection, and the driver does not wait for a reply before the next request (HTTP pipelining). A request of a pipeline can come in one read with other requests. Thus its CPU cost can be less than the cost of a request of a real client.
   - `pool` keeps `size` connections, each with one request in flight. A due request with no idle connection waits for one. That wait is in its latency, and not in the lag of the driver. A real client sends one request at a time on each connection of a pool.
   - `fresh` opens a new connection for each request. CAP-28 measures that protocol.
-- **The size of the raw result.** The raw result of a cell keeps approximately 2.3 KB for each arrival, most of it the records of the prober. One JSON text in Node has at most 512 MiB. Thus `MAX_ARRIVALS` keeps the raw result of a case near 340 MB or less.
+- **The size of the raw result.** The raw result of a cell keeps approximately 2.3 KB for each arrival, most of it the records of the prober. One JSON text in Node has at most 512 MiB. Thus `MAX_ARRIVALS` keeps the raw result of a case near 340 MB or less. CAP-54 removes this limit for load cells.
 
 ## The cell and the record
 
