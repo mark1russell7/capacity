@@ -119,7 +119,7 @@ The other laws of layer 1 and the laws of layer 2 follow. They tell where the co
 
 | ID | Item | Status | Priority | Size | Needs | Summary |
 | --- | --- | --- | --- | --- | --- | --- |
-| CAP-49 | The start memory of alerts | later | P0 | M | CAP-4, CAP-19 | A law gives the start memory of alerts over the age of its log, its live reports and its other stores. Each case opens a seeded store in a fresh process in CI. The law gives the knee and the stores that fit in 1 GB. alerts owns the fix of the cause, and its gate reads the limit. |
+| CAP-49 | The start memory of alerts | in progress | P0 | M | CAP-4, CAP-19 | A law gives the start memory of alerts over the age of its log, its live reports and its other stores. Each case opens a seeded store in a fresh process in CI. The law gives the knee and the stores that fit in 1 GB. alerts owns the fix of the cause, and its gate reads the limit. |
 | CAP-34 | The contract of an app | later | P1 | M | CAP-7, CAP-10 | An app gives its request classes, its load variables, a start command with fakes of its outside services, and its live metrics. Each app uses the same contract. |
 | CAP-35 | The workload of alerts | later | P1 | M | CAP-34 | The load variables of alerts: sources, events for each second, the share of duplicates, open incidents, routes and channels. A ladder of rungs goes from 1 source to 10,000 sources. |
 | CAP-36 | The laws of alerts | later | P1 | L | CAP-17, CAP-26, CAP-35 | The cost of each event, each poll of a source and each route. Memory for each open incident. The lag in a burst of events. Each law has its knee. |
