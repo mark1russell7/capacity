@@ -1,6 +1,6 @@
 import { mean, median, noiseFloor } from "@mark1russell7/rigor-statistics";
 import type { Check, CheckProblem } from "./check.ts";
-import { countProblems, lagProblems, medianOf, worstLag } from "./reads.ts";
+import { caseValue, countProblems, lagProblems, worstLag } from "./reads.ts";
 import type { CaseRecord } from "./record.ts";
 
 /**
@@ -105,8 +105,8 @@ export const floorCheck: Check = (records) => {
     const differences: number[] = [];
     const levels: number[] = [];
     for (const { a, b } of pairs) {
-      const low = medianOf(a, name);
-      const high = medianOf(b, name);
+      const low = caseValue(a, name);
+      const high = caseValue(b, name);
       if (typeof low !== "number") problems.push(low);
       if (typeof high !== "number") problems.push(high);
       if (typeof low === "number" && typeof high === "number") {

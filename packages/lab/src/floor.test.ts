@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { verdictOf } from "./check.ts";
 import { FLOOR_LIMITS, FLOOR_MEASURES, FLOOR_PAIRS, floorCheck, floorPair, type FloorMeasure } from "./floor.ts";
-import { LAG_LIMIT, medianOf, worstLag } from "./reads.ts";
+import { LAG_LIMIT, caseValue, worstLag } from "./reads.ts";
 import type { CaseRecord, LoadMeasure, RunMeasure, RunRecord } from "./record.ts";
 
 /** The record of the case control/base of the Lab run 44453927945 on main. Each case of the plan floor has its load. */
@@ -48,7 +48,7 @@ const twoSd = (values: readonly number[]): number => {
   return 2 * Math.sqrt(values.reduce((sum, value) => sum + (value - mean) ** 2, 0) / (values.length - 1));
 };
 
-const level = (name: FloorMeasure): number => medianOf(BASE, name) as number;
+const level = (name: FloorMeasure): number => caseValue(BASE, name) as number;
 
 const CPU = [0.004, -0.002, 0.001, 0.003, -0.001];
 const P99 = [0.05, -0.03, 0.02, 0.04, -0.01];

@@ -7,9 +7,9 @@ import type { CaseRecord, LoadMeasure, RunMeasure } from "./record.ts";
  * This time is the most lag of the driver in one run of the plans `control` and `floor`, in ms.
  * These plans send a light load. A run with more lag has latencies of the driver, not of the subject.
  *
- * The limit comes from 27 jobs of `lab.yml` on five CPU models: the 22 runs of the plan `control`
- * from 44448319523 to 44892024907, and the 5 runs of the plan `floor` in 44467543161. The worst lag
- * of each job is 0.626 to 10.004 ms, spread 9.379: 19.383, rounded outward.
+ * The limit comes from 27 jobs of `lab.yml` on five CPU models. The jobs are the 22 runs of the plan
+ * `control` from 44448319523 to 44892024907, and the 5 runs of the plan `floor` in 44467543161.
+ * The worst lag of each job is 0.626 to 10.004 ms, spread 9.379: 19.383, rounded outward.
  */
 export const LAG_LIMIT: number = 19.4;
 
@@ -36,10 +36,10 @@ export const countProblems = (record: CaseRecord): readonly CheckProblem[] => {
 };
 
 /**
- * This function gives the median of a measure over the runs of a record. A run with no read of the
- * measure gives a problem.
+ * This function gives the value of a measure for a case: the median over the runs of its record. A run
+ * with no read of the measure gives a problem.
  */
-export const medianOf = (record: CaseRecord, name: RunMeasure | LoadMeasure): number | CheckProblem => {
+export const caseValue = (record: CaseRecord, name: RunMeasure | LoadMeasure): number | CheckProblem => {
   const values: number[] = [];
   for (const run of record.runs) {
     const amount = run.measures[name];

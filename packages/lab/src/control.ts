@@ -1,5 +1,5 @@
 import type { Check, CheckProblem } from "./check.ts";
-import { countProblems, lagProblems, medianOf } from "./reads.ts";
+import { caseValue, countProblems, lagProblems } from "./reads.ts";
 import type { CaseRecord, LoadMeasure, RunMeasure } from "./record.ts";
 
 /** A limit is the lowest and the highest value that a check accepts. */
@@ -66,8 +66,8 @@ export const controlCheck: Check = (records) => {
     if (!(value >= low && value <= high)) problems.push({ code: "limit", path: name, message: `The value ${value} of ${name} is outside its limits ${low} to ${high}.` });
   };
   const change = (name: RunMeasure | LoadMeasure): number | CheckProblem => {
-    const high = medianOf(more, name);
-    const low = medianOf(base, name);
+    const high = caseValue(more, name);
+    const low = caseValue(base, name);
     if (typeof high !== "number") return high;
     return typeof low === "number" ? high - low : low;
   };
@@ -78,6 +78,6 @@ export const controlCheck: Check = (records) => {
   // 64 MiB of live heap: the pages of V8 hold it, with the young generation and fragmentation
   read("memory", change("memory"));
   // a request with 1 ms of CPU work has its reply 1 ms or more after its time
-  read("latency.p50", medianOf(more, "latency.p50"));
+  read("latency.p50", caseValue(more, "latency.p50"));
   return { values, problems };
 };
