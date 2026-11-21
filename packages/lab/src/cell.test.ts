@@ -82,6 +82,18 @@ describe("the parts of a cell", () => {
     expect(Math.abs(posts - 300)).toBeLessThanOrEqual(4 * Math.sqrt(300));
   });
 
+  it("gives each stream the connections of the case, and no field of connections for a case with none", () => {
+    expect(streamsOf(CASE).map((stream) => "connections" in stream)).toEqual([false]);
+    const pool: Case = { ...CASE, connections: { mode: "pool", size: 64 } };
+    expect(streamsOf(pool).map((stream) => stream.connections)).toEqual([{ mode: "pool", size: 64 }]);
+    expect(streamsOf({ ...CASE, connections: { mode: "fresh" } }).map((stream) => stream.connections)).toEqual([{ mode: "fresh" }]);
+    // the plan of the driver takes the pool, and the harness finds no problem in the cell
+    expect(loadPlanOf(streamsOf(pool)).content).toContain('"connections":{"mode":"pool","size":64}');
+    const cell = cellOf(pool, { cpus: 4 });
+    expect(cell.probe.streams?.map((stream) => stream.connections)).toEqual([{ mode: "pool", size: 64 }]);
+    expect(environmentProblems(cell)).toEqual([]);
+  });
+
   it("gives a window of two durations and the drain", () => {
     expect(windowOf(CASE)).toEqual({ value: 60 + 30, unit: "s" });
     expect(DRAIN).toEqual({ value: 30, unit: "s" });

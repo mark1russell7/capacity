@@ -273,8 +273,8 @@ importers:
         specifier: workspace:*
         version: link:../capacity
       '@mark1russell7/harness':
-        specifier: ^0.16.18
-        version: 0.16.18(@mark1russell7/rigor-generators@0.2.0)(bare-buffer@3.7.3)(esbuild@0.28.2)(fast-check@4.10.2)(supports-color@7.2.0)(zod@4.6.7)
+        specifier: ^0.16.21
+        version: 0.16.21(@mark1russell7/rigor-generators@0.2.0)(bare-buffer@3.7.3)(esbuild@0.28.2)(fast-check@4.10.2)(supports-color@7.2.0)(zod@4.6.7)
       '@mark1russell7/optional':
         specifier: ^1.3.0
         version: 1.4.0
@@ -630,8 +630,8 @@ packages:
     resolution: {integrity: sha512-Pb978ZnvlAxzcdWtRtqTGb7mZFCvlNrdKnpZqhxQ7gafzeNGf1JqYFuB4RWiLbJzRuFUWjEoAVG5f2TndCIlSg==}
     engines: {node: '>=22'}
 
-  '@mark1russell7/harness@0.16.18':
-    resolution: {integrity: sha512-U4d1v8EuN7kupAKuE9V4mBzxbGZDx/QfyYJJE187/oFBhjk86g0ulBGBJndeTMDem8el+LAxBscL5Qq24/oZOA==}
+  '@mark1russell7/harness@0.16.21':
+    resolution: {integrity: sha512-mtDr1XZfe7YNmdnZlPNoro4B+vY2Yniirg0OVB7dovwMaZWPIFkUNbG3doCG6u4S4rizZWO8P/FYXpz9ewX2oQ==}
     engines: {node: '>=22.19'}
     peerDependencies:
       zod: ^4.1.0
@@ -2601,7 +2601,7 @@ snapshots:
 
   '@mark1russell7/files@0.0.4': {}
 
-  '@mark1russell7/harness@0.16.18(@mark1russell7/rigor-generators@0.2.0)(bare-buffer@3.7.3)(esbuild@0.28.2)(fast-check@4.10.2)(supports-color@7.2.0)(zod@4.6.7)':
+  '@mark1russell7/harness@0.16.21(@mark1russell7/rigor-generators@0.2.0)(bare-buffer@3.7.3)(esbuild@0.28.2)(fast-check@4.10.2)(supports-color@7.2.0)(zod@4.6.7)':
     dependencies:
       '@mark1russell7/prober': 0.3.5(zod@4.6.7)
       '@mark1russell7/quantity': 0.4.3(zod@4.6.7)

@@ -1,0 +1,384 @@
+{
+  "format": "capacity-plan/1",
+  "id": "rate",
+  "title": "The laws of the request rate: the bare request from 100 to 36000 requests each second on one core",
+  "check": "rate",
+  "triggers": [],
+  "cases": [
+    {
+      "format": "capacity-case/1",
+      "id": "rate/100",
+      "title": "The bare request at 100 requests each second",
+      "subject": "node-http",
+      "instance": { "resources": { "cpu": { "value": 1, "unit": "{core}" }, "memory": { "value": 512, "unit": "MiB" } } },
+      "demand": {
+        "classes": [{ "id": "rate", "rate": { "value": 100, "unit": "{request}/s" }, "request": {} }],
+        "levels": {}
+      },
+      "duration": { "value": 1, "unit": "s" },
+      "arrivals": { "arrivals": "poisson", "seed": "rate" },
+      "connections": { "mode": "pool", "size": 64 },
+      "runs": 3
+    },
+    {
+      "format": "capacity-case/1",
+      "id": "rate/300",
+      "title": "The bare request at 300 requests each second",
+      "subject": "node-http",
+      "instance": { "resources": { "cpu": { "value": 1, "unit": "{core}" }, "memory": { "value": 512, "unit": "MiB" } } },
+      "demand": {
+        "classes": [{ "id": "rate", "rate": { "value": 300, "unit": "{request}/s" }, "request": {} }],
+        "levels": {}
+      },
+      "duration": { "value": 1, "unit": "s" },
+      "arrivals": { "arrivals": "poisson", "seed": "rate" },
+      "connections": { "mode": "pool", "size": 64 },
+      "runs": 3
+    },
+    {
+      "format": "capacity-case/1",
+      "id": "rate/1000",
+      "title": "The bare request at 1000 requests each second",
+      "subject": "node-http",
+      "instance": { "resources": { "cpu": { "value": 1, "unit": "{core}" }, "memory": { "value": 512, "unit": "MiB" } } },
+      "demand": {
+        "classes": [{ "id": "rate", "rate": { "value": 1000, "unit": "{request}/s" }, "request": {} }],
+        "levels": {}
+      },
+      "duration": { "value": 1, "unit": "s" },
+      "arrivals": { "arrivals": "poisson", "seed": "rate" },
+      "connections": { "mode": "pool", "size": 64 },
+      "runs": 3
+    },
+    {
+      "format": "capacity-case/1",
+      "id": "rate/2000",
+      "title": "The bare request at 2000 requests each second",
+      "subject": "node-http",
+      "instance": { "resources": { "cpu": { "value": 1, "unit": "{core}" }, "memory": { "value": 512, "unit": "MiB" } } },
+      "demand": {
+        "classes": [{ "id": "rate", "rate": { "value": 2000, "unit": "{request}/s" }, "request": {} }],
+        "levels": {}
+      },
+      "duration": { "value": 1, "unit": "s" },
+      "arrivals": { "arrivals": "poisson", "seed": "rate" },
+      "connections": { "mode": "pool", "size": 64 },
+      "runs": 3
+    },
+    {
+      "format": "capacity-case/1",
+      "id": "rate/3000",
+      "title": "The bare request at 3000 requests each second",
+      "subject": "node-http",
+      "instance": { "resources": { "cpu": { "value": 1, "unit": "{core}" }, "memory": { "value": 512, "unit": "MiB" } } },
+      "demand": {
+        "classes": [{ "id": "rate", "rate": { "value": 3000, "unit": "{request}/s" }, "request": {} }],
+        "levels": {}
+      },
+      "duration": { "value": 1, "unit": "s" },
+      "arrivals": { "arrivals": "poisson", "seed": "rate" },
+      "connections": { "mode": "pool", "size": 64 },
+      "runs": 3
+    },
+    {
+      "format": "capacity-case/1",
+      "id": "rate/4000",
+      "title": "The bare request at 4000 requests each second",
+      "subject": "node-http",
+      "instance": { "resources": { "cpu": { "value": 1, "unit": "{core}" }, "memory": { "value": 512, "unit": "MiB" } } },
+      "demand": {
+        "classes": [{ "id": "rate", "rate": { "value": 4000, "unit": "{request}/s" }, "request": {} }],
+        "levels": {}
+      },
+      "duration": { "value": 1, "unit": "s" },
+      "arrivals": { "arrivals": "poisson", "seed": "rate" },
+      "connections": { "mode": "pool", "size": 64 },
+      "runs": 3
+    },
+    {
+      "format": "capacity-case/1",
+      "id": "rate/5000",
+      "title": "The bare request at 5000 requests each second",
+      "subject": "node-http",
+      "instance": { "resources": { "cpu": { "value": 1, "unit": "{core}" }, "memory": { "value": 512, "unit": "MiB" } } },
+      "demand": {
+        "classes": [{ "id": "rate", "rate": { "value": 5000, "unit": "{request}/s" }, "request": {} }],
+        "levels": {}
+      },
+      "duration": { "value": 1, "unit": "s" },
+      "arrivals": { "arrivals": "poisson", "seed": "rate" },
+      "connections": { "mode": "pool", "size": 64 },
+      "runs": 3
+    },
+    {
+      "format": "capacity-case/1",
+      "id": "rate/6000",
+      "title": "The bare request at 6000 requests each second",
+      "subject": "node-http",
+      "instance": { "resources": { "cpu": { "value": 1, "unit": "{core}" }, "memory": { "value": 512, "unit": "MiB" } } },
+      "demand": {
+        "classes": [{ "id": "rate", "rate": { "value": 6000, "unit": "{request}/s" }, "request": {} }],
+        "levels": {}
+      },
+      "duration": { "value": 1, "unit": "s" },
+      "arrivals": { "arrivals": "poisson", "seed": "rate" },
+      "connections": { "mode": "pool", "size": 64 },
+      "runs": 3
+    },
+    {
+      "format": "capacity-case/1",
+      "id": "rate/7000",
+      "title": "The bare request at 7000 requests each second",
+      "subject": "node-http",
+      "instance": { "resources": { "cpu": { "value": 1, "unit": "{core}" }, "memory": { "value": 512, "unit": "MiB" } } },
+      "demand": {
+        "classes": [{ "id": "rate", "rate": { "value": 7000, "unit": "{request}/s" }, "request": {} }],
+        "levels": {}
+      },
+      "duration": { "value": 1, "unit": "s" },
+      "arrivals": { "arrivals": "poisson", "seed": "rate" },
+      "connections": { "mode": "pool", "size": 64 },
+      "runs": 3
+    },
+    {
+      "format": "capacity-case/1",
+      "id": "rate/8000",
+      "title": "The bare request at 8000 requests each second",
+      "subject": "node-http",
+      "instance": { "resources": { "cpu": { "value": 1, "unit": "{core}" }, "memory": { "value": 512, "unit": "MiB" } } },
+      "demand": {
+        "classes": [{ "id": "rate", "rate": { "value": 8000, "unit": "{request}/s" }, "request": {} }],
+        "levels": {}
+      },
+      "duration": { "value": 1, "unit": "s" },
+      "arrivals": { "arrivals": "poisson", "seed": "rate" },
+      "connections": { "mode": "pool", "size": 64 },
+      "runs": 3
+    },
+    {
+      "format": "capacity-case/1",
+      "id": "rate/9000",
+      "title": "The bare request at 9000 requests each second",
+      "subject": "node-http",
+      "instance": { "resources": { "cpu": { "value": 1, "unit": "{core}" }, "memory": { "value": 512, "unit": "MiB" } } },
+      "demand": {
+        "classes": [{ "id": "rate", "rate": { "value": 9000, "unit": "{request}/s" }, "request": {} }],
+        "levels": {}
+      },
+      "duration": { "value": 1, "unit": "s" },
+      "arrivals": { "arrivals": "poisson", "seed": "rate" },
+      "connections": { "mode": "pool", "size": 64 },
+      "runs": 3
+    },
+    {
+      "format": "capacity-case/1",
+      "id": "rate/10000",
+      "title": "The bare request at 10000 requests each second",
+      "subject": "node-http",
+      "instance": { "resources": { "cpu": { "value": 1, "unit": "{core}" }, "memory": { "value": 512, "unit": "MiB" } } },
+      "demand": {
+        "classes": [{ "id": "rate", "rate": { "value": 10000, "unit": "{request}/s" }, "request": {} }],
+        "levels": {}
+      },
+      "duration": { "value": 1, "unit": "s" },
+      "arrivals": { "arrivals": "poisson", "seed": "rate" },
+      "connections": { "mode": "pool", "size": 64 },
+      "runs": 3
+    },
+    {
+      "format": "capacity-case/1",
+      "id": "rate/11000",
+      "title": "The bare request at 11000 requests each second",
+      "subject": "node-http",
+      "instance": { "resources": { "cpu": { "value": 1, "unit": "{core}" }, "memory": { "value": 512, "unit": "MiB" } } },
+      "demand": {
+        "classes": [{ "id": "rate", "rate": { "value": 11000, "unit": "{request}/s" }, "request": {} }],
+        "levels": {}
+      },
+      "duration": { "value": 1, "unit": "s" },
+      "arrivals": { "arrivals": "poisson", "seed": "rate" },
+      "connections": { "mode": "pool", "size": 64 },
+      "runs": 3
+    },
+    {
+      "format": "capacity-case/1",
+      "id": "rate/12000",
+      "title": "The bare request at 12000 requests each second",
+      "subject": "node-http",
+      "instance": { "resources": { "cpu": { "value": 1, "unit": "{core}" }, "memory": { "value": 512, "unit": "MiB" } } },
+      "demand": {
+        "classes": [{ "id": "rate", "rate": { "value": 12000, "unit": "{request}/s" }, "request": {} }],
+        "levels": {}
+      },
+      "duration": { "value": 1, "unit": "s" },
+      "arrivals": { "arrivals": "poisson", "seed": "rate" },
+      "connections": { "mode": "pool", "size": 64 },
+      "runs": 3
+    },
+    {
+      "format": "capacity-case/1",
+      "id": "rate/13000",
+      "title": "The bare request at 13000 requests each second",
+      "subject": "node-http",
+      "instance": { "resources": { "cpu": { "value": 1, "unit": "{core}" }, "memory": { "value": 512, "unit": "MiB" } } },
+      "demand": {
+        "classes": [{ "id": "rate", "rate": { "value": 13000, "unit": "{request}/s" }, "request": {} }],
+        "levels": {}
+      },
+      "duration": { "value": 1, "unit": "s" },
+      "arrivals": { "arrivals": "poisson", "seed": "rate" },
+      "connections": { "mode": "pool", "size": 64 },
+      "runs": 3
+    },
+    {
+      "format": "capacity-case/1",
+      "id": "rate/14000",
+      "title": "The bare request at 14000 requests each second",
+      "subject": "node-http",
+      "instance": { "resources": { "cpu": { "value": 1, "unit": "{core}" }, "memory": { "value": 512, "unit": "MiB" } } },
+      "demand": {
+        "classes": [{ "id": "rate", "rate": { "value": 14000, "unit": "{request}/s" }, "request": {} }],
+        "levels": {}
+      },
+      "duration": { "value": 1, "unit": "s" },
+      "arrivals": { "arrivals": "poisson", "seed": "rate" },
+      "connections": { "mode": "pool", "size": 64 },
+      "runs": 3
+    },
+    {
+      "format": "capacity-case/1",
+      "id": "rate/16000",
+      "title": "The bare request at 16000 requests each second",
+      "subject": "node-http",
+      "instance": { "resources": { "cpu": { "value": 1, "unit": "{core}" }, "memory": { "value": 512, "unit": "MiB" } } },
+      "demand": {
+        "classes": [{ "id": "rate", "rate": { "value": 16000, "unit": "{request}/s" }, "request": {} }],
+        "levels": {}
+      },
+      "duration": { "value": 1, "unit": "s" },
+      "arrivals": { "arrivals": "poisson", "seed": "rate" },
+      "connections": { "mode": "pool", "size": 64 },
+      "runs": 3
+    },
+    {
+      "format": "capacity-case/1",
+      "id": "rate/18000",
+      "title": "The bare request at 18000 requests each second",
+      "subject": "node-http",
+      "instance": { "resources": { "cpu": { "value": 1, "unit": "{core}" }, "memory": { "value": 512, "unit": "MiB" } } },
+      "demand": {
+        "classes": [{ "id": "rate", "rate": { "value": 18000, "unit": "{request}/s" }, "request": {} }],
+        "levels": {}
+      },
+      "duration": { "value": 1, "unit": "s" },
+      "arrivals": { "arrivals": "poisson", "seed": "rate" },
+      "connections": { "mode": "pool", "size": 64 },
+      "runs": 3
+    },
+    {
+      "format": "capacity-case/1",
+      "id": "rate/20000",
+      "title": "The bare request at 20000 requests each second",
+      "subject": "node-http",
+      "instance": { "resources": { "cpu": { "value": 1, "unit": "{core}" }, "memory": { "value": 512, "unit": "MiB" } } },
+      "demand": {
+        "classes": [{ "id": "rate", "rate": { "value": 20000, "unit": "{request}/s" }, "request": {} }],
+        "levels": {}
+      },
+      "duration": { "value": 1, "unit": "s" },
+      "arrivals": { "arrivals": "poisson", "seed": "rate" },
+      "connections": { "mode": "pool", "size": 64 },
+      "runs": 3
+    },
+    {
+      "format": "capacity-case/1",
+      "id": "rate/22000",
+      "title": "The bare request at 22000 requests each second",
+      "subject": "node-http",
+      "instance": { "resources": { "cpu": { "value": 1, "unit": "{core}" }, "memory": { "value": 512, "unit": "MiB" } } },
+      "demand": {
+        "classes": [{ "id": "rate", "rate": { "value": 22000, "unit": "{request}/s" }, "request": {} }],
+        "levels": {}
+      },
+      "duration": { "value": 1, "unit": "s" },
+      "arrivals": { "arrivals": "poisson", "seed": "rate" },
+      "connections": { "mode": "pool", "size": 64 },
+      "runs": 3
+    },
+    {
+      "format": "capacity-case/1",
+      "id": "rate/24000",
+      "title": "The bare request at 24000 requests each second",
+      "subject": "node-http",
+      "instance": { "resources": { "cpu": { "value": 1, "unit": "{core}" }, "memory": { "value": 512, "unit": "MiB" } } },
+      "demand": {
+        "classes": [{ "id": "rate", "rate": { "value": 24000, "unit": "{request}/s" }, "request": {} }],
+        "levels": {}
+      },
+      "duration": { "value": 1, "unit": "s" },
+      "arrivals": { "arrivals": "poisson", "seed": "rate" },
+      "connections": { "mode": "pool", "size": 64 },
+      "runs": 3
+    },
+    {
+      "format": "capacity-case/1",
+      "id": "rate/27000",
+      "title": "The bare request at 27000 requests each second",
+      "subject": "node-http",
+      "instance": { "resources": { "cpu": { "value": 1, "unit": "{core}" }, "memory": { "value": 512, "unit": "MiB" } } },
+      "demand": {
+        "classes": [{ "id": "rate", "rate": { "value": 27000, "unit": "{request}/s" }, "request": {} }],
+        "levels": {}
+      },
+      "duration": { "value": 1, "unit": "s" },
+      "arrivals": { "arrivals": "poisson", "seed": "rate" },
+      "connections": { "mode": "pool", "size": 64 },
+      "runs": 3
+    },
+    {
+      "format": "capacity-case/1",
+      "id": "rate/30000",
+      "title": "The bare request at 30000 requests each second",
+      "subject": "node-http",
+      "instance": { "resources": { "cpu": { "value": 1, "unit": "{core}" }, "memory": { "value": 512, "unit": "MiB" } } },
+      "demand": {
+        "classes": [{ "id": "rate", "rate": { "value": 30000, "unit": "{request}/s" }, "request": {} }],
+        "levels": {}
+      },
+      "duration": { "value": 1, "unit": "s" },
+      "arrivals": { "arrivals": "poisson", "seed": "rate" },
+      "connections": { "mode": "pool", "size": 64 },
+      "runs": 3
+    },
+    {
+      "format": "capacity-case/1",
+      "id": "rate/33000",
+      "title": "The bare request at 33000 requests each second",
+      "subject": "node-http",
+      "instance": { "resources": { "cpu": { "value": 1, "unit": "{core}" }, "memory": { "value": 512, "unit": "MiB" } } },
+      "demand": {
+        "classes": [{ "id": "rate", "rate": { "value": 33000, "unit": "{request}/s" }, "request": {} }],
+        "levels": {}
+      },
+      "duration": { "value": 1, "unit": "s" },
+      "arrivals": { "arrivals": "poisson", "seed": "rate" },
+      "connections": { "mode": "pool", "size": 64 },
+      "runs": 3
+    },
+    {
+      "format": "capacity-case/1",
+      "id": "rate/36000",
+      "title": "The bare request at 36000 requests each second",
+      "subject": "node-http",
+      "instance": { "resources": { "cpu": { "value": 1, "unit": "{core}" }, "memory": { "value": 512, "unit": "MiB" } } },
+      "demand": {
+        "classes": [{ "id": "rate", "rate": { "value": 36000, "unit": "{request}/s" }, "request": {} }],
+        "levels": {}
+      },
+      "duration": { "value": 1, "unit": "s" },
+      "arrivals": { "arrivals": "poisson", "seed": "rate" },
+      "connections": { "mode": "pool", "size": 64 },
+      "runs": 3
+    }
+  ]
+}

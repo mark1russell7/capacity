@@ -1,4 +1,5 @@
 import { SLUG, demandProblems, instanceProblems, type Amounts, type Demand, type Instance, type Problem } from "@mark1russell7/capacity";
+import { connectionsProblems, type LoadConnections } from "@mark1russell7/harness";
 import { isRecord } from "@mark1russell7/optional/read";
 import { convertible, isQuantity, kindOf, valueIn, type Quantity } from "@mark1russell7/quantity";
 import type { ScheduleOptions } from "@mark1russell7/rigor-chaos";
@@ -30,6 +31,13 @@ export const MAX_RUNS = 20;
 export const MAX_DURATION: Quantity = { value: 600, unit: "s" };
 
 /**
+ * This count is the most planned arrivals of a case: of each run and of its warm-up run together.
+ * The raw result of a cell keeps approximately 2.3 KB for each arrival, most of it the records of the
+ * prober. Thus 150000 arrivals are approximately 340 MB, below the 512 MiB of one JSON text in Node.
+ */
+export const MAX_ARRIVALS = 150_000;
+
+/**
  * A case is one measurement as data: a subject, the resources of its container, and the demand that
  * the driver sends to it. A case file is this record as JSON.
  *
@@ -50,6 +58,12 @@ export interface Case {
   readonly duration: Quantity;
   /** These options select the arrivals of each stream: in equal steps, or a Poisson process with a seed. */
   readonly arrivals: ScheduleOptions;
+  /**
+   * These connections carry the arrivals of each stream. They are a pipeline on one connection, a pool of
+   * `size` connections, or a new connection for each arrival. Each connection of a pool has one request in flight.
+   * With no value, each stream is a pipeline on one connection.
+   */
+  readonly connections?: LoadConnections;
   /** This count is the runs that the record counts. One warm-up run comes before them. */
   readonly runs: number;
 }
@@ -66,7 +80,9 @@ export type CaseProblemCode =
   | "level"
   | "duration"
   | "arrivals"
-  | "runs";
+  | "connections"
+  | "runs"
+  | "load";
 
 /** A case problem tells what is not correct, and where: `path` is the path of the field in the case. */
 export type CaseProblem = Problem<CaseProblemCode>;
@@ -157,6 +173,8 @@ const arrivalProblems = (arrivals: ScheduleOptions): readonly CaseProblem[] => {
  * It examines the format, the id, the title and the subject. It examines the instance and the
  * demand with `instanceProblems` and `demandProblems` of `@mark1russell7/capacity`. Then it
  * examines what the lab can do: the resources that it limits, the request variables and the levels.
+ * It examines the connections with `connectionsProblems` of `@mark1russell7/harness`. A case with
+ * no other problem must plan `MAX_ARRIVALS` or fewer (`arrivalsOf`).
  */
 export const caseProblems = (value: Case): readonly CaseProblem[] => {
   if (!isRecord(value)) return [problem("shape", "", "The case is not a record.")];
@@ -184,11 +202,26 @@ export const caseProblems = (value: Case): readonly CaseProblem[] => {
     problems.push(problem("duration", "duration", `The duration is not a time above 0 and up to ${MAX_DURATION.value} ${MAX_DURATION.unit}.`));
   }
   problems.push(...arrivalProblems(value.arrivals));
+  if (value.connections !== undefined) {
+    const found = isRecord(value.connections) ? connectionsProblems(value.connections) : ["the connections are not a record"];
+    problems.push(...found.map((each) => problem("connections", "connections", `The connections are not correct: ${each}.`)));
+  }
   if (!Number.isInteger(value.runs) || value.runs < 1 || value.runs > MAX_RUNS) {
     problems.push(problem("runs", "runs", `The count of runs is not a whole number from 1 to ${MAX_RUNS}.`));
   }
+  if (problems.length === 0 && (value.runs + 1) * arrivalsOf(value) > MAX_ARRIVALS) {
+    const all = (value.runs + 1) * arrivalsOf(value);
+    problems.push(problem("load", "demand", `The case plans ${all} arrivals in its ${value.runs + 1} runs, with the warm-up run. A case plans at most ${MAX_ARRIVALS}.`));
+  }
   return problems;
 };
+
+/**
+ * This function gives the planned arrivals of one run of a case: the rate of each class times the
+ * duration, rounded to a whole number. With Poisson arrivals, it is the mean count of a run.
+ */
+export const arrivalsOf = (value: Case): number =>
+  Math.round(value.demand.classes.reduce((sum, entry) => sum + valueIn(entry.rate, CASE_RATE) * valueIn(value.duration, "s"), 0));
 
 /**
  * This function gives the request class of the request of one class of a case. Each field is the

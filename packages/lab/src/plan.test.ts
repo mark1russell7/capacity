@@ -2,8 +2,9 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { valueIn } from "@mark1russell7/quantity";
 import { afterEach, describe, expect, it } from "vitest";
-import { CASE_FORMAT, type Case } from "./case.ts";
+import { CASE_FORMAT, MAX_ARRIVALS, arrivalsOf, type Case } from "./case.ts";
 import { CONTROL_CASES } from "./control.ts";
 import { FLOOR_PAIRS, floorPair } from "./floor.ts";
 import { MAX_JOB_MINUTES, MAX_JOBS, PLAN_FORMAT, SETUP_MINUTES, matrixOf, planMinutes, planProblems, readPlans, selectPlans, type Plan } from "./plan.ts";
@@ -54,6 +55,36 @@ describe("the plan files of the lab", () => {
     for (const each of floor?.cases ?? []) expect({ ...each, id: base?.id, title: base?.title }).toEqual(base);
     // 10 cases: each one 4 runs with the warm-up, each run in a window of 2 x 10 s and a drain of 30 s
     expect(planMinutes(floor!)).toBe(SETUP_MINUTES + Math.ceil((10 * 4 * 50) / 60));
+  });
+
+  it("have the plan of the request rate, with its check, by hand only: the bare request at a sweep of rates", () => {
+    const rate = readPlans(PLANS).plans.find((each) => each.id === "rate");
+    expect(rate?.check).toBe("rate");
+    expect(rate?.triggers).toEqual([]);
+    const cases = (rate?.cases ?? []) as readonly Case[];
+    const rates = cases.map((each) => valueIn(each.demand.classes[0]!.rate, "{request}/s"));
+    expect(rates).toHaveLength(25);
+    expect([rates[0], rates.at(-1)]).toEqual([100, 36_000]);
+    // the rates rise, and from 4000 each step is 25 % of its rate or less: points on each side of the knee
+    rates.slice(1).forEach((value, index) => {
+      expect(value).toBeGreaterThan(rates[index]!);
+      if (rates[index]! >= 4000) expect(value / rates[index]!).toBeLessThanOrEqual(1.25);
+    });
+    // each case is the first case at its own rate: one class of the bare request, on a pool of 64 connections
+    const first = cases[0]!;
+    expect(first.connections).toEqual({ mode: "pool", size: 64 });
+    expect(first.arrivals).toEqual({ arrivals: "poisson", seed: "rate" });
+    cases.forEach((each, index) => {
+      expect(each.id).toBe(`rate/${rates[index]}`);
+      expect(each.demand.classes.map((entry) => [entry.id, entry.request])).toEqual([["rate", {}]]);
+      expect({ ...each, id: first.id, title: first.title, demand: first.demand }).toEqual(first);
+    });
+    // the case with the most arrivals: 4 runs of 36000 arrivals, with the warm-up run
+    expect(Math.max(...cases.map((each) => (each.runs + 1) * arrivalsOf(each)))).toBe(144_000);
+    expect(144_000).toBeLessThanOrEqual(MAX_ARRIVALS);
+    // 25 cases: each one 4 runs with the warm-up, each run in a window of 2 x 1 s and a drain of 30 s
+    expect(planMinutes(rate!)).toBe(SETUP_MINUTES + Math.ceil((25 * 4 * 32) / 60));
+    expect(planMinutes(rate!)).toBeLessThanOrEqual(MAX_JOB_MINUTES);
   });
 });
 
