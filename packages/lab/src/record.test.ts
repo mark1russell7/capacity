@@ -1,10 +1,10 @@
-import { loadPlanOf, type CellResult, type Manifest, type ProbeEvent, type ResourceReading, type Run, type RunStream } from "@mark1russell7/harness";
+import { loadPlanOf, type CellResult, type Manifest, type ProbeEvent, type ResourceReading, type Run, type RunCpus, type RunStream } from "@mark1russell7/harness";
 import type { Quantity } from "@mark1russell7/quantity";
 import { describe, expect, it } from "vitest";
 import { CASE_FORMAT, type Case } from "./case.ts";
 import { cellOf, streamsOf } from "./cell.ts";
 import { measureCase } from "./measure.ts";
-import { LOAD_MEASURES, RECORD_FORMAT, RUN_MEASURES, loadMeasures, recordOf, runRecordOf } from "./record.ts";
+import { CPUSET_MEASURES, LOAD_MEASURES, RECORD_FORMAT, RUN_MEASURES, cpusetMeasures, loadMeasures, recordOf, runRecordOf } from "./record.ts";
 
 const MIB = 1024 * 1024;
 
@@ -81,6 +81,12 @@ const BEFORE: Counters = { t: 4e9, user: 750_000, system: 250_000, throttled: 0,
 /** After the schedule: 70 ms of CPU, 3 ms throttled, a new peak of 80 MiB, 1400 bytes in and 14 KiB out. */
 const AFTER: Counters = { t: 7e9, user: 802_500, system: 267_500, throttled: 3_000, current: 55 * MIB, peak: 80 * MIB, rx: 2_400, tx: 14_336 };
 
+/** The CPU shares between the readings: CPU 0 of the subject is 90 % busy, and CPUs 1 to 3 of the others are 50 % busy. */
+const CPUS: RunCpus = {
+  target: { cpus: "0", count: 1, busy: 0.9, user: 0.5, nice: 0, system: 0.2, idle: 0.1, iowait: 0, irq: 0.01, softirq: 0.19, steal: 0 },
+  client: { cpus: "1-3", count: 3, busy: 1.5, user: 0.3, nice: 0, system: 0.15, idle: 0.48, iowait: 0.02, irq: 0, softirq: 0.05, steal: 0 },
+};
+
 /** A run with the lines and the readings above. `drop` names the parts that the run does not have. */
 const run = (index: number, more: Partial<Run> = {}, drop: readonly ("streams" | "resources")[] = []): Run => ({
   environment: 0,
@@ -99,6 +105,7 @@ const run = (index: number, more: Partial<Run> = {}, drop: readonly ("streams" |
           start: reading(BEFORE),
           end: reading(AFTER),
           series: [reading({ ...BEFORE, t: 5e9, current: 70 * MIB }), reading({ ...BEFORE, t: 6e9, current: 65 * MIB })],
+          cpus: CPUS,
         },
       }),
   ...more,
@@ -135,9 +142,35 @@ describe("the record of one run", () => {
       { value: 1_024, unit: "B/{request}" },
     ]);
     expect(value(measures["lag.max"])).toBeCloseTo(0.2, 6);
-    expect(Object.keys(measures).sort()).toEqual([...Object.keys(RUN_MEASURES), ...Object.keys(LOAD_MEASURES)].sort());
+    expect(Object.keys(measures).sort()).toEqual([...Object.keys(RUN_MEASURES), ...Object.keys(LOAD_MEASURES), ...Object.keys(CPUSET_MEASURES)].sort());
     expect(record.resets).toEqual([]);
     expect(record.missing).toBeNull();
+  });
+
+  it("gives the use of the CPUs of each CPU set in cores, with the parts of the busy time", () => {
+    const { measures } = runRecordOf(run(0));
+    expect(measures["cpuset.busy"]).toEqual({ value: 0.9, unit: "{core}" });
+    expect(value(measures["cpuset.softirq"])).toBeCloseTo(0.19, 12);
+    expect(measures["others.cpuset.busy"]).toEqual({ value: 1.5, unit: "{core}" });
+    // a share of the 3 CPUs of the others times 3 is in cores
+    expect(value(measures["others.cpuset.user"])).toBeCloseTo(0.9, 12);
+    for (const prefix of ["cpuset", "others.cpuset"] as const) {
+      const parts = (["user", "nice", "system", "irq", "softirq", "steal"] as const).map((state) => value(measures[`${prefix}.${state}`]) ?? Number.NaN);
+      expect(parts.reduce((sum, part) => sum + part, 0)).toBeCloseTo(value(measures[`${prefix}.busy`]) ?? Number.NaN, 12);
+    }
+    for (const name of Object.keys(CPUSET_MEASURES)) expect(measures[name as keyof typeof CPUSET_MEASURES]?.unit).toBe("{core}");
+  });
+
+  it("gives null for each cpuset measure of a CPU set with no shares", () => {
+    const none = cpusetMeasures(undefined);
+    expect(Object.values(none).every((amount) => amount === null)).toBe(true);
+    const target = cpusetMeasures({ target: CPUS.target! });
+    expect(target["cpuset.busy"]).toEqual({ value: 0.9, unit: "{core}" });
+    expect(target["others.cpuset.busy"]).toBeNull();
+    // a harness before 0.16.23 gives no shares in the readings
+    const older = runRecordOf(run(5, { resources: { start: reading(BEFORE), end: reading(AFTER), series: [] } }));
+    expect(older.measures["cpuset.busy"]).toBeNull();
+    expect(value(older.measures.cpu)).toBeCloseTo(0.07, 12);
   });
 
   it("gives the latency of each class, with a request with no reply at its age at the end", () => {
@@ -158,6 +191,7 @@ describe("the record of one run", () => {
   it("gives null, never 0, for a measure that the run did not read", () => {
     const bare = runRecordOf(run(1, {}, ["resources"]));
     for (const name of Object.keys(RUN_MEASURES)) expect(bare.measures[name as keyof typeof RUN_MEASURES]).toBeNull();
+    for (const name of Object.keys(CPUSET_MEASURES)) expect(bare.measures[name as keyof typeof CPUSET_MEASURES]).toBeNull();
     expect(bare.measures.answered).toEqual({ value: 14, unit: "{request}" });
 
     // no lines of a schedule: no load, thus no measure for each request

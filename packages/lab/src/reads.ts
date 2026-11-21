@@ -2,7 +2,7 @@ import { valueIn } from "@mark1russell7/quantity";
 import { median } from "@mark1russell7/rigor-statistics";
 import { arrivalsOf } from "./case.ts";
 import type { CheckProblem } from "./check.ts";
-import type { CaseRecord, LoadMeasure, RunMeasure } from "./record.ts";
+import type { CaseRecord, CpusetMeasure, LoadMeasure, RunMeasure } from "./record.ts";
 
 /**
  * This time is the most lag of the driver in one run of the plans `control` and `floor`, in ms.
@@ -39,10 +39,11 @@ export const countProblems = (record: CaseRecord): readonly CheckProblem[] => {
  * This function gives the value of a measure for a case: the median over the runs of its record. A run
  * with no read of the measure gives a problem.
  */
-export const caseValue = (record: CaseRecord, name: RunMeasure | LoadMeasure): number | CheckProblem => {
+export const caseValue = (record: CaseRecord, name: RunMeasure | LoadMeasure | CpusetMeasure): number | CheckProblem => {
   const values: number[] = [];
   for (const run of record.runs) {
-    const amount = run.measures[name];
+    // a record of an older lab has no key for a newer measure
+    const amount = run.measures[name] ?? null;
     if (amount === null) return { code: "read", path: `${record.case.id} run ${run.index}`, message: `The run has no read of ${name}.` };
     values.push(amount.value);
   }
