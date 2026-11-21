@@ -81,12 +81,14 @@ export const streamArrivals = (arrivals: ScheduleOptions, key: string): Schedule
 /**
  * This function gives the streams of the driver for a case: one stream for each class. A stream
  * has the rate of its class for the duration of the case. Each request of a stream is the request of its class.
+ * Each stream has the connections of the case. A case with no connections gives streams with no such field: a pipeline.
  */
 export const streamsOf = (value: Case): readonly LoadStream[] =>
   value.demand.classes.map((entry) => ({
     key: entry.id,
     plan: { profile: constant(valueIn(entry.rate, CASE_RATE), valueIn(value.duration, "ms")), options: streamArrivals(value.arrivals, entry.id) },
     requests: [requestOf(requestClassOf(entry.request), `${value.subject}:${SUBJECT_PORT}`)],
+    ...(value.connections === undefined ? {} : { connections: value.connections }),
   }));
 
 /** This function gives the longest time of one run of a case: two durations and the drain. */

@@ -1,5 +1,6 @@
 import { valueIn } from "@mark1russell7/quantity";
 import { median } from "@mark1russell7/rigor-statistics";
+import { arrivalsOf } from "./case.ts";
 import type { CheckProblem } from "./check.ts";
 import type { CaseRecord, LoadMeasure, RunMeasure } from "./record.ts";
 
@@ -13,13 +14,12 @@ import type { CaseRecord, LoadMeasure, RunMeasure } from "./record.ts";
  */
 export const LAG_LIMIT: number = 19.4;
 
-/** This function gives the planned requests of one run of a case with uniform arrivals: each rate times the duration. */
-const plannedOf = (record: CaseRecord): number =>
-  Math.round(record.case.demand.classes.reduce((sum, entry) => sum + valueIn(entry.rate, "{request}/s") * valueIn(record.case.duration, "s"), 0));
-
-/** This function gives the problems of the counts of each run: each planned request has a reply with a status from 200 to 299. */
+/**
+ * This function gives the problems of the counts of each run: each planned request has a reply with a status from 200 to 299.
+ * With uniform arrivals, each run plans the arrivals of its case (`arrivalsOf`).
+ */
 export const countProblems = (record: CaseRecord): readonly CheckProblem[] => {
-  const planned = record.case.arrivals.arrivals === "uniform" ? plannedOf(record) : undefined;
+  const planned = record.case.arrivals.arrivals === "uniform" ? arrivalsOf(record.case) : undefined;
   return record.runs.flatMap((run) => {
     const path = `${record.case.id} run ${run.index}`;
     const count = (name: LoadMeasure): number | undefined => run.measures[name]?.value;

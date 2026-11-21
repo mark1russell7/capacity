@@ -2,7 +2,7 @@
 
 This package has the subjects of the measurement: the programs that a run measures, and the request classes that a run sends to them. It also has the cases: each case is one measurement as data. The cell of a case operates it in the lab of `@mark1russell7/harness`, and the record keeps its measures. A plan is a set of cases that one CI job measures, with the check of their records.
 
-**State: CAP-18, CAP-10, CAP-16 and CAP-19 of the [roadmap](../../docs/ROADMAP.md).** The package has the bare subject of layer 1, the case record, the cell of a case and the record of its measures. It also has the plans, the timed runs and the noise floor of each measure. The package is private: it is a tool of this repository.
+**State: CAP-18, CAP-10, CAP-16, CAP-19 and CAP-20 of the [roadmap](../../docs/ROADMAP.md).** The package has the bare subject of layer 1, the case record, the cell of a case and the record of its measures. It also has the plans, the timed runs, the noise floor of each measure and the sweep of the request rate. The package is private: it is a tool of this repository.
 
 ## The cases
 
@@ -34,6 +34,7 @@ The case uses the records of `@mark1russell7/capacity`. Thus a measurement and a
 | `demand` | A demand of `@mark1russell7/capacity`. Each class is one stream of the driver, at the rate of the class. |
 | `duration` | The time of the schedule of each run, up to 600 s. |
 | `arrivals` | The arrivals of each stream: `uniform`, or `poisson` with a seed. They are the options of a schedule of `@mark1russell7/rigor-chaos`. |
+| `connections` | Optional. The connections of each stream: `pipeline`, `pool` with a `size`, or `fresh`. With no value, each stream is a pipeline. |
 | `runs` | The count of the runs that the record counts, from 1 to 20. One warm-up run comes before them. |
 
 - **The variables of a request** are the fields of a request class. Each amount converts to the unit of its field, and it is a whole number in that unit. Thus `0.5 ms` of `work` is `500 us`. A field that the request does not name is 0. `requestClassOf` gives the request class.
@@ -42,10 +43,13 @@ The case uses the records of `@mark1russell7/capacity`. Thus a measurement and a
   - The lab limits the CPU and the memory of a container, and not the network. An instance with `network` is a problem.
   - The driver holds no open connection with no request. A level `connections` is a problem.
   - Each class has a rate above 0.
-- **The connections of a class.** The driver of the harness keeps one connection for each stream, and it sends each request at its time. It does not wait for the reply before the next request (HTTP pipelining).
-  - Node reads the requests of one connection one at a time. Thus the requests of a class with a `wait` stay in a queue on the connection, and its latency includes that queue.
-  - A request of a pipeline can come in one read with other requests. Thus its CPU cost can be less than the cost of a request of a real client. A real client sends one request at a time on each connection.
-  - A pool of connections for each stream, and a new connection for each request, are a gap of the driver. A case cannot select them yet.
+  - The connections are correct for `connectionsProblems` of `@mark1russell7/harness`: a pool has 1 to 1024 connections.
+  - A case plans `MAX_ARRIVALS` (150000) arrivals or fewer in its runs and its warm-up run. `arrivalsOf` gives the arrivals of one run.
+- **The connections of a class.** Each class is one stream of the driver, and the field `connections` of the case gives the connections of each stream. The driver sends each request at its planned time, and each latency counts from that time.
+  - `pipeline` is the default: one connection, and the driver does not wait for a reply before the next request (HTTP pipelining). A request of a pipeline can come in one read with other requests. Thus its CPU cost can be less than the cost of a request of a real client.
+  - `pool` keeps `size` connections, each with one request in flight. A due request with no idle connection waits for one. That wait is in its latency, and not in the lag of the driver. A real client sends one request at a time on each connection of a pool.
+  - `fresh` opens a new connection for each request. CAP-28 measures that protocol.
+- **The size of the raw result.** The raw result of a cell keeps approximately 2.3 KB for each arrival, most of it the records of the prober. One JSON text in Node has at most 512 MiB. Thus `MAX_ARRIVALS` keeps the raw result of a case near 340 MB or less. CAP-54 removes this limit for load cells.
 
 ## The cell and the record
 
@@ -162,6 +166,29 @@ Each limit is the worst floor plus the spread of the floors, rounded outward. Th
 The floor holds for the load of `control/base` and for the cases of one job on one runner. Two runners can have more noise than the cases of one job. The gate of the laws (CAP-26) compares runs on two runners, thus it measures that noise too. CAP-27 gives a factor for each CPU model.
 
 The plan runs each night, not on each pull request. Its time limit is 54 minutes, and the floor is a property of the runners, not of the code. A test examines the check with records, with no Docker.
+
+### The request rate
+
+The plan `rate` sends the bare request to the bare subject at 25 rates, from 100 to 36000 requests each second. The subject has one core and 512 MiB. The points of the laws of the request rate come from its records (CAP-20). The law files, with their intervals and the knee, are CAP-53.
+
+| Part | The value | Why |
+| --- | --- | --- |
+| The rates | 100, 300, 1000, 2000 and 3000, then 4000 to 14000 in steps of 1000, then 16000 to 24000 in steps of 2000, then 27000 to 36000 in steps of 3000 | The knee and the limit of one core are not known before the first runs. From 4000, each step is 25 % of its rate or less. |
+| The connections | A pool of 64 | A real client has one request in flight on each connection. 64 connections are more than the requests in flight under the limit. Past the limit, the queue is in the driver, and the latency counts it. |
+| The arrivals | Poisson, with the seed `rate` | Random arrivals give the queue of a real load below the limit. Each case has the same seed, thus the cases differ only by their rate. |
+| The duration | 1 s | A case plans at most `MAX_ARRIVALS`. 4 runs of 1 s at 36000 requests each second are 144000 arrivals. Each case has the same duration, thus past the limit the queue of each case grows for the same time. |
+| The runs | 3, after one warm-up run | The median of 3 runs, as in the plans `control` and `floor`. Each job is one runner, thus 5 jobs give 5 values of each point. |
+
+The check `rate` (`rateCheck`) gives these values for each case:
+
+| Value | What it is |
+| --- | --- |
+| `<case>.cores` | The CPU use in cores: the median of the CPU time over the elapsed time of each run (`coresOf`). At the limit of one core, it is near 1. |
+| `<case>.<measure>` | The median of the runs, for each measure of `RATE_MEASURES`: `cpu.request`, `memory`, `memory.high`, `latency.p50`, `latency.p90`, `latency.p99` and `lag.max`. |
+
+- Each run must answer each planned request, with no failure and no unfinished request. Past the limit, a run drains its queue in the 30 s of its drain.
+- The driver of each run must have a lag of `LAG_LIMIT` or less, else the latencies are of the driver.
+- The plan has no trigger: a person starts it. Its time limit is 74 minutes.
 
 ## The timed runs
 

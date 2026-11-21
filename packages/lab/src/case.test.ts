@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CASE_FORMAT, caseLevel, caseProblems, requestClassOf, type Case } from "./case.ts";
+import { CASE_FORMAT, MAX_ARRIVALS, arrivalsOf, caseLevel, caseProblems, requestClassOf, type Case } from "./case.ts";
 
 const CASE: Case = {
   format: CASE_FORMAT,
@@ -78,6 +78,41 @@ describe("the check of a case", () => {
     expect(codes({ ...CASE, runs: 0 })).toEqual(["runs runs"]);
     expect(codes({ ...CASE, runs: 2.5 })).toEqual(["runs runs"]);
     expect(codes({ ...CASE, runs: 21 })).toEqual(["runs runs"]);
+  });
+
+  it("takes the connections of the harness: a pipeline, a pool of 1 to 1024 connections, or a new connection for each arrival", () => {
+    for (const connections of [{ mode: "pipeline" }, { mode: "pool", size: 1 }, { mode: "pool", size: 1024 }, { mode: "fresh" }] as const) {
+      expect(caseProblems({ ...CASE, connections })).toEqual([]);
+    }
+    expect(codes({ ...CASE, connections: { mode: "pool", size: 0 } })).toEqual(["connections connections"]);
+    expect(caseProblems({ ...CASE, connections: { mode: "pool", size: 1025 } }).map((each) => each.message)).toEqual([
+      "The connections are not correct: the pool has the size 1025: a whole number from 1 to 1024.",
+    ]);
+    expect(codes({ ...CASE, connections: { mode: "keep" } } as unknown as Case)).toEqual(["connections connections"]);
+    expect(codes({ ...CASE, connections: null } as unknown as Case)).toEqual(["connections connections"]);
+    expect(codes({ ...CASE, connections: "pool" } as unknown as Case)).toEqual(["connections connections"]);
+  });
+
+  it("refuses a case that plans more than MAX_ARRIVALS arrivals in its runs and its warm-up run", () => {
+    const rate = (value: number, runs: number): Case => ({
+      ...CASE,
+      demand: { ...CASE.demand, classes: [{ ...CASE.demand.classes[0]!, rate: { value, unit: "{request}/s" } }] },
+      duration: { value: 1, unit: "s" },
+      runs,
+    });
+    expect(arrivalsOf(CASE)).toBe(200 * 30);
+    expect(arrivalsOf(rate(36_000, 3))).toBe(36_000);
+    // 4 runs of 36000 arrivals are 144000, and 4 runs of 37500 are the limit
+    expect(caseProblems(rate(36_000, 3))).toEqual([]);
+    expect(caseProblems(rate(MAX_ARRIVALS / 4, 3))).toEqual([]);
+    expect(caseProblems(rate(40_000, 3))).toEqual([
+      { code: "load", path: "demand", message: `The case plans 160000 arrivals in its 4 runs, with the warm-up run. A case plans at most ${MAX_ARRIVALS}.` },
+    ]);
+    // two classes add their arrivals
+    const two = rate(20_000, 3);
+    expect(codes({ ...two, demand: { ...two.demand, classes: [...two.demand.classes, { ...two.demand.classes[0]!, id: "more" }] } })).toEqual(["load demand"]);
+    // a case with another problem gets no count of its arrivals
+    expect(codes({ ...rate(40_000, 3), title: " " })).toEqual(["id title"]);
   });
 });
 
