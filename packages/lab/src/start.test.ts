@@ -68,9 +68,9 @@ const bare = (more: Partial<StartCase> | Record<string, unknown>): StartCase => 
 const paths = (value: StartCase): readonly string[] => startCaseProblems(value).map((each) => `${each.code} ${each.path}`);
 
 describe("startCaseProblems", () => {
-  it("gives no problem for a correct case, and for the cases of the plans alerts-start and alerts-start-files", () => {
+  it("gives no problem for a correct case, and for the cases of the three plans of the start of alerts", () => {
     expect(startCaseProblems(CASE)).toEqual([]);
-    for (const name of ["alerts-start", "alerts-start-files"]) {
+    for (const name of ["alerts-start", "alerts-start-files", "alerts-start-horizon"]) {
       const plan = JSON.parse(readFileSync(new URL(`../plans/${name}.json`, import.meta.url), "utf8")) as Plan;
       expect(plan.cases.filter(isStartCase)).toHaveLength(plan.cases.length);
       expect(plan.cases.filter(isStartCase).flatMap((each) => startCaseProblems(each))).toEqual([]);
