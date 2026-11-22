@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { APP_FILE, fillPlaceholders, placeholdersOf, type AppCommand, type AppContract, type AppReady } from "@mark1russell7/capacity";
+import { APP_FILE, WORKLOAD_FORMAT, fillPlaceholders, placeholdersOf, type AppCommand, type AppContract, type AppReady, type Workload } from "@mark1russell7/capacity";
 import { readApp } from "@mark1russell7/capacity/schema";
 import { isRecord } from "@mark1russell7/optional/read";
 import { convertible, isQuantity, quantity, valueIn, type Quantity } from "@mark1russell7/quantity";
@@ -10,6 +10,18 @@ import type { StartCase, StartPoint, StartProblem, StartVariable, StartVariables
 
 /** This name is the file of the child program of an app case, in the folder `src/subject`. It starts the run of the contract. */
 export const APP_START_PROGRAM = "app-start.main.ts";
+
+/** This name is the file of the program of the sidecar of an app case, in the folder `src/subject`. It starts the fakes of the services. */
+export const FAKES_PROGRAM = "fakes.main.ts";
+
+/** This port is the port of the fake of the first service of a contract. The fake of the service at the index `n` gets `FAKE_PORT + n`. */
+export const FAKE_PORT = 4100;
+
+/**
+ * This amount is the memory limit of the sidecar of the fakes. The memory of the fakes is not in the measures of the
+ * child. A start case gives the fakes no load, thus they need little memory (CAP-66 adds the load).
+ */
+export const FAKES_MEMORY: Quantity = { value: 1, unit: "GiB" };
 
 /** The contract of one tree of an app case: the id of the tree, its contract, and the range of Node in its `package.json`. */
 export interface TreeApp {
@@ -23,7 +35,7 @@ export interface TreeApp {
 /**
  * The run file of an arm is the run of its contract for the program `app-start`. The texts of the arguments and of the
  * environment hold the tokens of `slots` in place of `{store}` and `{port}`. The program puts the folder of the store
- * and a free port in place of the tokens.
+ * and a free port in place of the tokens. They hold the URL of each fake in place of `{service.<id>}`.
  */
 export interface AppRunFile {
   readonly app: string;
@@ -36,6 +48,22 @@ export interface AppRunFile {
   readonly env: Readonly<Record<string, string>>;
   readonly ready: AppReady;
   readonly slots: { readonly store: string; readonly port?: string | undefined };
+}
+
+/** A fake of an arm is the fake of one service of its contract, with its port, its filled command and its absolute folder. */
+export interface AppFake {
+  readonly service: string;
+  readonly argv: readonly string[];
+  readonly cwd: string;
+  readonly env: Readonly<Record<string, string>>;
+  readonly port: number;
+  readonly ready: AppReady;
+}
+
+/** The fakes file of an arm is the list of the fakes of its contract, for the program `fakes` of the sidecar. */
+export interface AppFakesFile {
+  readonly app: string;
+  readonly fakes: readonly AppFake[];
 }
 
 /** These tokens are the tokens of `{store}` and `{port}` in a run file. An argument of a process cannot hold the character 0. */
@@ -82,9 +110,39 @@ export const appRunOf = (tree: TreeApp, dir: string): { readonly file: AppRunFil
   const cwd = join(dir, run.cwd);
   const port = run.ready.kind === "http" || commandPlaceholders(run).includes("port");
   const slots = { store: RUN_SLOTS.store, ...(port ? { port: RUN_SLOTS.port } : {}) };
-  const filled = fillCommand({ argv: args, cwd: run.cwd, env: run.env }, slots);
+  const filled = fillCommand({ argv: args, cwd: run.cwd, env: run.env }, { ...slots, ...serviceValues(tree.app) });
   return { file: { app: tree.app.id, script: resolve(cwd, script), cwd, args: filled.argv, env: filled.env, ready: run.ready, slots }, options };
 };
+
+/**
+ * This function gives the values of the placeholders `{service.<id>}` of a contract: the base URL of the fake of each
+ * service. The child joins the network of the sidecar, thus it gets each fake on the loopback.
+ */
+export const serviceValues = (app: AppContract): Readonly<Record<string, string>> =>
+  Object.fromEntries(app.services.map((service, index) => [`service.${service.id}`, `http://127.0.0.1:${FAKE_PORT + index}`]));
+
+/** This function gives the fakes file of an arm from the contract of its tree in `dir`. `workload` is the path of the workload file of the fakes. */
+export const appFakesOf = (tree: TreeApp, dir: string, workload: string): AppFakesFile => ({
+  app: tree.app.id,
+  fakes: tree.app.services.map((service, index): AppFake => {
+    const port = FAKE_PORT + index;
+    const { argv, env } = fillCommand(service.fake, { port: String(port), workload });
+    return { service: service.id, argv, cwd: join(dir, service.fake.cwd), env, port, ready: service.fake.ready };
+  }),
+});
+
+/**
+ * This function gives the workload of the fakes of a start case. It has no class and no level, thus the rate of each
+ * class is 0. A start case measures the start of an app with no load.
+ */
+export const startWorkloadOf = (app: AppContract): Workload => ({
+  format: WORKLOAD_FORMAT,
+  id: `${app.id}/start`,
+  title: `The start of ${app.title}, with no load`,
+  source: { kind: "plan", note: "A start case of the lab gives no load. The rate of each class is 0." },
+  classes: [],
+  levels: {},
+});
 
 /** A host command is an argv with no shell and the folder where it starts. */
 export interface HostCommand {
@@ -153,7 +211,6 @@ const runProblems = (tree: string, app: AppContract): readonly StartProblem[] =>
  * - Each contract has the id of the subject and the repository of the field `app`.
  * - The run starts `node`, because the program `app-start` imports the script of the run in its own process.
  * - The run has a script, and its options of Node hold no placeholder.
- * - The contract has no outside service. The lab does not start the fakes of services yet (CAP-64).
  * - The variables of the points are the store variables of each contract, and the level variables of its seed.
  * - Each amount of a point is in the range of each contract.
  * - The Node of the target is in the range `engines.node` of each tree that has the field.
@@ -165,9 +222,6 @@ export const appCaseProblems = (value: StartCase, trees: readonly TreeApp[]): re
     if (app.id !== value.subject) problems.push(problem("subject", "subject", `${of} has the id "${app.id}", not the subject "${value.subject}".`));
     if (app.repository !== value.app) problems.push(problem("subject", "app", `${of} has the repository "${app.repository}", not "${String(value.app)}".`));
     if (app.start.run.argv[0] !== "node") problems.push(problem("subject", "subject", `${of} has a run that does not start "node". The lab measures the heap of the process of the run.`));
-    if (app.services.length > 0) {
-      problems.push(problem("subject", "subject", `${of} has the services ${app.services.map((each) => `"${each.id}"`).join(", ")}. The lab does not start the fakes of services yet (CAP-64).`));
-    }
     if (engines !== undefined) {
       if (validRange(engines) === null) problems.push(problem("target", "target.node", `The field engines.node of the tree "${tree}" is "${engines}", not a range of versions.`));
       else if (!satisfies(value.target.node, engines)) problems.push(problem("target", "target.node", `The tree "${tree}" needs Node "${engines}". The target has ${value.target.node}.`));
