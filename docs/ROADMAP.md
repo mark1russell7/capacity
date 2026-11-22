@@ -117,11 +117,13 @@ The other laws of layer 1 and the laws of layer 2 follow. They tell where the co
 
 | ID | Item | Status | Priority | Size | Needs | Summary |
 | --- | --- | --- | --- | --- | --- | --- |
-| CAP-29 | The overhead of the service runner | in progress | P1 | M | CAP-3, CAP-26 | The same request classes through `@mark1russell7/service`. Paired runs in one job give the overhead as its own law: CPU time for each request, base memory and lag. An interval that holds zero means no overhead. |
+| CAP-29 | The overhead of the service runner | in progress | P1 | M | CAP-3, CAP-26 | The same request classes through `@mark1russell7/service`. Paired runs in one job give the overhead as its own law: CPU time for each request, base memory and lag. An interval that holds zero means no overhead. Part 1 gave the service subject and the plan `overhead`. Part 2 gives the laws of the overhead (a law set with a `base`). |
 | CAP-30 | Laws of the parts of the runner | later | P2 | L | CAP-29 | The cost of each loop, each decision of a limiter, each retry and each check, against their count and their period. Retries multiply the load, and the law gives the factor. |
 | CAP-31 | The constants of the stability border | later | P2 | M | CAP-30 | The runner has a stability border from weights of load and capacity (SYS-69 and SYS-70 of the systems roadmap). The measured weights go to that repository as data with intervals. |
 | CAP-32 | The overhead of the procedures host | later | P2 | M | CAP-29 | A typed call over HTTP, WebSocket and MCP against a bare handler. The reference service of the systems repository (SYS-93) is the subject, with its store. |
 | CAP-33 | The gate of the runner laws | later | P1 | S | CAP-29 | The gate holds the overhead laws on each pull request and each night. As proof, it fails once on a runner with an added cost. A release of the runner that moves a law shows in the gate. |
+| CAP-68 | The event-loop lag of a subject | later | P1 | S | CAP-29 | Each subject measures its own event-loop lag with `@mark1russell7/lag` and writes it in a line. The lab records it as a measure. Thus the overhead of the runner gets a lag law. |
+| CAP-69 | The files of the subject in the law conditions | later | P2 | S | CAP-29 | A digest of the files of a subject is a condition of each law. Thus a fit refuses to pool the runs of two versions of a subject. |
 
 ## Layer 3: apps
 

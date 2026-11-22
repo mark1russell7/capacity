@@ -104,13 +104,28 @@ export interface LawVariable {
  * Each case of the plan is a case of load with one class, the class `class`. The demand of each case
  * gives the value of the variable (`loadPointOf`). The records give the conditions of each law. The
  * field `conditions` adds the facts that the records do not hold.
+ *
+ * A set with the field `base` gives the laws of an overhead. Each case is a side of a pair, with the id `<pair>/<side>`.
+ * Each side other than the base side gets one law for each measure. A point is the value of the side less the value
+ * of the base side, in each pair of each job. The two cases of a pair run in one job. Thus the runner of the job is the same for the two sides.
  */
 export interface LawSet {
   readonly class: string;
   readonly variable: LawVariable;
   readonly measures: readonly LawMeasure[];
   readonly conditions?: Readonly<Record<string, ConditionValue>>;
+  /** This name is the side of the base of each pair, for example `bare`. With no value, the set gives the laws of one subject. */
+  readonly base?: string;
 }
+
+/** This text ends the id of the measure of an overhead law, for example `cpu.request.overhead`. */
+export const OVERHEAD_SUFFIX = ".overhead";
+
+/** This function gives the pair and the side of a case id `<pair>/<side>`. An id with no `/` has no pair. */
+export const sideOf = (id: string): { readonly pair: string; readonly side: string } => {
+  const cut = id.lastIndexOf("/");
+  return { pair: cut < 0 ? "" : id.slice(0, cut), side: id.slice(cut + 1) };
+};
 
 /**
  * These ids name the CPU models of the runners, for the id of a law. A key is a part of the name of a
@@ -262,11 +277,24 @@ export const lawSetProblems = (laws: unknown, cases: readonly (Case | StartCase)
     measures.forEach((value: unknown, index) => problems.push(...measureProblems(value, `laws.measures[${index}]`, seen)));
   }
   problems.push(...conditionProblems(conditions, "laws.conditions", isRecordCondition));
+  if (isRecord(conditions)) {
+    for (const name of RULE_CONDITIONS.filter((each) => Object.hasOwn(conditions, each))) {
+      add(`conditions.${name}`, `The rules of the measures and the pairs give the condition "${name}". The set cannot give it.`);
+    }
+  }
+  const { base } = laws;
+  if (base !== undefined && (typeof base !== "string" || !NAME.test(base))) add("base", "The base is not a lower-case letter, then letters and digits.");
   if (problems.length > 0) return problems;
   const set = laws as unknown as LawSet;
+  const sides = new Map<string, Set<string>>();
   cases.forEach((value, index) => {
     const path = `cases[${index}]`;
     if (isStartCase(value)) return void problems.push({ code: "laws", path, message: `The case "${value.id}" is a start case. A plan with laws has only cases of load.` });
+    if (set.base !== undefined) {
+      const { pair, side } = sideOf(value.id);
+      if (pair === "") return void problems.push({ code: "laws", path: `${path}.id`, message: `The case "${value.id}" is not a side of a pair. With a base, each case id is <pair>/<side>.` });
+      sides.set(pair, new Set([...(sides.get(pair) ?? []), side]));
+    }
     const classes = value.demand.classes.map((entry) => entry.id);
     if (classes.length !== 1 || classes[0] !== set.class) {
       return void problems.push({ code: "laws", path: `${path}.demand.classes`, message: `The case "${value.id}" has the classes ${classes.join(", ")}. A case of a law set has one class, "${set.class}".` });
@@ -274,6 +302,10 @@ export const lawSetProblems = (laws: unknown, cases: readonly (Case | StartCase)
     const point = loadPointOf(value.demand, set.class, pointLawOf(value.id, set.variable));
     if (point.tag === "err") problems.push({ code: "laws", path: `${path}.demand`, message: point.error.message });
   });
+  for (const [pair, found] of sides) {
+    if (!found.has(set.base as string)) add("base", `The pair "${pair}" has no case of the base side "${set.base}". Each pair has the base side.`);
+    else if (found.size < 2) add("base", `The pair "${pair}" has only the base side. An overhead law needs a second side.`);
+  }
   return problems;
 };
 
@@ -434,8 +466,11 @@ export const differences =(a: Facts, b: Facts): readonly string[] => {
   return [...names].filter((name) => of(a, name) !== of(b, name));
 };
 
-/** These conditions of a law are the rules of its points (`served`, `tail`), not facts of a record. */
-export const RULE_CONDITIONS: readonly string[] = ["served", "tail"];
+/**
+ * These conditions of a law are not facts of a record. They are the rules of its points (`served`, `tail`) and,
+ * for an overhead law, the subject of the base side of its pairs (`base`).
+ */
+export const RULE_CONDITIONS: readonly string[] = ["served", "tail", "base"];
 
 /**
  * This function gives the names of the facts of a record that differ from the facts of a law: the subject and each
@@ -503,6 +538,8 @@ interface Points {
   readonly x: readonly number[];
   readonly jobs: readonly Timed[];
   readonly facts: Facts;
+  /** These records are the records of the base side, one for each record, in the same pair and job. Only an overhead law has them. */
+  readonly bases?: readonly CaseRecord[];
 }
 
 /** This function gives each CI run of the jobs of some points once. */
@@ -540,7 +577,8 @@ const cutsOf = (measure: LawMeasure, record: CaseRecord, job: string): readonly 
 
 /**
  * This function gives the points in the range of one measure, or the problems of the reads of its rules.
- * A point stays when no rule cuts it. The list `cut` has each cut of each rule.
+ * A point stays when no rule cuts it. The list `cut` has each cut of each rule. A point of an overhead law
+ * stays when no rule cuts its record or the record of its base side.
  */
 const rangeOf = (measure: LawMeasure, id: string, points: Points): RangePoints | readonly LawsProblem[] => {
   const kept: number[] = [];
@@ -548,8 +586,9 @@ const rangeOf = (measure: LawMeasure, id: string, points: Points): RangePoints |
   const reads: LawsProblem[] = [];
   points.records.forEach((record, index) => {
     const job = jobName(points.jobs[index]!);
+    const base = points.bases?.[index];
     let out = false;
-    for (const each of cutsOf(measure, record, job)) {
+    for (const each of [...cutsOf(measure, record, job), ...(base === undefined ? [] : cutsOf(measure, base, job))]) {
       if ("code" in each) reads.push({ code: "read", path: id, message: `${each.path}: ${each.message}` });
       else cut.push(each);
       out = true;
@@ -558,7 +597,8 @@ const rangeOf = (measure: LawMeasure, id: string, points: Points): RangePoints |
   });
   if (reads.length > 0) return reads;
   const pick = <T>(list: readonly T[]): T[] => kept.map((index) => list[index]!);
-  return { points: { ...points, records: pick(points.records), x: pick(points.x), jobs: pick(points.jobs) }, cut };
+  const bases = points.bases === undefined ? {} : { bases: pick(points.bases) };
+  return { points: { ...points, records: pick(points.records), x: pick(points.x), jobs: pick(points.jobs), ...bases }, cut };
 };
 
 /** This function gives the text of the rules of the range of a measure, for example "served share 0.97, tail 10". */
@@ -586,35 +626,70 @@ export const lawPointOf = (set: LawSet, measure: LawMeasure, record: CaseRecord,
   return { x: point.value[set.variable.id]!, value };
 };
 
-/** This function gives the points of one CPU model, or the problems of its cases. */
-const pointsOf = (set: LawSet, base: string, jobs: readonly LawJob[]): Points | readonly LawsProblem[] => {
+/**
+ * This function gives the points of one CPU model, or the problems of its cases. With a side, it gives the points of an
+ * overhead law. Each point is a record of the side, with the record of the base side of its pair in the same job. The two records
+ * must have the same conditions and the same value of the variable. The condition `base` is the subject of the base side.
+ */
+const pointsOf = (set: LawSet, base: string, jobs: readonly LawJob[], side?: string): Points | readonly LawsProblem[] => {
   const problems: LawsProblem[] = [];
   const records: CaseRecord[] = [];
+  const bases: CaseRecord[] = [];
   const x: number[] = [];
   const timeds: Timed[] = [];
   let first: { readonly facts: Facts; readonly id: string } | undefined;
+  const xOf = (record: CaseRecord, timed: Timed): number | undefined => {
+    const point = loadPointOf(record.case.demand, set.class, pointLawOf(base, set.variable));
+    if (point.tag === "ok") return point.value[set.variable.id]!;
+    problems.push({ code: "case", path: base, message: `The case "${record.case.id}" of ${jobName(timed)}: ${point.error.message}` });
+    return undefined;
+  };
   for (const { timed, records: found } of jobs) {
+    const partners = side === undefined ? undefined : new Map(found.filter((record) => sideOf(record.case.id).side === set.base).map((record) => [sideOf(record.case.id).pair, record]));
     for (const record of found) {
-      const facts: Facts = { subject: record.case.subject, conditions: conditionsOf(record, set) };
+      let partner: CaseRecord | undefined;
+      if (partners !== undefined) {
+        const { pair, side: own } = sideOf(record.case.id);
+        if (own !== side) continue;
+        partner = partners.get(pair);
+        if (partner === undefined) {
+          problems.push({ code: "case", path: base, message: `The case "${record.case.id}" of ${jobName(timed)} has no record of its base side "${pair}/${String(set.base)}".` });
+          continue;
+        }
+      }
+      const conditions = conditionsOf(record, set);
+      const facts: Facts = { subject: record.case.subject, conditions: partner === undefined ? conditions : { ...conditions, base: partner.case.subject } };
       if (first === undefined) first = { facts, id: record.case.id };
       const changed = differences(first.facts, facts);
       if (changed.length > 0) {
         problems.push({ code: "case", path: base, message: `The case "${record.case.id}" of ${jobName(timed)} differs from the case "${first.id}" in ${changed.join(", ")}.` });
         continue;
       }
-      const point = loadPointOf(record.case.demand, set.class, pointLawOf(base, set.variable));
-      if (point.tag === "err") {
-        problems.push({ code: "case", path: base, message: `The case "${record.case.id}" of ${jobName(timed)}: ${point.error.message}` });
+      if (partner !== undefined) {
+        const apart = differences({ subject: "", conditions }, { subject: "", conditions: conditionsOf(partner, set) });
+        if (apart.length > 0) {
+          const message = `The cases "${record.case.id}" and "${partner.case.id}" of ${jobName(timed)} differ in ${apart.join(", ")}. The two sides of a pair have one load.`;
+          problems.push({ code: "case", path: base, message });
+          continue;
+        }
+      }
+      const value = xOf(record, timed);
+      const other = partner === undefined ? value : xOf(partner, timed);
+      if (value === undefined || other === undefined) continue;
+      if (other !== value) {
+        const message = `The cases "${record.case.id}" and "${partner?.case.id ?? ""}" of ${jobName(timed)} have different values of ${set.variable.id}. The two sides of a pair have one load.`;
+        problems.push({ code: "case", path: base, message });
         continue;
       }
       records.push(record);
-      x.push(point.value[set.variable.id]!);
+      if (partner !== undefined) bases.push(partner);
+      x.push(value);
       timeds.push(timed);
     }
   }
   if (problems.length > 0) return problems;
   if (first === undefined) return [{ code: "case", path: base, message: "The jobs have no record." }];
-  return { records, x, jobs: timeds, facts: first.facts };
+  return { records, x, jobs: timeds, facts: first.facts, ...(side === undefined ? {} : { bases }) };
 };
 
 /**
@@ -679,24 +754,28 @@ export const fitLawFrom = (input: LawInput, options: LawsOptions = {}): { readon
 /**
  * This function gives the law of one measure from its points on one CPU model, or the problems of the
  * law. A measure with a served share gives the condition `served`, and a measure with a tail count gives the condition `tail`.
+ * The value of a point of an overhead law is the value of its record less the value of its base record.
  */
-const lawOf = (set: LawSet, measure: LawMeasure, id: string, range: RangePoints, noise: Noise, options: LawsOptions): FittedLaw | readonly LawsProblem[] => {
+const lawOf =(set: LawSet, measure: LawMeasure, id: string, range: RangePoints, noise: Noise, options: LawsOptions): FittedLaw | readonly LawsProblem[] => {
   const { points, cut } = range;
   const y: number[] = [];
   const reads: LawsProblem[] = [];
-  for (const record of points.records) {
+  points.records.forEach((record, index) => {
+    const base = points.bases?.[index];
     const value = caseValue(record, measure.id);
-    if (typeof value === "number") y.push(value);
-    else reads.push({ code: "read", path: id, message: `${value.path}: ${value.message}` });
-  }
+    const less = base === undefined ? 0 : caseValue(base, measure.id);
+    for (const each of [value, less]) if (typeof each !== "number") reads.push({ code: "read", path: id, message: `${each.path}: ${each.message}` });
+    if (typeof value === "number" && typeof less === "number") y.push(value - less);
+  });
   if (reads.length > 0) return reads;
   const cpu = points.facts.conditions["cpu.model"];
+  const over = points.bases === undefined ? "" : `: the overhead over ${String(points.facts.conditions["base"])}`;
   const result = fitLawFrom(
     {
       id,
-      title: `${measure.title}, on the CPU ${String(cpu)}`,
+      title: `${measure.title}${over}, on the CPU ${String(cpu)}`,
       subject: points.facts.subject,
-      measure: { id: measure.id, unit: UNITS[measure.id] ?? "" },
+      measure: { id: `${measure.id}${points.bases === undefined ? "" : OVERHEAD_SUFFIX}`, unit: UNITS[measure.id] ?? "" },
       residual: measure.residual,
       ...(measure.forms === undefined ? {} : { forms: measure.forms }),
       variable: set.variable,
@@ -714,6 +793,17 @@ const lawOf = (set: LawSet, measure: LawMeasure, id: string, range: RangePoints,
     options,
   );
   return isProblems(result) ? result : { ...result, cut };
+};
+
+/**
+ * This function gives the sides of the laws of a set on the records of some jobs, in order. A set with no base has one side
+ * with no name, the subject of the plan. A set with a base has each side of the records other than the base side.
+ */
+const sidesOf = (set: LawSet, jobs: readonly LawJob[]): readonly (string | undefined)[] => {
+  if (set.base === undefined) return [undefined];
+  const sides = new Set(jobs.flatMap((job) => job.records.map((record) => sideOf(record.case.id).side)));
+  sides.delete(set.base);
+  return [...sides].sort();
 };
 
 /** This function gives the knee of a fitted law with a knee rule, or the problem of the search. With no rule, it gives the law. */
@@ -749,6 +839,9 @@ export const kneeOf = <T extends { readonly law: Law; readonly knee?: Knee }>(va
  * - **The known mark:** a problem of a measure with the code of its field `known` goes into `known`, with its item.
  *   A law of such a measure is a problem with the code `known`, because the item must remove the mark. A measure
  *   that gives no fit on a CPU model gives no read of its mark.
+ * - **The overhead:** a set with a base gives the laws of each other side of the pairs (`sidesOf`). Each point is the value
+ *   of the side less the value of the base side, in one pair of one job. A rule that cuts either record cuts the point.
+ *   The id of the measure and of the law ends with `.overhead`, and the condition `base` is the subject of the base side.
  */
 export const lawsOf = (plan: { readonly id: string; readonly laws?: LawSet }, jobs: readonly LawJob[], floors: readonly Timed[], options: LawsOptions = {}): Laws => {
   const set = plan.laws;
@@ -779,58 +872,62 @@ export const lawsOf = (plan: { readonly id: string; readonly laws?: LawSet }, jo
       problems.push({ code: "cpu", path: cpu, message: `The lab has no id for the CPU model "${cpu}". Add a part of its name to CPU_IDS.` });
       continue;
     }
-    const subject = group[0]?.records[0]?.case.subject ?? "";
-    const base = `${subject}/${plan.id}/${model}`;
-    const points = pointsOf(set, base, group);
-    if (isProblems(points)) {
-      problems.push(...points);
-      continue;
-    }
-    if (points.records.length < need) {
-      skipped.push({ code: "case", path: base, message: `The jobs on the CPU model give ${points.records.length} points. A law needs ${need} points or more.` });
-      continue;
-    }
-    if (group.length < needJobs) {
-      const message = `The count of jobs on the CPU model is ${group.length}. The bootstrap of a law draws whole jobs, thus a law needs ${needJobs} jobs or more.`;
-      skipped.push({ code: "case", path: base, message });
-      continue;
-    }
-    for (const measure of set.measures) {
-      const id = `${base}/${measure.id}`;
-      const noise = noiseOf(measure.id, cpu, floor);
-      if (typeof noise === "string") {
-        problems.push({ code: "noise", path: id, message: noise });
+    const sides = sidesOf(set, group);
+    if (sides.length === 0) problems.push({ code: "case", path: `${plan.id}/${model}`, message: `The jobs on the CPU model have no record of a side other than the base side "${String(set.base)}".` });
+    for (const side of sides) {
+      const subject = group.flatMap((job) => job.records).find((record) => side === undefined || sideOf(record.case.id).side === side)?.case.subject ?? "";
+      const base = `${subject}/${plan.id}/${model}`;
+      const points = pointsOf(set, base, group, side);
+      if (isProblems(points)) {
+        problems.push(...points);
         continue;
       }
-      const range = rangeOf(measure, id, points);
-      if (isProblems(range)) {
-        problems.push(...range);
+      if (points.records.length < need) {
+        skipped.push({ code: "case", path: base, message: `The jobs on the CPU model give ${points.records.length} points. A law needs ${need} points or more.` });
         continue;
       }
-      const kept = range.points.records.length;
-      if (kept < need) {
-        const message = `${kept} of ${points.records.length} points are in the range of the measure (${rangeText(measure)}). A law needs ${need} points or more.`;
-        skipped.push({ code: "case", path: id, message });
+      if (group.length < needJobs) {
+        const message = `The count of jobs on the CPU model is ${group.length}. The bootstrap of a law draws whole jobs, thus a law needs ${needJobs} jobs or more.`;
+        skipped.push({ code: "case", path: base, message });
         continue;
       }
-      const result = lawOf(set, measure, id, range, noise, options);
-      const found: LawsProblem[] = [];
-      let fitted: FittedLaw | undefined;
-      if (isProblems(result)) found.push(...result);
-      else {
-        const knee = kneeOf(set.variable.id, measure.knee, result);
-        fitted = "law" in knee ? knee : result;
-        if (!("law" in knee)) found.push(knee);
-      }
-      if (fitted !== undefined) laws.push(fitted);
-      const mark = measure.known;
-      const isKnown = (problem: LawsProblem): boolean => mark !== undefined && problem.code === "law" && problem.check === mark.code;
-      problems.push(...found.filter((problem) => !isKnown(problem)));
-      if (mark === undefined) continue;
-      known.push(...found.filter(isKnown).map((problem) => ({ ...problem, item: mark.item })));
-      if (fitted !== undefined) {
-        const message = `The plan marks the problem "${mark.code}" of the measure as known until ${mark.item}, but the fit gave a law. Remove the mark.`;
-        problems.push({ code: "known", path: id, message });
+      for (const measure of set.measures) {
+        const id = `${base}/${measure.id}${side === undefined ? "" : OVERHEAD_SUFFIX}`;
+        const noise = noiseOf(measure.id, cpu, floor);
+        if (typeof noise === "string") {
+          problems.push({ code: "noise", path: id, message: noise });
+          continue;
+        }
+        const range = rangeOf(measure, id, points);
+        if (isProblems(range)) {
+          problems.push(...range);
+          continue;
+        }
+        const kept = range.points.records.length;
+        if (kept < need) {
+          const message = `${kept} of ${points.records.length} points are in the range of the measure (${rangeText(measure)}). A law needs ${need} points or more.`;
+          skipped.push({ code: "case", path: id, message });
+          continue;
+        }
+        const result = lawOf(set, measure, id, range, noise, options);
+        const found: LawsProblem[] = [];
+        let fitted: FittedLaw | undefined;
+        if (isProblems(result)) found.push(...result);
+        else {
+          const knee = kneeOf(set.variable.id, measure.knee, result);
+          fitted = "law" in knee ? knee : result;
+          if (!("law" in knee)) found.push(knee);
+        }
+        if (fitted !== undefined) laws.push(fitted);
+        const mark = measure.known;
+        const isKnown = (problem: LawsProblem): boolean => mark !== undefined && problem.code === "law" && problem.check === mark.code;
+        problems.push(...found.filter((problem) => !isKnown(problem)));
+        if (mark === undefined) continue;
+        known.push(...found.filter(isKnown).map((problem) => ({ ...problem, item: mark.item })));
+        if (fitted !== undefined) {
+          const message = `The plan marks the problem "${mark.code}" of the measure as known until ${mark.item}, but the fit gave a law. Remove the mark.`;
+          problems.push({ code: "known", path: id, message });
+        }
       }
     }
   }
@@ -860,6 +957,21 @@ const endText = (law: Law, load: number): string => {
   const value = lawValue(law, { [variable.id]: load });
   if (value.tag === "err") return value.error.message;
   return `${short(value.value.value)} ${intervalText(value.value.interval.low, value.value.interval.high)} ${law.measure.unit}`;
+};
+
+/**
+ * This function tells what the interval of an overhead law gives at one load: an overhead, a saving, or 0 in the interval.
+ * A null end of the interval is past the end of the search, thus it holds 0.
+ */
+const overheadText = (law: Law, load: number): string => {
+  const variable = law.variables[0];
+  if (variable === undefined) return "";
+  const value = lawValue(law, { [variable.id]: load });
+  if (value.tag === "err") return value.error.message;
+  const { low, high } = value.value.interval;
+  if (low !== null && low > 0) return "an overhead";
+  if (high !== null && high < 0) return "a saving";
+  return "0 is in the interval";
 };
 
 /**
@@ -896,7 +1008,8 @@ const cutList = <Rule extends CutPoint["rule"]>(
 /**
  * This function gives the summary of the laws of a plan as Markdown. It gives a table of the laws, with
  * the interval of each constant. A second table gives the range of each law, the values at its ends
- * and its knee, with their intervals. Then it gives each point that a law leaves out, each problem, each known problem and each skipped job.
+ * and its knee, with their intervals. A third table tells, for each overhead law, what its interval gives at each end.
+ * Then it gives each point that a law leaves out, each problem, each known problem and each skipped job.
  */
 export const lawsSummaryOf = (plan: string, laws: Laws): string => {
   const lines = [`### The laws of the plan ${escapeMarkdown(plan)}`, ""];
@@ -913,6 +1026,15 @@ export const lawsSummaryOf = (plan: string, laws: Laws): string => {
       const variable = law.variables[0];
       if (variable === undefined) continue;
       row([law.id, `${short(variable.min)} to ${short(variable.max)} ${variable.unit}`, endText(law, variable.min), endText(law, variable.max), kneeText(law, knee)]);
+    }
+    const overheads = laws.laws.filter(({ law }) => law.conditions["base"] !== undefined);
+    if (overheads.length > 0) {
+      lines.push("", "An interval of an overhead law that holds 0 tells no overhead that the runs can find.", "");
+      lines.push("| Overhead law | Base | At the start | At the end |", "| --- | --- | --- | --- |");
+      for (const { law } of overheads) {
+        const variable = law.variables[0];
+        if (variable !== undefined) row([law.id, String(law.conditions["base"]), overheadText(law, variable.min), overheadText(law, variable.max)]);
+      }
     }
     lines.push("");
     cutList(lines, laws.laws, "served", "The points that a law leaves out, because the subject served a smaller share than the field `served` of the measure:", (point) =>

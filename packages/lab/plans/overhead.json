@@ -4,6 +4,104 @@
   "title": "The overhead of the service runner: the bare request to the bare subject and through the service runner, in pairs, from 100 to 8000 requests each second",
   "check": "overhead",
   "triggers": [],
+  "laws": {
+    "class": "rate",
+    "variable": {
+      "id": "rate",
+      "unit": "{request}/s",
+      "scale": "log"
+    },
+    "base": "bare",
+    "measures": [
+      {
+        "id": "cpu.request",
+        "title": "The CPU time of one request",
+        "residual": "absolute",
+        "forms": [
+          "constant",
+          "linear",
+          "power",
+          "fall-power",
+          "logarithm",
+          "hinge"
+        ]
+      },
+      {
+        "id": "memory",
+        "title": "The memory of the subject at the end of a run",
+        "residual": "absolute",
+        "forms": [
+          "constant",
+          "linear",
+          "power",
+          "fall-power",
+          "logarithm",
+          "hinge"
+        ]
+      },
+      {
+        "id": "memory.high",
+        "title": "The highest memory of the subject in a run",
+        "residual": "absolute",
+        "forms": [
+          "constant",
+          "linear",
+          "power",
+          "fall-power",
+          "logarithm",
+          "hinge"
+        ]
+      },
+      {
+        "id": "latency.p50",
+        "title": "The median latency of a request",
+        "residual": "absolute",
+        "forms": [
+          "constant",
+          "linear",
+          "power",
+          "fall-power",
+          "logarithm",
+          "hinge",
+          "queue"
+        ],
+        "served": 0.97,
+        "tail": 10
+      },
+      {
+        "id": "latency.p90",
+        "title": "The 90th percentile of the latency of a request",
+        "residual": "absolute",
+        "forms": [
+          "constant",
+          "linear",
+          "power",
+          "fall-power",
+          "logarithm",
+          "hinge",
+          "queue"
+        ],
+        "served": 0.97,
+        "tail": 10
+      },
+      {
+        "id": "latency.p99",
+        "title": "The 99th percentile of the latency of a request",
+        "residual": "absolute",
+        "forms": [
+          "constant",
+          "linear",
+          "power",
+          "fall-power",
+          "logarithm",
+          "hinge",
+          "queue"
+        ],
+        "served": 0.97,
+        "tail": 10
+      }
+    ]
+  },
   "cases": [
     {
       "format": "capacity-case/1",

@@ -5,6 +5,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import type { Run } from "@mark1russell7/capacity";
+import type { Quantity } from "@mark1russell7/quantity";
 import type { Case } from "./case.ts";
 import { FLOOR_MEASURES } from "./floor.ts";
 import type { LawJob, LawSet } from "./laws.ts";
@@ -59,8 +60,10 @@ export const SERVED: LawSet = {
  * This function gives the record of the case `index` of the plan rate in the job `job`, on the CPU model `cpu`.
  * Above the rate `slow`, the largest latency is 60 ms: the subject served less than 0.97 of the offered rate.
  */
-export const recordOf = (index: number, job: number, cpu: string, slow = 30_000): CaseRecord => {
-  const value = CASES[index]!;
+export const recordOf = (index: number, job: number, cpu: string, slow = 30_000): CaseRecord => recordFor(CASES[index]!, index, job, cpu, slow);
+
+/** This function gives the record of the case `value` of a plan in the job `job`, with the measures of `recordOf`. The count `index` changes the noise. */
+export const recordFor = (value: Case, index: number, job: number, cpu: string, slow = 30_000): CaseRecord => {
   const rate = value.demand.classes[0]!.rate.value;
   return {
     ...BASE,
@@ -139,5 +142,42 @@ export const floorOf = (run: Run, cpu: string, scale: number, problems: Timed["v
     problems,
   });
 
-export const FLOORS: readonly Timed[] = [floorOf(runOf(10), EPYC, 1), floorOf(runOf(11), "AMD EPYC 9V45 96-Core Processor", 3), floorOf(runOf(12), XEON.replace("6975P-C", "Platinum 8573C"), 2)];
+/** The plan `overhead` has 8 pairs, from 100 to 8000 requests each second. Each pair has a case of the bare subject and a case of the service subject. */
+export const OVERHEAD: Plan = readPlans(fileURLToPath(new URL("../plans/", import.meta.url))).plans.find((each) => each.id === "overhead")!;
+
+/** The overhead law set with the fast forms, for three measures. */
+export const OVERHEAD_SET: LawSet = {
+  ...OVERHEAD.laws!,
+  measures: OVERHEAD.laws!.measures.filter((measure) => ["cpu.request", "memory", "memory.high"].includes(measure.id)).map((measure) => ({ ...measure, forms: FAST_FORMS })),
+};
+
+/**
+ * This function gives the record of a case of the plan overhead in the job `job`. Each side has the measures of `recordOf`,
+ * with its own noise. The service side adds `0.05 + 0.000002 · rate` ms of CPU time to each request and 2 MB of memory.
+ * It adds no overhead to the highest memory. Its highest memory gets only an offset of its machine: `20000 · (job − 2)` B.
+ * The mean of the offsets of the jobs 0 to 4 is 0. A noise that does not change between the jobs gives no interval that holds 0.
+ */
+export const overheadRecordOf = (value: Case, index: number, job: number, cpu: string): CaseRecord => {
+  const record = recordFor(value, index, job, cpu);
+  if (value.subject !== "node-http-service") return record;
+  const rate = value.demand.classes[0]!.rate.value;
+  const plus = (run: RunRecord, measure: "cpu.request" | "memory" | "memory.high", amount: number): Quantity | null => {
+    const found = run.measures[measure];
+    return found === null ? null : { ...found, value: found.value + amount };
+  };
+  const runs = record.runs.map((run): RunRecord => ({
+    ...run,
+    measures: { ...run.measures, "cpu.request": plus(run, "cpu.request", 0.05 + 0.000_002 * rate), memory: plus(run, "memory", 2_000_000), "memory.high": plus(run, "memory.high", 20_000 * (job - 2)) },
+  }));
+  return { ...record, runs };
+};
+
+/** This function gives `count` jobs of the plan overhead, each in its own CI run, on one CPU model. */
+export const overheadJobsOf = (cpu: string, count = 5): readonly LawJob[] =>
+  Array.from({ length: count }, (_, job) => ({
+    timed: timedOf("overhead", runOf(40 + job), cpu, `2026-11-22T06:${String(job).padStart(2, "0")}:00Z`),
+    records: (OVERHEAD.cases as readonly Case[]).map((value, index) => overheadRecordOf(value, index, job, cpu)),
+  }));
+
+export const FLOORS: readonly Timed[] =[floorOf(runOf(10), EPYC, 1), floorOf(runOf(11), "AMD EPYC 9V45 96-Core Processor", 3), floorOf(runOf(12), XEON.replace("6975P-C", "Platinum 8573C"), 2)];
 export const OPTIONS = { runs: 40, seed: 1 };

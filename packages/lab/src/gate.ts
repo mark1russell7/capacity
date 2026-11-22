@@ -78,9 +78,10 @@ const rulesOf = (measure: LawMeasure, law: Law): LawMeasure => {
 
 /**
  * This function gives the job of one law: a read of each record in the conditions of the law, or the reason of no read.
- * A noise floor of the job over its limit (`FLOOR_LIMITS`), and a job with no noise floor, give no read.
+ * A noise floor of the job over its limit (`FLOOR_LIMITS`), a job with no noise floor and an overhead law give no read.
  */
 const gateJobOf = (set: LawSet, law: Law, job: string, timed: Timed, records: readonly CaseRecord[]): GateJob => {
+  if (set.base !== undefined) return { job, reads: [], noRead: "The gate does not read an overhead law. The read of the two sides of each pair is CAP-33." };
   const measure = set.measures.find((each) => each.id === law.measure.id);
   if (measure === undefined) return { job, reads: [], noRead: `The law set of the plan has no measure "${law.measure.id}".` };
   const floor = timed.verdict.values[`${measure.id}.floor`];

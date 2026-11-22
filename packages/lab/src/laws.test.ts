@@ -8,12 +8,12 @@ import { readLaw } from "@mark1russell7/capacity/schema";
 import { escapeMarkdown } from "@mark1russell7/text";
 import { describe, expect, it } from "vitest";
 import type { Case } from "./case.ts";
-import { CPU_IDS, conditionsOf, lawSetProblems, lawsOf, lawsSummaryOf, servedShare, tailNeed, type KnownMark, type LawJob, type LawSet } from "./laws.ts";
+import { CPU_IDS, OVERHEAD_SUFFIX, conditionsOf, lawSetProblems, lawsOf, lawsSummaryOf, servedShare, tailNeed, type KnownMark, type LawJob, type LawSet } from "./laws.ts";
 import { readPlans } from "./plan.ts";
 import type { CaseRecord, RunRecord } from "./record.ts";
 import { isStartCase } from "./start.ts";
 import type { Timed } from "./timed.ts";
-import { BASE, RATE, CASES, EPYC, XEON, OTHER, KNEE, SET, PLAN, FAST, FAST_PLAN, SERVED, recordOf, runOf, timedOf, jobOf, jobsOf, TAIL, tailJobs, floorOf, FLOORS, OPTIONS } from "./law-fixtures.ts";
+import { BASE, RATE, CASES, EPYC, XEON, OTHER, KNEE, SET, PLAN, FAST, FAST_PLAN, SERVED, recordOf, runOf, timedOf, jobOf, jobsOf, TAIL, tailJobs, floorOf, FLOORS, OPTIONS, OVERHEAD, OVERHEAD_SET, overheadJobsOf } from "./law-fixtures.ts";
 
 describe("the laws of a plan", () => {
   it("gives a law of each measure on each CPU model, with its evidence, its noise and the forms that lost", () => {
@@ -419,6 +419,66 @@ const writeJob = (folder: string, name: string, timed: Timed, records: readonly 
   const files = records.map((record, index) => ({ case: record.case.id, record: `record-${index}.json`, result: `result-${index}.json` }));
   writeFileSync(join(folder, name, "timed.json"), JSON.stringify({ ...timed, files }));
 };
+
+describe("the laws of an overhead", () => {
+  const PLAN_OVERHEAD = { id: "overhead", laws: OVERHEAD_SET };
+  const MODEL = "epyc-7763";
+
+  it("finds no problem in the law set of the plan overhead", () => {
+    expect(OVERHEAD.laws?.base).toBe("bare");
+    expect(lawSetProblems(OVERHEAD.laws, OVERHEAD.cases)).toEqual([]);
+  });
+
+  it("gives one law of each measure for the service side: its value less the value of the bare side in each pair of each job", () => {
+    const result = lawsOf(PLAN_OVERHEAD, overheadJobsOf(EPYC), FLOORS, OPTIONS);
+    expect(result.problems).toEqual([]);
+    expect(result.laws.map(({ law }) => law.id)).toEqual(["cpu.request", "memory", "memory.high"].map((id) => `node-http-service/overhead/${MODEL}/${id}.overhead`));
+    for (const { law } of result.laws) {
+      expect(checkLaw(law)).toEqual([]);
+      expect(law.subject).toBe("node-http-service");
+      expect(law.measure.id.endsWith(OVERHEAD_SUFFIX)).toBe(true);
+      expect(law.conditions).toMatchObject({ base: "node-http", class: "rate", "cpu.model": EPYC });
+      expect(law.title).toContain(": the overhead over node-http, on the CPU");
+      expect(law.fit.residuals).toHaveLength(40);
+      expect(law.variables[0]).toMatchObject({ id: "rate", min: 100, max: 8000 });
+    }
+    const [cpu, memory] = result.laws;
+    expect(cpu?.law.form.id).toBe("linear");
+    expect(cpu?.law.constants.map((each) => each.value)).toEqual([expect.closeTo(0.05, 2), expect.closeTo(0.000_002, 6)]);
+    expect(memory?.law.constants[0]?.value).toBeCloseTo(2_000_000, -5);
+    const summary = lawsSummaryOf("overhead", result);
+    const row = (...cells: readonly string[]): string => `| ${cells.map((cell) => escapeMarkdown(cell)).join(" | ")} |`;
+    expect(summary).toContain("| Overhead law | Base | At the start | At the end |");
+    expect(summary).toContain(row(`node-http-service/overhead/${MODEL}/cpu.request.overhead`, "node-http", "an overhead", "an overhead"));
+    expect(summary).toContain(row(`node-http-service/overhead/${MODEL}/memory.high.overhead`, "node-http", "0 is in the interval", "0 is in the interval"));
+  });
+
+  it("gives a problem for a side with no base record in its job, and for the two sides of a pair with different loads", () => {
+    const lonely = overheadJobsOf(EPYC).map((job, index) => (index === 0 ? { ...job, records: job.records.filter((record) => record.case.id !== "overhead/100/bare") } : job));
+    const alone = lawsOf(PLAN_OVERHEAD, lonely, FLOORS, OPTIONS);
+    expect(alone.laws).toEqual([]);
+    expect(alone.problems.map((each) => each.message)).toEqual([expect.stringContaining('"overhead/100/service" of https://github.com/mark1russell7/capacity/actions/runs/40')]);
+    expect(alone.problems[0]?.message).toContain('has no record of its base side "overhead/100/bare"');
+    const longer = (record: CaseRecord): CaseRecord => ({ ...record, case: { ...record.case, duration: { value: 2, unit: "s" } } });
+    const apart = overheadJobsOf(EPYC).map((job, index) =>
+      index === 0 ? { ...job, records: job.records.map((record) => (record.case.id === "overhead/500/bare" ? longer(record) : record)) } : job,
+    );
+    const problems = lawsOf(PLAN_OVERHEAD, apart, FLOORS, OPTIONS).problems;
+    expect(problems.map((each) => each.message)).toEqual([expect.stringContaining('"overhead/500/service" and "overhead/500/bare"')]);
+    expect(problems[0]?.message).toContain("differ in duration. The two sides of a pair have one load.");
+  });
+
+  it("gives a problem for a base that is not a name, a case that is not a side of a pair, a pair with no base or no other side, and a condition base", () => {
+    const cases = OVERHEAD.cases as readonly Case[];
+    const paths = (set: unknown, list: readonly Case[] = cases): readonly string[] => lawSetProblems(set, list).map((each) => each.path);
+    expect(paths({ ...OVERHEAD_SET, base: "Bare" })).toEqual(["laws.base"]);
+    expect(paths({ ...OVERHEAD_SET, conditions: { base: "node-http" } })).toEqual(["laws.conditions.base"]);
+    expect(paths(OVERHEAD_SET, [...cases, { ...cases[0]!, id: "bare" }])).toEqual([`cases[${cases.length}].id`]);
+    expect(paths(OVERHEAD_SET, cases.filter((value) => value.id !== "overhead/100/bare"))).toEqual(["laws.base"]);
+    expect(paths(OVERHEAD_SET, cases.filter((value) => value.id !== "overhead/100/service"))).toEqual(["laws.base"]);
+    expect(lawSetProblems(OVERHEAD_SET, cases.filter((value) => value.id !== "overhead/100/service"))[0]?.message).toContain("has only the base side");
+  });
+});
 
 describe("the command of the laws", () => {
   // The plan rate has 39 forms of 6 laws, and their fits on the Vex interpreter are slow (CAP-55 compiles the bases).
