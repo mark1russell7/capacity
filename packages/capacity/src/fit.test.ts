@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { checkLaw } from "./check.ts";
 import { fitLaw, type LawFit, type LawFitOptions } from "./fit.ts";
 import { FORMS, catalogForm, formOf, gridOf, type CatalogForm, type Points } from "./forms.ts";
-import type { Law } from "./law.ts";
+import { bootstrapDraws, leastGroups, type Law } from "./law.ts";
 import { sampleLaw, wave } from "./sample.fixture.ts";
 import { constantIntervals } from "./value.ts";
 
@@ -85,7 +85,9 @@ describe("fitLaw", () => {
   it("keeps a form with no fit in the ranks, with its reason, and not in the losers", () => {
     // two loads: the grid of the knee has one value, 1.5, and three terms have no fit to two loads
     const x = [...Array.from({ length: 20 }, () => 1), ...Array.from({ length: 20 }, () => 2)];
-    const fit = fitted({ x, y: x.map((value, row) => value + 0.01 * wave(row, 2)) }, { forms: [form("constant"), form("hinge")] });
+    // the held-out fit holds out each of the two loads, and the bootstrap draws 5 jobs, the least count of groups
+    const bootstrapGroups = x.map((_, row) => row % leastGroups(0.95));
+    const fit = fitted({ x, y: x.map((value, row) => value + 0.01 * wave(row, 2)) }, { forms: [form("constant"), form("hinge")], bootstrapGroups });
     expect(fit.ranks.map((rank) => rank.form)).toEqual(["constant", "hinge"]);
     expect(fit.ranks[1]!.reason).toBe('The form "hinge" has no least-squares fit to 40 points.');
     expect(fit.ranks[1]!.missing).toBe(40);
@@ -95,7 +97,8 @@ describe("fitLaw", () => {
   it("keeps a form that cannot start in the ranks, with its reason, and not in the losers", () => {
     // each load is 0: the grid of the capacity of a queue scales with the largest load, thus it has no value
     const x = Array.from({ length: 40 }, () => 0);
-    const groups = x.map((_, row) => row % 4);
+    // 5 groups: the least count of groups of a bootstrap of whole groups
+    const groups = x.map((_, row) => row % leastGroups(0.95));
     const fit = fitted({ x, y: x.map((_, row) => 1 + 0.01 * wave(row, 2)) }, { forms: [form("constant"), form("queue")], groups });
     expect(fit.ranks.map((rank) => rank.form)).toEqual(["constant", "queue"]);
     expect(fit.ranks[1]!.reason).toBe('The form "queue" has no start value of its shape constant "capacity" for these points.');
@@ -114,6 +117,38 @@ describe("fitLaw", () => {
     const forms = [form("constant"), form("linear")];
     expect(fitted(points, { forms })).toEqual(fitted(points, { forms, groups: X }));
     expect(fitted(points, { forms }).fit.method).toContain(`of ${RATES.length} groups`);
+    expect(fitted(points, { forms }).fit.method).toContain(`of ${RATES.length} whole groups`);
+  });
+
+  it("draws the groups of the bootstrap apart from the groups of the held-out fit", () => {
+    const points = pointsOf((x) => 0.3 + 0.0002 * x, 0.01);
+    const forms = [form("constant"), form("linear")];
+    // The default groups of the bootstrap are the groups of the held-out fit.
+    expect(fitted(points, { forms })).toEqual(fitted(points, { forms, bootstrapGroups: X }));
+    // Eight jobs: each measures half of the rates one time. The bootstrap draws whole jobs, and the held-out fit holds out whole rates.
+    const jobs = X.map((x, row) => `job ${row % RUNS} of the half ${RATES.indexOf(x) % 2}`);
+    const byRate = fitted(points, { forms });
+    const byJob = fitted(points, { forms, bootstrapGroups: jobs });
+    expect(byJob.ranks).toEqual(byRate.ranks);
+    expect(byJob.fit.residuals).toEqual(byRate.fit.residuals);
+    expect(byJob.replicates).not.toEqual(byRate.replicates);
+    expect(byJob.fit.method).toContain(`of ${RATES.length} groups`);
+    expect(byJob.fit.method).toContain(`of ${2 * RUNS} whole groups`);
+  });
+
+  it("gives the count of different draws of a bootstrap, and refuses a bootstrap of fewer groups than the level needs", () => {
+    expect([1, 2, 3, 4, 5, 6].map(bootstrapDraws)).toEqual([1, 3, 10, 35, 126, 462]);
+    expect(leastGroups(0.95)).toBe(5);
+    expect(leastGroups(0.9)).toBe(4);
+    const points = pointsOf((x) => 0.3 + 0.0002 * x, 0.01);
+    const forms = [form("linear")];
+    const four = X.map((_, row) => `job ${row % RUNS}`);
+    expect(fitLaw(points, { forms, bootstrapGroups: four })).toEqual({
+      tag: "err",
+      error: "The bootstrap draws whole groups, and the fit has 4 of them. Thus the count of different draws is 35. The level 0.95 needs 40, thus 5 groups or more.",
+    });
+    const five = X.map((_, row) => `job ${row % 5}`);
+    expect(fitLaw(points, { forms, runs: 60, bootstrapGroups: five }).tag).toBe("ok");
   });
 
   it("refuses points and options that a fit cannot use", () => {
@@ -123,6 +158,11 @@ describe("fitLaw", () => {
     expect(fitLaw(points, { forms: [form("linear"), form("linear")] }).tag).toBe("err");
     expect(fitLaw(points, { groups: [1, 2] }).tag).toBe("err");
     expect(fitLaw(points, { groups: X.map(() => "one") }).tag).toBe("err");
+    expect(fitLaw(points, { bootstrapGroups: [1, 2] })).toEqual({ tag: "err", error: `The fit has 2 groups of the bootstrap for ${X.length} points.` });
+    expect(fitLaw(points, { bootstrapGroups: X.map(() => "one") })).toEqual({
+      tag: "err",
+      error: "The bootstrap draws whole groups, and the fit has 1 of them. Thus the count of different draws is 1. The level 0.95 needs 40, thus 5 groups or more.",
+    });
     const few = fitLaw(points, { forms: [form("linear")], runs: 10 });
     expect(few.tag === "err" && few.error).toContain("needs 40");
   });

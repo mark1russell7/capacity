@@ -11,6 +11,7 @@ import {
   lawKnee,
   lawValue,
   leastCount,
+  leastGroups,
   loadPointOf,
   type ConditionValue,
   type FormRank,
@@ -130,7 +131,7 @@ const isQuantile = (id: string): id is QuantileMeasure => Object.hasOwn(QUANTILE
 
 /**
  * This function gives the least count of arrivals in a run for `tail` requests in the tail of the
- * quantile `level`: `tail / (1 − level)`, up to a whole count. The tail 10 gives 20 for the median, 100 for the level 0.9 and 1000 for the level 0.99.
+ * quantile `level`. The count is `tail / (1 − level)`, up to a whole count. The tail 10 gives 20 for the median, 100 for the level 0.9 and 1000 for the level 0.99.
  */
 export const tailNeed = (tail: number, level: number): number => Math.ceil(tail / (1 - level) - 1e-9);
 
@@ -396,8 +397,8 @@ const noiseOf = (measure: FloorMeasure, cpu: string, jobs: readonly FloorJob[]):
 };
 
 /**
- * The points of the laws of one CPU model: the records, the value of the variable of each, the job
- * of each and the facts that they share.
+ * The points of the laws of one CPU model hold the records and the facts that the records share. They
+ * also hold the value of the variable and the job of each record.
  */
 interface Points {
   readonly records: readonly CaseRecord[];
@@ -513,6 +514,7 @@ const lawOf = (set: LawSet, measure: LawMeasure, id: string, range: RangePoints,
     {
       binding: { variable: set.variable.id },
       residual: measure.residual,
+      bootstrapGroups: points.jobs.map(jobName),
       ...(forms === undefined ? {} : { forms }),
       ...(options.runs === undefined ? {} : { runs: options.runs }),
       ...(options.seed === undefined ? {} : { seed: options.seed }),
@@ -559,17 +561,19 @@ const kneeOf = (set: LawSet, measure: LawMeasure, fitted: FittedLaw): FittedLaw 
  * - **The points:** each record of a job gives one point. The variable comes from the demand of its
  *   case, and the value is the median over its runs (`caseValue`). All points share their subject and conditions.
  * - **The jobs:** a job with no CI run, or with a problem in its verdict, gives no point. A law needs
- *   40 points or more (`leastCount` of the level 0.95), thus two jobs of a plan of 25 cases. A CPU model
- *   with fewer points goes into `skipped`: the runners give random CPU models, thus few points are no read, not a problem.
+ *   40 points or more (`leastCount` of the level 0.95). It also needs 5 jobs or more (`leastGroups` of the level 0.95),
+ *   because the bootstrap draws whole jobs. A CPU model with fewer points or jobs goes into `skipped`. The runners give
+ *   random CPU models, thus few points are no read, not a problem.
  * - **The served share:** a measure with the field `served` keeps only the points where the subject
  *   served that share of the offered rate (`servedShare`). The range of its law is the range of these
  *   points. With fewer than 40 of them, the law goes into `skipped`.
- * - **The tail count:** a quantile measure with the field `tail` keeps only the points where each run
+ * - **The tail count:** a quantile measure with the field `tail` keeps only some points. Each run of these points
  *   has enough arrivals for that count of requests in the tail of the quantile (`tailNeed`). A quantile of fewer
  *   arrivals is an estimate of a few slow requests, not of the subject. The cut and the skip are the same as for the served share.
  * - **The evidence:** the CI runs of the jobs of the points.
  * - **The noise:** the largest floor of the floor jobs on the CPU model. With none, the model with the largest floor.
  * - **The fit:** `fitLaw` of `@mark1russell7/capacity`. The law keeps each form that lost. `checkLaw` examines each law.
+ *   The bootstrap draws whole jobs, because the plan fixes its rates. The held-out fit holds out whole rates.
  * - **The knee:** a measure with the field `knee` gives the knee of each law in its range (`lawKnee`).
  *   A search that cannot apply gives a problem, and the law stays.
  */
@@ -581,6 +585,7 @@ export const lawsOf = (plan: { readonly id: string; readonly laws?: LawSet }, jo
   const laws: FittedLaw[] = [];
   const floor = floorJobs(floors, skipped);
   const need = leastCount(DEFAULT_LEVEL);
+  const needJobs = leastGroups(DEFAULT_LEVEL);
   const byCpu = new Map<string, LawJob[]>();
   const ordered = [...jobs].sort((a, b) => (jobName(a.timed) < jobName(b.timed) ? -1 : jobName(a.timed) > jobName(b.timed) ? 1 : 0));
   for (const job of ordered) {
@@ -611,6 +616,11 @@ export const lawsOf = (plan: { readonly id: string; readonly laws?: LawSet }, jo
       skipped.push({ code: "case", path: base, message: `The jobs on the CPU model give ${points.records.length} points. A law needs ${need} points or more.` });
       continue;
     }
+    if (group.length < needJobs) {
+      const message = `The count of jobs on the CPU model is ${group.length}. The bootstrap of a law draws whole jobs, thus a law needs ${needJobs} jobs or more.`;
+      skipped.push({ code: "case", path: base, message });
+      continue;
+    }
     for (const measure of set.measures) {
       const id = `${base}/${measure.id}`;
       const noise = noiseOf(measure.id, cpu, floor);
@@ -636,7 +646,10 @@ export const lawsOf = (plan: { readonly id: string; readonly laws?: LawSet }, jo
       }
       const knee = kneeOf(set, measure, result);
       if ("law" in knee) laws.push(knee);
-      else problems.push(knee);
+      else {
+        laws.push(result);
+        problems.push(knee);
+      }
     }
   }
   return { laws, skipped, problems };
@@ -668,12 +681,13 @@ const endText = (law: Law, load: number): string => {
 };
 
 /**
- * This function gives the text of the knee of a law: the knee, its interval, the floor of the rule
- * `floor`, the count of replicates with no floor and an edge in the range.
+ * This function gives the text of the knee of a law. The text holds the knee, its interval and the floor
+ * of the rule `floor`. It also holds the count of replicates with no floor and an edge in the range.
  */
 const kneeText = (law: Law, knee: Knee | undefined): string => {
   if (knee === undefined) return "";
-  const share = knee.rule.kind === "slope" ? `factor ${short(knee.rule.factor)}` : `share ${short(knee.rule.share)}`;
+  // A rule is data of the plan: its text is the number as the plan gives it.
+  const share = knee.rule.kind === "slope" ? `factor ${knee.rule.factor}` : `share ${knee.rule.share}`;
   const rule = `rule ${knee.rule.kind}, ${share}`;
   const found = knee.knee.value === null ? "no knee in the range" : `${short(knee.knee.value)} ${intervalText(knee.knee.interval.low, knee.knee.interval.high)} ${knee.unit}`;
   const floor = knee.floor === undefined ? "" : `, floor ${short(knee.floor.value)} ${law.measure.unit} at ${short(knee.floor.load)}`;

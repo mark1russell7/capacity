@@ -31,6 +31,7 @@ FORMS: build/index.d.ts#FORMS
 FORM_VARIABLE: build/index.d.ts#FORM_VARIABLE
 type Fit: build/instance.chunk.d.ts#Fit
 type FitError: build/instance.chunk.d.ts#FitError
+type Floor: build/index.d.ts#Floor
 type Form: build/instance.chunk.d.ts#Form
 type FormRank: build/index.d.ts#FormRank
 type Grid: build/index.d.ts#Grid
@@ -101,6 +102,7 @@ type WorkloadName: build/index.d.ts#WorkloadName
 type WorkloadProblem: build/instance.chunk.d.ts#WorkloadProblem
 type WorkloadProblemCode: build/instance.chunk.d.ts#WorkloadProblemCode
 type WorkloadSource: build/instance.chunk.d.ts#WorkloadSource
+bootstrapDraws: build/instance.chunk.d.ts#bootstrapDraws
 catalogForm: build/index.d.ts#catalogForm
 checkComposition: build/instance.chunk.d.ts#checkComposition
 checkInstance: build/index.d.ts#checkInstance
@@ -119,10 +121,12 @@ gridOf: build/index.d.ts#gridOf
 instancePointOf: build/instance.chunk.d.ts#instancePointOf
 instanceProblems: build/index.d.ts#instanceProblems
 isLawTerm: build/instance.chunk.d.ts#isLawTerm
+kneeRuleProblem: build/index.d.ts#kneeRuleProblem
 lawKnee: build/index.d.ts#lawKnee
 lawReach: build/index.d.ts#lawReach
 lawValue: build/instance.chunk.d.ts#lawValue
 leastCount: build/instance.chunk.d.ts#leastCount
+leastGroups: build/instance.chunk.d.ts#leastGroups
 limitAmount: build/index.d.ts#limitAmount
 limitProblems: build/index.d.ts#limitProblems
 limitUse: build/index.d.ts#limitUse
@@ -191,6 +195,12 @@ export declare const FORMS: readonly CatalogForm[];
 ### build/index.d.ts#FORM_VARIABLE
 export declare const FORM_VARIABLE = "x";
 
+### build/index.d.ts#Floor
+interface Floor {
+  readonly load: number;
+  readonly value: number;
+}
+
 ### build/index.d.ts#FormRank
 interface FormRank {
   readonly form: string;
@@ -221,6 +231,8 @@ interface Knee {
   readonly knee: Crossing;
   readonly edge: Crossing;
   readonly outside: readonly string[];
+  readonly floor?: Floor;
+  readonly noFloor?: number;
 }
 
 ### build/index.d.ts#KneeOptions
@@ -238,6 +250,9 @@ type KneeRule = {
 } | {
   readonly kind: "slope";
   readonly factor: number;
+} | {
+  readonly kind: "floor";
+  readonly share: number;
 };
 
 ### build/index.d.ts#LawFit
@@ -251,6 +266,7 @@ interface LawFitOptions {
   readonly binding?: Binding;
   readonly residual?: ResidualKind;
   readonly groups?: readonly SeparableGroup[];
+  readonly bootstrapGroups?: readonly SeparableGroup[];
   readonly runs?: number;
   readonly seed?: number;
 }
@@ -375,6 +391,9 @@ export declare const gridOf: (grid: Grid, xs: readonly number[]) => readonly num
 
 ### build/index.d.ts#instanceProblems
 export declare const instanceProblems: (instance: Instance) => readonly InstanceProblem[];
+
+### build/index.d.ts#kneeRuleProblem
+export declare const kneeRuleProblem: (rule: unknown, path?: string) => LawProblem | undefined;
 
 ### build/index.d.ts#lawKnee
 export declare const lawKnee: (law: Law, variable: string, rule: KneeRule, options?: KneeOptions) => Result<Knee, LawProblem>;
@@ -773,6 +792,9 @@ type WorkloadProblemCode = "shape" | "format" | "id" | "rate" | "amount" | "unit
 ### build/instance.chunk.d.ts#WorkloadSource
 type WorkloadSource = PlanSource | MetricsSource;
 
+### build/instance.chunk.d.ts#bootstrapDraws
+declare const bootstrapDraws: (groups: number) => number;
+
 ### build/instance.chunk.d.ts#checkComposition
 declare const checkComposition: (composition: Composition) => readonly CompositionProblem[];
 
@@ -793,6 +815,9 @@ declare const lawValue: (law: Law, point: LoadPoint, options?: LevelOptions) => 
 
 ### build/instance.chunk.d.ts#leastCount
 declare const leastCount: (level: number) => number;
+
+### build/instance.chunk.d.ts#leastGroups
+declare const leastGroups: (level: number) => number;
 
 ### build/instance.chunk.d.ts#loadPointOf
 declare const loadPointOf: (demand: Demand, id: string, law: PointLaw, given?: Amounts, options?: PointOptions) => Result<LoadPoint, WorkloadProblem>;

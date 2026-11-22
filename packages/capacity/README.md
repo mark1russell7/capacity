@@ -257,7 +257,9 @@ if (result.tag === "ok") {
 
 - **The rank:** each form of the catalog competes. The form with the smallest root mean square of its held-out residuals wins.
 - **The groups:** by default, the points of one load are one group. The held-out fit holds out each group, and the bootstrap draws whole groups. The option `groups` gives other groups.
-- **The replicates:** each run of the bootstrap fits the winner to a resample of the groups. The default is 1000 runs. A law needs 40 replicates for the level 0.95.
+- **The groups of the bootstrap:** the option `bootstrapGroups` gives the groups that the bootstrap draws. The default is the list `groups`. A plan that fixes its loads has no random load. Thus its bootstrap draws the independent units of its data, for example whole jobs.
+- **The least count of groups:** a run draws as many groups as the data has, and a fit does not see their order. Thus `g` groups give `bootstrapDraws(g)` different draws: 35 for 4 groups. The interval of the level 0.95 needs 40 values, thus `leastGroups(0.95)` is 5. With fewer groups of the bootstrap, the fit gives an error.
+- **The replicates:** each run of the bootstrap fits the winner to a resample of the groups of the bootstrap. The default is 1000 runs. A law needs 40 replicates for the level 0.95.
 - **The losers:** the record keeps each other form with a held-out prediction at each point. The list `ranks` also keeps each form with no fit, with its reason.
 - **A relative fit:** with `residual: "relative"`, the fit uses the weights `1 / y^2`. Thus it fits the ratios, not the differences.
 - **The interval of a knee:** `constantIntervals` gives the interval of each constant from the replicates. For a hinge, this is the interval of its knee.

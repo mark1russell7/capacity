@@ -30,7 +30,7 @@ export type {
   Scale,
   Variable,
 } from "./law.ts";
-export { DEFAULT_LEVEL, LAW_FORMAT, MAX_VARIABLES, leastCount } from "./law.ts";
+export { DEFAULT_LEVEL, LAW_FORMAT, MAX_VARIABLES, bootstrapDraws, leastCount, leastGroups } from "./law.ts";
 export { NAME, SLUG } from "./names.ts";
 export { checkLaw } from "./check.ts";
 export type { Binding, Bounds, CatalogForm, Grid, Points, Shape, Start, Term } from "./forms.ts";

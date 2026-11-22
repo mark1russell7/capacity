@@ -337,8 +337,8 @@ const crossingFrom = (values: readonly number[], level: number, range: Range, en
 };
 
 /**
- * A search is the setup of a search along one variable of a law: its target variable, its level,
- * its range, its grid and the variables outside their range. The function `curveOf` gives the curve
+ * A search is the setup of a search along one variable of a law. It holds the target variable, the level,
+ * the range and the grid, and the variables outside their range. The function `curveOf` gives the curve
  * of one row of constants.
  */
 interface Search {
@@ -459,8 +459,8 @@ const rowFloor = (grid: readonly number[], values: readonly (number | undefined)
 };
 
 /**
- * This function gives the floor of a law on the grid of a search: the least value of the law with its
- * constants, at the loads before its edge. The rule `floor` needs a floor above 0.
+ * This function gives the floor of a law on the grid of a search. The floor is the least value of the
+ * law with its constants, at the loads before its edge. The rule `floor` needs a floor above 0.
  */
 const floorOf = (law: Law, setup: Search): Result<Floor, LawProblem> => {
   const curve = setup.curveOf(law.constants.map((constant) => constant.value));
@@ -475,7 +475,7 @@ const floorOf = (law: Law, setup: Search): Result<Floor, LawProblem> => {
 };
 
 /**
- * This function gives the test of the rule `floor` for one row: from the load of the floor of the
+ * This function gives the test of the rule `floor` for one row. From the load of the floor of the
  * row, the value is above `1 + share` times that floor. A row with no floor above 0 has no test.
  */
 const floorTest =
@@ -488,8 +488,8 @@ const floorTest =
   };
 
 /**
- * This function gives the largest count of replicates that a knee interval can leave out: the
- * replicates of one tail of the level, and not so many that fewer than `leastCount` stay.
+ * This function gives the largest count of replicates that a knee interval can leave out. The count is
+ * at most the replicates of one tail of the level, and at least `leastCount` replicates stay.
  */
 const mostSkipped = (replicates: number, level: number): number =>
   Math.min(Math.floor((replicates * (1 - level)) / 2 + 1e-9), replicates - leastCount(level));

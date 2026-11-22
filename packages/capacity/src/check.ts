@@ -6,6 +6,13 @@ import { LAW_DOMAINS, recordOf, valuesOf } from "./program.ts";
 
 const COMMIT = /^[0-9a-f]{40}$/;
 
+/**
+ * A column of replicates is flat when its width is this share of its largest size or less. The search of a shape
+ * stops at a bracket of `SEPARABLE_SEARCH_TOLERANCE` (1e-10) of its start width. Thus a shape at the same edge of its
+ * search in each fit gives a flat column. A bootstrap of measured values gives a much wider column.
+ */
+const FLAT_SHARE = 1e-9;
+
 /** This function gives the middle of the range of a variable, on its scale. */
 const middleOf = (variable: Variable): number =>
   variable.scale === "log" ? Math.sqrt(variable.min * variable.max) : (variable.min + variable.max) / 2;
@@ -28,6 +35,10 @@ const cornersOf = (variables: readonly Variable[]): readonly (readonly number[])
  * and at the middle of its ranges. It examines that the replicates and the residuals can show an
  * interval of the level 0.95, and that the evidence names its runs. It examines that the noise
  * has a floor of 0 or more, a CPU model and its runs.
+ *
+ * The interval of each constant must have a width above 0. A constant with the same value in each
+ * replicate is a bound of a search, not a measured value. For example, a shape at the edge of its
+ * search in each fit of the bootstrap gives this.
  */
 export const checkLaw = (law: Law): readonly LawProblem[] => {
   const problems: LawProblem[] = [];
@@ -96,8 +107,18 @@ export const checkLaw = (law: Law): readonly LawProblem[] => {
   } else if (law.replicates.length > 0) {
     law.constants.forEach((constant, index) => {
       const column = law.replicates.map((row) => row[index] as number);
-      if (finite(constant.value) && (constant.value < Math.min(...column) || constant.value > Math.max(...column))) {
+      const low = Math.min(...column);
+      const high = Math.max(...column);
+      if (finite(constant.value) && (constant.value < low || constant.value > high)) {
         add("replicates", `constants[${index}].value`, `The constant "${constant.id}" is outside each of its replicates.`);
+      }
+      if (high - low <= FLAT_SHARE * Math.max(Math.abs(low), Math.abs(high))) {
+        add(
+          "replicates",
+          `constants[${index}]`,
+          `Each replicate of the constant "${constant.id}" has the value ${low}, thus its interval has a width of 0. ` +
+            "A shape at the edge of its search in each fit gives this.",
+        );
       }
     });
   }

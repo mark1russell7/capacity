@@ -96,18 +96,18 @@ export type RunMeasure = keyof typeof RUN_MEASURES;
 /** A load measure is the name of a measure of the driver. */
 export type LoadMeasure = keyof typeof LOAD_MEASURES;
 
+/** A quantile measure is the name of a quantile measure of the driver. */
+export type QuantileMeasure = "latency.p50" | "latency.p90" | "latency.p99";
+
 /**
  * These levels are the levels of the quantile measures of the driver, by name. The quantile of a run
  * comes from each arrival of the run (`planned`), with the nearest rank.
  */
-export const QUANTILE_MEASURES = {
+export const QUANTILE_MEASURES: Readonly<Record<QuantileMeasure, number>> = {
   "latency.p50": 0.5,
   "latency.p90": 0.9,
   "latency.p99": 0.99,
-} as const satisfies Partial<Record<LoadMeasure, number>>;
-
-/** A quantile measure is the name of a quantile measure of the driver. */
-export type QuantileMeasure = keyof typeof QUANTILE_MEASURES;
+} satisfies Record<QuantileMeasure & LoadMeasure, number>;
 
 /** A cpuset measure is the name of a measure of the CPUs of a CPU set. */
 export type CpusetMeasure = keyof typeof CPUSET_MEASURES;

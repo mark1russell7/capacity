@@ -9,7 +9,7 @@ import {
 } from "@mark1russell7/rigor-statistics";
 import { FORM_VARIABLE, FORMS, constantIdsOf, formOf, modelProblem, pointsProblem, separableOf } from "./forms.ts";
 import type { Binding, CatalogForm, Points } from "./forms.ts";
-import { DEFAULT_LEVEL, leastCount, type FitError, type Law, type Loser, type ResidualKind } from "./law.ts";
+import { DEFAULT_LEVEL, bootstrapDraws, leastCount, leastGroups, type FitError, type Law, type Loser, type ResidualKind } from "./law.ts";
 
 /** The options of `fitLaw`. */
 export interface LawFitOptions {
@@ -24,9 +24,16 @@ export interface LawFitOptions {
   readonly residual?: ResidualKind;
   /**
    * This list gives the group of each point. The points of one group are replicates of one load. The held-out fit holds
-   * out each group, and the bootstrap draws whole groups. The default group of a point is its value of the variable.
+   * out each group. The default group of a point is its value of the variable.
    */
   readonly groups?: readonly SeparableGroup[];
+  /**
+   * This list gives the group of each point for the bootstrap. Each run of the bootstrap draws whole groups of this
+   * list. The default is the list `groups`. A group of the bootstrap is an independent unit of the data, for example
+   * the job that measured its points. A plan that fixes its loads has no random load, thus a draw of whole loads is
+   * the wrong model for it.
+   */
+  readonly bootstrapGroups?: readonly SeparableGroup[];
   /** This number is the number of runs of the bootstrap. The default is `SEPARABLE_BOOTSTRAP_RUNS` of rigor-statistics. */
   readonly runs?: number;
   /** This seed starts the draws of the bootstrap. The default is 1. */
@@ -58,10 +65,11 @@ export interface LawFit extends Pick<Law, "form" | "constants" | "replicates" | 
  * a prediction at each point.
  *
  * The fit of each form is `fitSeparable` of `@mark1russell7/rigor-statistics`. Each held-out residual comes from a fit of
- * the other groups. The replicates of the winner come from a bootstrap of whole groups. The losers of the record are
+ * the other groups. The replicates of the winner come from a bootstrap of the whole groups of `bootstrapGroups`. The losers of the record are
  * the other forms with a held-out prediction at each point.
  *
  * The function gives an error for points that a fit cannot use, and when no form has a held-out prediction at each point.
+ * It gives an error for fewer groups of the bootstrap than `leastGroups` of the level 0.95, because their draws are too few for an interval.
  */
 export const fitLaw = (points: Points, options: LawFitOptions = {}): Result<LawFit, string> => {
   const fault = pointsProblem(points);
@@ -77,6 +85,16 @@ export const fitLaw = (points: Points, options: LawFitOptions = {}): Result<LawF
   if (groups.length !== n) return err(`The fit has ${groups.length} groups for ${n} points.`);
   const groupCount = new Set(groups).size;
   if (groupCount < 2) return err("The fit needs two groups or more, because the held-out fit holds out one group.");
+  const bootstrapGroups = options.bootstrapGroups ?? groups;
+  if (bootstrapGroups.length !== n) return err(`The fit has ${bootstrapGroups.length} groups of the bootstrap for ${n} points.`);
+  const bootstrapCount = new Set(bootstrapGroups).size;
+  const leastBootstrap = leastGroups(DEFAULT_LEVEL);
+  if (bootstrapCount < leastBootstrap) {
+    return err(
+      `The bootstrap draws whole groups, and the fit has ${bootstrapCount} of them. Thus the count of different draws is ` +
+        `${bootstrapDraws(bootstrapCount)}. The level ${DEFAULT_LEVEL} needs ${leastCount(DEFAULT_LEVEL)}, thus ${leastBootstrap} groups or more.`,
+    );
+  }
   const weighted = residual === "relative" ? { weights: points.y.map((y) => 1 / (y * y)) } : {};
 
   const models: Record<string, SeparableModel<number>> = {};
@@ -105,7 +123,7 @@ export const fitLaw = (points: Points, options: LawFitOptions = {}): Result<LawF
   const model = models[best.id] as SeparableModel<number>;
   const held = heldOutSeparable(model, points.x, points.y, { groups, residual, ...weighted });
   const boot = bootstrapSeparable(model, points.x, points.y, {
-    groups,
+    groups: bootstrapGroups,
     ...weighted,
     runs: options.runs ?? SEPARABLE_BOOTSTRAP_RUNS,
     seed: options.seed ?? 1,
@@ -124,7 +142,7 @@ export const fitLaw = (points: Points, options: LawFitOptions = {}): Result<LawF
     .map((rank) => ({ form: rank.form, error: rank.error }));
   const method =
     `separable least squares: ${Object.keys(models).length} forms ranked by the rmse of the held-out residuals of ${groupCount} groups, ` +
-    `${boot.replicates.length} fits in ${boot.runs} bootstrap runs of whole groups (seed ${boot.seed})`;
+    `${boot.replicates.length} fits in ${boot.runs} bootstrap runs of ${bootstrapCount} whole groups (seed ${boot.seed})`;
   return ok({
     form: formOf(winner, binding),
     constants,
