@@ -669,6 +669,40 @@ Two controls show that these tests find a wrong use: one use that does not read 
 
 A limit set with no limit is correct. `instanceProblems(instance)` and `limitProblems(limit)` examine an instance and a limit that are not in a file.
 
+## The scale rule
+
+A scale model holds an instance, its limits, a composition for each measure of a limit, and the catalog of the compositions.
+
+| Function | What it gives |
+| --- | --- |
+| `scaleRule(model, demand, options)` | The lowest count of instances that holds each limit at the demand, the limit that binds, and the load of the next step. |
+| `countReach(model, count, demand, options)` | The highest load that a count of instances holds, as a factor of the demand, and the limit that breaks first. |
+
+```ts
+import { scaleRule } from "@mark1russell7/capacity";
+
+const model = { instance, limits: limits.limits, compositions: [cpu, memory], catalog };
+const rule = scaleRule(model, workload, { whole: ["heap"] });
+// rule.value.count: { value: 5, interval: { low: 5, high: 6 } }
+// rule.value.binding: "cpu"
+// rule.value.next.factor.value: 1.11, thus 5 instances hold 1.11 times the demand.
+```
+
+- The demand divides between the instances, as in `shareOf`. A level in `options.whole` does not divide.
+- Each larger count also holds each limit. A null count is more than `options.most` instances, 2 to the power 20 when the options give none.
+- The binding limit needs the most instances. It is null when one instance holds each limit.
+- `next` is the reach of the count. The factor of `next` is the load where the service needs one more instance.
+- A count and a factor have an interval from the replicates of the laws. Row `i` of each limit reads row `i` of each law, thus the rows pair.
+- The field `binds` of each limit is the share of the replicates where that limit binds.
+- The flag `extrapolated` tells that a law reads a variable outside its range at the count.
+- The flag `edge` tells that a composition has no value past the count, and that the edge sets the count.
+
+The interval tells the doubt of the laws. It does not tell the noise of one run. The headroom of a limit holds that noise.
+
+The search reads a grid along the share of one instance, `1 / n`, on a log scale. A bisection then finds each crossing. Two crossings in one step of the grid can hide the first.
+
+Tests hold the scale rule and the reach against each other on generated demands: the count holds the load, and one instance less does not.
+
 ## The homes of the parts
 
 | Part | Home |
