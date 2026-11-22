@@ -413,7 +413,17 @@ The lab examines the contract of each tree before the seed, with `appCaseProblem
 - The Node of the target is in the range `engines.node` of the `package.json` of the tree.
 - The options of Node of the command `run` hold no placeholder. An option with a value has the form `--name=value`.
 - The command `run` does not set `NODE_OPTIONS`, because the process of the app has started when it sets the environment.
-- The contract has no outside service. The lab does not start the fakes of services yet (CAP-64).
+
+#### The fakes of the outside services
+
+A contract can have outside services, for example a feed or a channel of messages. The lab starts the fake of each service in place of the service:
+
+- Each child of the arm gets a sidecar from `@mark1russell7/rigor-bench/fresh`: a second container that starts before the child, with its own memory limit (`FAKES_MEMORY`).
+- The sidecar is on the CPUs that the child does not use. Thus the memory and the CPU time of the fakes are not in the measures of the child.
+- The program `fakes` of the sidecar starts each fake of the contract, in the tree of the arm. The fake of the service at the index `n` gets the port `4100 + n`.
+- The child joins the network of the sidecar. The lab gives `{service.<id>}` the URL of the fake on `127.0.0.1`, and the child has no other network.
+- The child starts when each fake gives its ready signal. A fake that ends before the end of the child makes the run fail.
+- A start case gives the fakes a workload with no load: the rate of each class is 0. The load of an app comes with CAP-66.
 
 ### The machine model
 

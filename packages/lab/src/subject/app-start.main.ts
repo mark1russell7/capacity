@@ -45,9 +45,7 @@ import { getHeapStatistics } from "node:v8";
 import { heapAfterGc, processIo, processMemory, startBallast, watchHeap, watchIo, watchMemory, type Ballast, type IoWatch } from "@mark1russell7/rigor-bench/fresh";
 import { errorMessage } from "@mark1russell7/text";
 import type { AppRunFile } from "../start-app.ts";
-
-/** This time is the interval of the probes of a ready signal `http`, in milliseconds. */
-const READY_POLL_MS = 10;
+import { READY_POLL_MS, httpProbe, textWatch } from "./ready.ts";
 /** This time is the longest close, in milliseconds. It is in the margin of the time limit of a child. */
 const CLOSE_GRACE_MS = 10_000;
 
@@ -149,16 +147,11 @@ const mark = (): void => {
 const { ready } = run;
 if (ready.kind === "line") {
   // Each write of the app to stdout or to stderr goes through this check, until the ready signal.
-  const keep = Math.max(0, ready.text.length - 1);
   for (const stream of [process.stdout, process.stderr]) {
     const write = stream.write.bind(stream) as (...args: unknown[]) => boolean;
-    let tail = "";
+    const seen = textWatch(ready.text);
     stream.write = ((chunk: unknown, ...rest: unknown[]): boolean => {
-      if (readyAt === undefined) {
-        const text = tail + (typeof chunk === "string" ? chunk : Buffer.from(chunk as Uint8Array).toString("utf8"));
-        if (text.includes(ready.text)) mark();
-        else tail = text.slice(text.length - keep);
-      }
+      if (readyAt === undefined && seen(typeof chunk === "string" ? chunk : Buffer.from(chunk as Uint8Array).toString("utf8"))) mark();
       return write(chunk, ...rest);
     }) as typeof stream.write;
   }
@@ -178,21 +171,8 @@ void import(pathToFileURL(run.script).href).catch((error: unknown) => {
 });
 
 if (http !== undefined && ready.kind === "http") {
-  /** This function gives true when the path of the app gives the status 200. */
-  const probe = (): Promise<boolean> =>
-    new Promise((resolve) => {
-      const request = http.get({ host: "127.0.0.1", port: Number(port), path: ready.path, agent: false, timeout: 1000 }, (response) => {
-        response.resume();
-        resolve(response.statusCode === 200);
-      });
-      request.on("error", () => resolve(false));
-      request.on("timeout", () => {
-        request.destroy();
-        resolve(false);
-      });
-    });
   while (readyAt === undefined) {
-    if (await probe()) mark();
+    if (await httpProbe(http, Number(port), ready.path)) mark();
     else await sleep(READY_POLL_MS);
   }
 }

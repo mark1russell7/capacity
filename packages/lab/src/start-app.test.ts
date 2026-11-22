@@ -1,13 +1,15 @@
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { AppContract, AppProcess } from "@mark1russell7/capacity";
+import { appWorkloadProblems, checkApp, checkWorkload, type AppContract, type AppProcess, type AppReady } from "@mark1russell7/capacity";
 import { afterAll, describe, expect, it } from "vitest";
 import { APP_CASE, FIXTURE } from "./app-fixtures.ts";
 import { startCaseProblems, type StartCase } from "./start.ts";
 import {
+  FAKE_PORT,
   RUN_SLOTS,
   appCaseProblems,
+  appFakesOf,
   appRunOf,
   appVariables,
   fillCommand,
@@ -16,6 +18,8 @@ import {
   readTreeApp,
   runParts,
   seedAmountsOf,
+  serviceValues,
+  startWorkloadOf,
   variableValues,
   type TreeApp,
 } from "./start-app.ts";
@@ -76,12 +80,10 @@ describe("appCaseProblems", () => {
     expect(appCaseProblems(APP_CASE, [tree()])).toEqual([]);
   });
 
-  it("refuses a contract with another id or repository, a run that does not start node, and an outside service", () => {
-    const service = { id: "feed", title: "A feed", fake: { argv: ["node", "feed.mjs", "--port", "{port}"], cwd: ".", env: {}, ready: { kind: "line" as const, text: "up" } } };
+  it("refuses a contract with another id or repository, and a run that does not start node", () => {
     expect(codes(appCaseProblems(APP_CASE, [changed({ id: "other" })]))).toEqual(["subject subject"]);
     expect(codes(appCaseProblems(APP_CASE, [changed({ repository: "https://github.com/example/other.git" })]))).toEqual(["subject app"]);
     expect(codes(appCaseProblems(APP_CASE, [withRun({ argv: ["bun", "app.ts"] })]))).toEqual(["subject subject"]);
-    expect(appCaseProblems(APP_CASE, [changed({ services: [service] })]).map((each) => each.message)).toEqual([expect.stringContaining("CAP-64")]);
   });
 
   it("refuses a run with no script, a placeholder in an option of Node or in the script, and NODE_OPTIONS in its environment", () => {
@@ -162,6 +164,52 @@ describe("the commands of a contract", () => {
     expect(() => seedAmountsOf('{"log":1024}', app)).toThrow(/no record "amounts"/);
     expect(() => seedAmountsOf('{"amounts":{"log":-1}}', app)).toThrow(/no amount of 0 or more/);
     expect(() => seedAmountsOf('{"amounts":{}}', app)).toThrow(/"log"/);
+  });
+});
+
+describe("the fakes of the services of a contract", () => {
+  const fake = (script: string, ready: AppReady): AppProcess => ({ argv: ["node", script, "--port", "{port}", "--rates", "{workload}"], cwd: "fakes", env: { FAKE_PORT: "{port}" }, ready });
+  /** This function gives the tree of the tests with a feed and a channel, and a run that gets the URL of each. */
+  const served = (): TreeApp => {
+    const { app } = tree();
+    const run = { ...app.start.run, argv: [...app.start.run.argv, "--feed", "{service.feed}"], env: { ...app.start.run.env, CHANNEL: "{service.channel}/send" } };
+    const services = [
+      { id: "feed", title: "A feed of events", fake: fake("feed.ts", { kind: "line", text: "feed up" }) },
+      { id: "channel", title: "A channel of messages", fake: fake("channel.ts", { kind: "http", path: "/ready" }) },
+    ];
+    return changed({ services, start: { ...app.start, run } });
+  };
+
+  it("accepts a contract with services in an app case, and the contract has no problem", () => {
+    expect(checkApp(served().app)).toEqual([]);
+    expect(appCaseProblems(APP_CASE, [served()])).toEqual([]);
+  });
+
+  it("gives each fake a port from FAKE_PORT, and gives the run the URL of each fake on the loopback", () => {
+    expect(serviceValues(served().app)).toEqual({ "service.feed": `http://127.0.0.1:${FAKE_PORT}`, "service.channel": `http://127.0.0.1:${FAKE_PORT + 1}` });
+    const { file } = appRunOf(served(), FIXTURE);
+    expect(file.args).toEqual(["--store", RUN_SLOTS.store, "--feed", "http://127.0.0.1:4100"]);
+    expect(file.env).toEqual({ FIXTURE_STORE: RUN_SLOTS.store, CHANNEL: "http://127.0.0.1:4101/send" });
+    expect(serviceValues(tree().app)).toEqual({});
+  });
+
+  it("gives the fakes file of an arm: the filled command of each fake, its absolute folder, its port and its ready signal", () => {
+    const dir = folder();
+    expect(appFakesOf(served(), dir, "/work/fakes/base.workload.json")).toEqual({
+      app: "fixture-app",
+      fakes: [
+        { service: "feed", argv: ["node", "feed.ts", "--port", "4100", "--rates", "/work/fakes/base.workload.json"], cwd: join(dir, "fakes"), env: { FAKE_PORT: "4100" }, port: 4100, ready: { kind: "line", text: "feed up" } },
+        { service: "channel", argv: ["node", "channel.ts", "--port", "4101", "--rates", "/work/fakes/base.workload.json"], cwd: join(dir, "fakes"), env: { FAKE_PORT: "4101" }, port: 4101, ready: { kind: "http", path: "/ready" } },
+      ],
+    });
+  });
+
+  it("gives the fakes a workload with no load, and the workload has no problem against the contract", () => {
+    const { app } = served();
+    const workload = startWorkloadOf(app);
+    expect(workload).toMatchObject({ id: "fixture-app/start", classes: [], levels: {} });
+    expect(checkWorkload(workload)).toEqual([]);
+    expect(appWorkloadProblems(app, workload)).toEqual([]);
   });
 });
 

@@ -18,6 +18,7 @@ import {
   type FreshRun,
   type FreshSkip,
   type IoSample,
+  type Sidecar,
   type SkipKind,
   type StartChild,
 } from "@mark1russell7/rigor-bench/fresh";
@@ -48,7 +49,22 @@ import {
   type StartTarget,
   type StartVariables,
 } from "./start.ts";
-import { APP_START_PROGRAM, appCaseProblems, appRunOf, fillCommand, hostCommand, levelsOf, readTreeApp, seedAmountsOf, variableValues, type TreeApp } from "./start-app.ts";
+import {
+  APP_START_PROGRAM,
+  FAKES_MEMORY,
+  FAKES_PROGRAM,
+  appCaseProblems,
+  appFakesOf,
+  appRunOf,
+  fillCommand,
+  hostCommand,
+  levelsOf,
+  readTreeApp,
+  seedAmountsOf,
+  startWorkloadOf,
+  variableValues,
+  type TreeApp,
+} from "./start-app.ts";
 
 /** This text is the format of the record of a start case. */
 export const START_RECORD_FORMAT = "capacity-start-record/1";
@@ -644,6 +660,9 @@ export const childLimitOf = (value: StartCase): Quantity => quantity(valueIn(val
  * Each child is the start program in a new container of the target, with `--expose-gc`. The container mounts the work
  * folder and the repository of the lab at the same paths. A child that passes a limit of the target is a failure of
  * its arm on its point. The other arms still start.
+ *
+ * The contract of an arm can have outside services. Then each child of the arm gets a sidecar with the fakes of the
+ * services, on the CPUs that the child does not use. The fakes get a workload with no load (`startWorkloadOf`).
  */
 export const measureStart = async (value: StartCase, options: StartMeasureOptions): Promise<StartMeasurement> => {
   const problems = startCaseProblems(value);
@@ -674,14 +693,16 @@ export const measureStart = async (value: StartCase, options: StartMeasureOption
       else disks[known] = { ...disks[known]!, paths: [...disks[known]!.paths, path] };
     }
   }
-  const containerOf = (limited: boolean): StartChild =>
+  const cpus = cpuSetsOf(target.cpus, host.cores);
+  const containerOf = (limited: boolean, sidecars: readonly Sidecar[] = []): StartChild =>
     container({
       image: target.image,
       memory: valueIn(target.memory, "B"),
       swap: valueIn(target.swap, "B"),
-      cpuset: cpuSetsOf(target.cpus, host.cores).subject,
+      cpuset: cpus.subject,
       mounts: [options.work, REPO_ROOT],
       ...(limited && disks.length > 0 ? { disks: disks.map((each) => each.limit) } : {}),
+      ...(sidecars.length > 0 ? { sidecars } : {}),
     });
   const child = containerOf(true);
   const check = await checkTarget(child, target);
@@ -750,14 +771,35 @@ export const measureStart = async (value: StartCase, options: StartMeasureOption
   // The program of an app arm imports the run of its contract, with the options of Node of the run.
   const runOf = (id: string): string => join(options.work, "runs", `${id}.json`);
   const appOptions = new Map<string, readonly string[]>();
+  // The fakes of the services of an arm run in a sidecar of each child of the arm, with the workload of a start: no load.
+  // The map has the sidecars by the run file of their arm, because the argv of a child names its run file.
+  const sidecars = new Map<string, Sidecar>();
   if (subject === undefined) {
     mkdirSync(join(options.work, "runs"), { recursive: true });
     for (const arm of value.arms) {
-      const { file, options: flags } = appRunOf(appOf(arm.id), treeOf(arm.id));
+      const tree = appOf(arm.id);
+      const { file, options: flags } = appRunOf(tree, treeOf(arm.id));
       writeFileSync(runOf(arm.id), `${JSON.stringify(file, null, 2)}\n`);
       appOptions.set(arm.id, flags);
+      if (tree.app.services.length === 0) continue;
+      const fakes = join(options.work, "fakes", `${arm.id}.json`);
+      const workload = join(options.work, "fakes", `${arm.id}.workload.json`);
+      mkdirSync(join(options.work, "fakes"), { recursive: true });
+      writeFileSync(workload, `${JSON.stringify(startWorkloadOf(tree.app), null, 2)}\n`);
+      writeFileSync(fakes, `${JSON.stringify(appFakesOf(tree, treeOf(arm.id), workload), null, 2)}\n`);
+      const program = ["node", programOf(FAKES_PROGRAM)];
+      sidecars.set(runOf(arm.id), { argv: [...program, "host", "--file", fakes], memory: valueIn(FAKES_MEMORY, "B"), cpuset: cpus.others, mounts: [options.work, REPO_ROOT], ready: [...program, "ready"] });
     }
   }
+  /** This function gives the start of the children of the arms. The child of an arm with services gets the sidecar of its fakes. */
+  const armsStart = (limited: boolean): StartChild => {
+    const plain = containerOf(limited);
+    const own = new Map([...sidecars].map(([run, sidecar]) => [run, containerOf(limited, [sidecar])]));
+    return (argv, rest) => {
+      const at = argv.indexOf("--run");
+      return ((at === -1 ? undefined : own.get(argv[at + 1] ?? "")) ?? plain)(argv, rest);
+    };
+  };
   const programFor = (arm: StartArm): string[] =>
     subject === undefined
       ? ["node", "--expose-gc", ...(appOptions.get(arm.id) ?? []), programOf(APP_START_PROGRAM), "--run", runOf(arm.id)]
@@ -777,7 +819,7 @@ export const measureStart = async (value: StartCase, options: StartMeasureOption
 
   // A point with the field after gets one first start of each arm on its earlier point, with no limit of the disk and no ballast.
   const firsts: FirstStart[] = [];
-  const unlimited = containerOf(false);
+  const unlimited = armsStart(false);
   for (const point of value.points) {
     if (point.after === undefined) continue;
     const earlier = value.points.find((each) => each.id === point.after)!;
@@ -830,7 +872,7 @@ export const measureStart = async (value: StartCase, options: StartMeasureOption
     skipScope: "child",
     job: String(run),
     env: { ...benchEnv(), ...host },
-    start: child,
+    start: armsStart(true),
     ...(placed ? { before } : {}),
   });
 
