@@ -490,9 +490,9 @@ Seven plans measure the start of alerts. Each one has no check and no trigger. T
   - A live start of the cloud machine read at 3.2 MiB/s or more. Its disk gives a mean of 11.2 KiB and 15.9 ms for each read. The lab does not model that delay.
   - The arms are the cloud build and the current build with the snapshot. The current build also gives the time of each write of the snapshot.
 
-The plan `alerts-app-start` compares the start from the contract of alerts with the start subject `alerts`, on one commit.
+An eighth plan, `alerts-start-app`, compares the start from the contract of alerts with the start subject `alerts`, on one commit.
 
-- The case `alerts-app-start/contract` starts alerts from `capacity-app.json`. The case `alerts-app-start/subject` starts it with the programs of the lab.
+- The case `alerts-start-app/contract` starts alerts from `capacity-app.json`. The case `alerts-start-app/subject` starts it with the programs of the lab.
 - The two cases seed with the seed `al124`, the same log and the cache sizes of one live copy. Thus they open the same store.
 - The two arms are the same build. The arm `deploy` adds the ballast of the deploy process at ready.
 - The start subject gives the passes and the writes of the snapshot. The contract gives them after CAP-65.

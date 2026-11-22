@@ -128,12 +128,12 @@ describe("the plan files of the lab", () => {
   });
 
   it("have the plan of the two starts of alerts: the contract and the start subject on one commit, one seed and the sizes of one store", () => {
-    const plan = readPlans(PLANS).plans.find((each) => each.id === "alerts-app-start");
+    const plan = readPlans(PLANS).plans.find((each) => each.id === "alerts-start-app");
     expect(plan?.check).toBeNull();
     expect(plan?.triggers).toEqual([]);
     const [contract, subject, ...more] = (plan?.cases ?? []).filter(isStartCase);
     expect(more).toEqual([]);
-    expect([contract?.id, contract?.app, subject?.id, subject?.subject]).toEqual(["alerts-app-start/contract", "https://github.com/metrograph-labs/alerts.git", "alerts-app-start/subject", "alerts"]);
+    expect([contract?.id, contract?.app, subject?.id, subject?.subject]).toEqual(["alerts-start-app/contract", "https://github.com/metrograph-labs/alerts.git", "alerts-start-app/subject", "alerts"]);
     // The seed script of the contract gives seedStore the seed al124, the log and the sizes of the cache files of one live copy.
     // The start subject gives it the same, thus the two cases open the same store, and only the start differs.
     const shared = (value: StartCase) => [value.format, value.seeder, value.seed, value.rounds, value.watch, value.probe, value.target, value.limit, value.windows, value.observed];

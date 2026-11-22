@@ -1,6 +1,6 @@
 {
   "format": "capacity-plan/1",
-  "id": "alerts-app-start",
+  "id": "alerts-start-app",
   "title": "The start of alerts from its contract and from the start subject of the lab, on one commit and one store, with and with no deploy",
   "check": null,
   "triggers": [],
@@ -8,7 +8,7 @@
   "cases": [
     {
       "format": "capacity-start/1",
-      "id": "alerts-app-start/contract",
+      "id": "alerts-start-app/contract",
       "title": "The start of alerts from capacity-app.json: the seed script and the run script of the contract",
       "subject": "alerts-runtime",
       "app": "https://github.com/metrograph-labs/alerts.git",
@@ -103,7 +103,7 @@
     },
     {
       "format": "capacity-start/1",
-      "id": "alerts-app-start/subject",
+      "id": "alerts-start-app/subject",
       "title": "The start of alerts from the start subject of the lab, with the snapshot of the start, as the run script does",
       "subject": "alerts",
       "arms": [
