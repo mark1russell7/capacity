@@ -288,7 +288,9 @@ The latency is the median of the runs of the case. The plan `rate` gives the sha
 The knee of a latency is the rate where the latency leaves its floor. The plan `rate` gives the rule `{ "kind": "floor", "share": 1 }` to its latency laws: the first rate where the latency is two times its floor.
 
 - **Why the floor, not the start.** At 100 requests each second, the median latency is 0.34 ms. From 1000 to 12000, it is approximately 0.13 ms. The first requests of a run are cold, and at a low rate they are a large part of the run. Thus the start value is not the floor.
-- **Why one amount.** Each replicate uses the floor of the constants. Some replicates of the 90th percentile have a value below 0 at 100. The rule `rise` cannot apply to them.
+- **Why a floor for each replicate.** The knee of a replicate is after its own floor. With the floor of the constants as one amount, a replicate with a high start had its knee at 100, the start of the range. That is not a knee.
+- **Why the tail leaves first.** On the Intel Xeon 6975P-C, the 99th percentile leaves its floor between 1000 and 3000, and the 90th percentile between 3000 and 4000. The median stays near 0.13 ms to 13000. A delay that stops a share of the requests can cause this, for example a stop of the event loop. A quantile `p` leaves its floor when that share is more than `1 - p`. The records have no measure of garbage collection, thus this cause is not certain.
+- **The cold start of the tail.** At 100 requests each second, a run of 1 s has approximately 100 requests. Thus the 99th percentile is approximately the slowest request, and the first requests are cold. The 90th percentile goes from 0.51 ms at 100 to 0.23 ms at 2000. The forms of the latency laws cannot fall, thus their floor is between these values.
 
 ### The command and the workflow
 

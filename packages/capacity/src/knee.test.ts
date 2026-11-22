@@ -253,17 +253,30 @@ describe("lawKnee", () => {
     expect(found).toMatchObject({ rule: { kind: "floor", share: 1 }, edge: NO_CROSSING });
   });
 
-  it("gives the rule floor to each replicate as one amount, also to a replicate with a value below 0", () => {
-    // Some replicates of the base are below 0. The floor of the estimate is its base, 0.5, at 0.
-    const spread = lawOf("linear", { base: 0.5, slope: 1 }, {}, { base: 3 });
-    expect(spread.replicates.some((row) => (row[0] as number) <= 0)).toBe(true);
+  it("gives each replicate its own floor, thus no knee of a replicate is at the start of the search", () => {
+    // The floor of each row is its base at 0. A row is two times its floor where base + x = 2 base, at x = base.
+    const spread = lawOf("linear", { base: 1, slope: 1 }, {}, { base: 0.5 });
     const found = kneeOf(spread, { kind: "floor", share: 1 });
-    expect(found.floor).toEqual({ load: 0, value: 0.5 });
-    expect(found.knee.value).toBeCloseTo(0.5, 9);
-    // Each replicate is above 1 where base + x = 1.
-    const crossings = spread.replicates.map((row) => Math.max(0, 1 - (row[0] as number)));
-    expect(found.knee.interval.low).toBeCloseTo(Math.min(0.5, quantile(crossings, 0.025)), 6);
-    expect(found.knee.interval.high).toBeCloseTo(Math.max(0.5, quantile(crossings, 0.975)), 6);
+    expect(found.floor).toEqual({ load: 0, value: 1 });
+    expect(found.noFloor).toBe(0);
+    expect(found.knee.value).toBeCloseTo(1, 9);
+    // With the floor of the estimate as one amount, a replicate with a base above 2 has its knee at 0.
+    const bases = spread.replicates.map((row) => row[0] as number);
+    expect(found.knee.interval.low as number).toBeGreaterThan(0);
+    expect(found.knee.interval.low).toBeCloseTo(Math.min(1, quantile(bases, 0.025)), 6);
+    expect(found.knee.interval.high).toBeCloseTo(Math.max(1, quantile(bases, 0.975)), 6);
+  });
+
+  it("counts a replicate with no floor above 0 and leaves it out of the interval", () => {
+    // Of 80 replicates, one has the base -1: its floor is below 0. The level 0.95 can leave out 2.
+    const base = lawOf("linear", { base: 1, slope: 1 }, {}, { base: 0.5 });
+    const rows = Array.from({ length: 80 }, (_, row) => [1 + 0.5 * wave(row, 0), 1]);
+    rows[7] = [-1, 1];
+    const found = kneeOf({ ...base, replicates: rows }, { kind: "floor", share: 1 });
+    expect(found.noFloor).toBe(1);
+    const kept = rows.filter((row) => (row[0] as number) > 0).map((row) => row[0] as number);
+    expect(found.knee.interval.low).toBeCloseTo(Math.min(1, quantile(kept, 0.025)), 6);
+    expect(found.knee.interval.high).toBeCloseTo(Math.max(1, quantile(kept, 0.975)), 6);
   });
 
   it("takes the floor before the edge of a law", () => {
@@ -329,6 +342,15 @@ describe("the problems of lawKnee", () => {
   it("names a floor at 0 or below, or a law with no value at the start of the floor search", () => {
     const negative = lawOf("linear", { base: -1, slope: 1 });
     expect(problemOf(lawKnee(negative, "rate", { kind: "floor", share: 1 }))).toMatchObject({ code: "knee", path: "constants" });
+    // Of 40 replicates, many have a base of 0 or less. The level 0.95 needs all 40, thus it can leave out none.
+    const spread = lawOf("linear", { base: 0.5, slope: 1 }, {}, { base: 3 });
+    const count = spread.replicates.filter((row) => (row[0] as number) <= 0).length;
+    expect(count).toBeGreaterThan(0);
+    expect(problemOf(lawKnee(spread, "rate", { kind: "floor", share: 1 }))).toEqual({
+      code: "knee",
+      path: "replicates",
+      message: `The rule "floor" needs a floor above 0. ${count} of 40 replicates have a floor of 0 or less. The interval of the level 0.95 can leave out at most 0.`,
+    });
     expect(problemOf(lawKnee(lawOf("logarithm", { base: 1, scale: 1 }), "rate", { kind: "floor", share: 1 }))).toMatchObject({ code: "value", path: "constants" });
   });
 

@@ -596,15 +596,19 @@ const endText = (law: Law, load: number): string => {
   return `${short(value.value.value)} ${intervalText(value.value.interval.low, value.value.interval.high)} ${law.measure.unit}`;
 };
 
-/** This function gives the text of the knee of a law: the knee, its interval, the floor of the rule `floor` and an edge in the range. */
+/**
+ * This function gives the text of the knee of a law: the knee, its interval, the floor of the rule
+ * `floor`, the count of replicates with no floor and an edge in the range.
+ */
 const kneeText = (law: Law, knee: Knee | undefined): string => {
   if (knee === undefined) return "";
   const share = knee.rule.kind === "slope" ? `factor ${short(knee.rule.factor)}` : `share ${short(knee.rule.share)}`;
   const rule = `rule ${knee.rule.kind}, ${share}`;
   const found = knee.knee.value === null ? "no knee in the range" : `${short(knee.knee.value)} ${intervalText(knee.knee.interval.low, knee.knee.interval.high)} ${knee.unit}`;
   const floor = knee.floor === undefined ? "" : `, floor ${short(knee.floor.value)} ${law.measure.unit} at ${short(knee.floor.load)}`;
+  const noFloor = knee.noFloor === undefined || knee.noFloor === 0 ? "" : `, ${knee.noFloor} replicates with no floor above 0 left out`;
   const edge = knee.edge.value === null ? "" : `, edge at ${short(knee.edge.value)} ${intervalText(knee.edge.interval.low, knee.edge.interval.high)}`;
-  return `${found} (${rule}${floor}${edge})`;
+  return `${found} (${rule}${floor}${noFloor}${edge})`;
 };
 
 /**

@@ -1,7 +1,7 @@
 import { err, ok, type Result } from "@mark1russell7/optional";
 import { convertible, isQuantity, type Quantity, valueIn, whyNotConvertible } from "@mark1russell7/quantity";
 import type { Expr } from "@mark1russell7/vex";
-import { DEFAULT_LEVEL, type Law, type LawProblem, type Variable } from "./law.ts";
+import { DEFAULT_LEVEL, leastCount, type Law, type LawProblem, type Variable } from "./law.ts";
 import { recordOf, valuesAt } from "./program.ts";
 import { intervalOf, levelProblem, type LevelOptions, type LoadPoint, type Range } from "./value.ts";
 
@@ -16,8 +16,8 @@ const MAX_STEPS = 4096;
  *
  * - `rise`: the value is more than `1 + share` times the value at the start of the search.
  * - `slope`: the slope is more than `factor` times the slope at the start of the search.
- * - `floor`: the value is more than `1 + share` times the floor of the law. The floor is the least
- *   value of the law with its constants on the grid of the search. The search starts at the floor.
+ * - `floor`: the value is more than `1 + share` times the floor of the row. The floor of a row is its
+ *   least value on the grid of the search, before its edge. The search of a row starts at its floor.
  */
 export type KneeRule =
   | { readonly kind: "rise"; readonly share: number }
@@ -68,7 +68,7 @@ export interface Crossing {
  * The `edge` is the first load where the law has no finite value. This is a pole, where the value
  * grows with no limit, or the start of a region with no value. The knee is always before the edge.
  * The list `outside` names each other variable whose value is outside its range. Only a knee of the
- * rule `floor` has the field `floor`.
+ * rule `floor` has the fields `floor` and `noFloor`.
  */
 export interface Knee {
   readonly variable: string;
@@ -79,7 +79,10 @@ export interface Knee {
   readonly knee: Crossing;
   readonly edge: Crossing;
   readonly outside: readonly string[];
+  /** This floor is the floor of the law with its constants. */
   readonly floor?: Floor;
+  /** This number is the count of replicates with no floor above 0. The rule cannot apply to them, thus the interval of the knee leaves them out. */
+  readonly noFloor?: number;
 }
 
 /** A curve gives the value of one row of a law at each load of the variable. A load with no finite value gives undefined. */
@@ -200,17 +203,26 @@ const stepAt = (load: number, unit: number): number => STEP * Math.max(Math.abs(
  */
 type Test = (load: number, value?: number) => boolean;
 
-/** The context of the test of one row: its curve, its start value, its path, its start load and its step unit. */
+/**
+ * The context of the test of one row: its curve, its start value, its path, its start load and its
+ * step unit. It also has the grid, the values of the row on the grid and the edge of the row.
+ */
 interface TestContext {
   readonly curve: Curve;
   readonly start: number;
   readonly path: string;
   readonly from: number;
   readonly unit: number;
+  readonly grid: readonly number[];
+  readonly values: readonly (number | undefined)[];
+  readonly edge: number;
 }
 
-/** A test maker gives the test of one row, or the problem that stops the test at the start of the search. */
-type TestOf = (context: TestContext) => Result<Test, LawProblem>;
+/**
+ * A test maker gives the test of one row, or the problem that stops the test at the start of the
+ * search. An undefined test tells that the rule cannot apply to the row. Then the row has no crossing.
+ */
+type TestOf = (context: TestContext) => Result<Test | undefined, LawProblem>;
 
 /**
  * This function gives the first load before the edge where the test holds. It gives Infinity when
@@ -233,9 +245,9 @@ const firstHolds = (holds: Test, grid: readonly number[], values: readonly (numb
   return Infinity;
 };
 
-/** The crossing and the edge of one row of a law, or the problem of the row. */
+/** The crossing and the edge of one row of a law. An undefined crossing tells that the rule cannot apply to the row. */
 interface RowResult {
-  readonly crossing: number;
+  readonly crossing: number | undefined;
   readonly edge: number;
 }
 
@@ -245,10 +257,10 @@ const rowOf = (curve: Curve, path: string, testOf: TestOf, grid: readonly number
   const start = values[0];
   const from = grid[0] as number;
   if (start === undefined) return err(problem("value", path, `The law has no value at the start of the search, ${from}.`));
-  const test = testOf({ curve, start, path, from, unit });
-  if (test.tag === "err") return test;
   const edge = edgeOf(curve, grid, values, start);
-  return ok({ crossing: firstHolds(test.value, grid, values, edge), edge });
+  const test = testOf({ curve, start, path, from, unit, grid, values, edge });
+  if (test.tag === "err") return test;
+  return ok({ crossing: test.value === undefined ? undefined : firstHolds(test.value, grid, values, edge), edge });
 };
 
 /** This function gives the test of a knee rule: the value or the slope is above its mark from the start of the search. */
@@ -339,10 +351,14 @@ interface Search {
   readonly outside: readonly string[];
 }
 
-/** The result of a search along one variable of a law: the first load that passes the test, and the edge. */
+/**
+ * The result of a search along one variable of a law: the first load that passes the test, and the
+ * edge. The count `skipped` tells the replicates where the rule cannot apply. The crossing leaves them out.
+ */
 interface Along {
   readonly crossing: Crossing;
   readonly edge: Crossing;
+  readonly skipped: number;
 }
 
 /**
@@ -410,17 +426,36 @@ const along = (law: Law, setup: Search, testOf: TestOf): Result<Along, LawProble
   ];
   const crossings: number[] = [];
   const edges: number[] = [];
+  let skipped = 0;
   for (const row of rows) {
     const result = rowOf(setup.curveOf(row.values), row.path, testOf, setup.grid, setup.unit);
     if (result.tag === "err") return result;
-    crossings.push(result.value.crossing);
     edges.push(result.value.edge);
+    const { crossing } = result.value;
+    if (crossing === undefined) {
+      // The first crossing is the crossing of the estimate. Thus the rule must apply to the constants.
+      if (row.path === "constants") return err(problem("knee", row.path, "The rule cannot apply to the constants of the law."));
+      skipped += 1;
+    } else {
+      crossings.push(crossing);
+    }
   }
   const range: Range = { low: setup.target.min, high: setup.target.max };
   return ok({
     crossing: crossingFrom(crossings, setup.level, range, setup.search.high),
     edge: crossingFrom(edges, setup.level, range, setup.search.high),
+    skipped,
   });
+};
+
+/** This function gives the floor of one row: its least value on the grid, at the loads before its edge. */
+const rowFloor = (grid: readonly number[], values: readonly (number | undefined)[], edge: number, start: number): Floor => {
+  let floor: Floor = { load: grid[0] as number, value: start };
+  grid.forEach((load, index) => {
+    const value = values[index];
+    if (load < edge && value !== undefined && value < floor.value) floor = { load, value };
+  });
+  return floor;
 };
 
 /**
@@ -431,25 +466,33 @@ const floorOf = (law: Law, setup: Search): Result<Floor, LawProblem> => {
   const curve = setup.curveOf(law.constants.map((constant) => constant.value));
   const values = curve(setup.grid);
   const start = values[0];
-  const first = setup.grid[0] as number;
-  if (start === undefined) return err(problem("value", "constants", `The law has no value at the start of the search, ${first}.`));
-  const edge = edgeOf(curve, setup.grid, values, start);
-  let floor: Floor = { load: first, value: start };
-  setup.grid.forEach((load, index) => {
-    const value = values[index];
-    if (load < edge && value !== undefined && value < floor.value) floor = { load, value };
-  });
+  if (start === undefined) return err(problem("value", "constants", `The law has no value at the start of the search, ${setup.grid[0]}.`));
+  const floor = rowFloor(setup.grid, values, edgeOf(curve, setup.grid, values, start), start);
   if (!(floor.value > 0)) {
     return err(problem("knee", "constants", `The rule "floor" needs a floor above 0. The floor is ${floor.value} at ${floor.load}.`));
   }
   return ok(floor);
 };
 
-/** This function gives the test of the rule `floor`: from the load of the floor, the value is above `1 + share` times the floor. */
-const floorTest = (floor: Floor, share: number): TestOf => {
-  const limit = (1 + share) * floor.value;
-  return ({ curve }) => ok((load, value = valueOf(curve, load)) => load >= floor.load && value !== undefined && value > limit);
-};
+/**
+ * This function gives the test of the rule `floor` for one row: from the load of the floor of the
+ * row, the value is above `1 + share` times that floor. A row with no floor above 0 has no test.
+ */
+const floorTest =
+  (share: number): TestOf =>
+  ({ curve, start, grid, values, edge }) => {
+    const floor = rowFloor(grid, values, edge, start);
+    if (!(floor.value > 0)) return ok(undefined);
+    const limit = (1 + share) * floor.value;
+    return ok((load, value = valueOf(curve, load)) => load >= floor.load && value !== undefined && value > limit);
+  };
+
+/**
+ * This function gives the largest count of replicates that a knee interval can leave out: the
+ * replicates of one tail of the level, and not so many that fewer than `leastCount` stay.
+ */
+const mostSkipped = (replicates: number, level: number): number =>
+  Math.min(Math.floor((replicates * (1 - level)) / 2 + 1e-9), replicates - leastCount(level));
 
 /**
  * This function gives the knee of a law along one variable, with an interval. It also gives the
@@ -462,8 +505,10 @@ const floorTest = (floor: Floor, share: number): TestOf => {
  * The search tests a grid of loads, then a bisection finds each crossing. A crossing between two
  * loads of the grid is found. Two edges in one step of the grid can hide the first edge.
  *
- * The rule `floor` takes the floor of the law with its constants. Each replicate uses that floor,
- * thus a replicate with a low or negative value does not stop the search.
+ * The rule `floor` gives each row its own floor. Thus the knee of a row is always after its floor,
+ * and the uncertainty of the floor is in the interval. A replicate with no floor above 0 has no knee:
+ * the field `noFloor` counts these replicates, and the interval leaves them out. When they are more
+ * than one tail of the level, the function gives a problem.
  *
  * The function gives a problem for a variable or a point that the law cannot read. A bad search
  * range, rule or count of steps, and a level that the law cannot show, also give a problem. The last
@@ -478,12 +523,18 @@ export const lawKnee = (law: Law, variable: string, rule: KneeRule, options: Kne
     if (least.tag === "err") return least;
     floor = least.value;
   }
-  const testOf = rule.kind === "floor" ? floorTest(floor as Floor, rule.share) : ruleTest(rule);
-  const found = along(law, setup.value, testOf);
+  const found = along(law, setup.value, rule.kind === "floor" ? floorTest(rule.share) : ruleTest(rule));
   if (found.tag === "err") return found;
   const { target, level, search, outside } = setup.value;
   const knee: Knee = { variable, unit: target.unit, rule, level, search, knee: found.value.crossing, edge: found.value.edge, outside };
-  return ok(floor === undefined ? knee : { ...knee, floor });
+  if (floor === undefined) return ok(knee);
+  const { skipped } = found.value;
+  const most = mostSkipped(law.replicates.length, level);
+  if (skipped > most) {
+    const message = `The rule "floor" needs a floor above 0. ${skipped} of ${law.replicates.length} replicates have a floor of 0 or less. The interval of the level ${level} can leave out at most ${most}.`;
+    return err(problem("knee", "replicates", message));
+  }
+  return ok({ ...knee, floor, noFloor: skipped });
 };
 
 /**

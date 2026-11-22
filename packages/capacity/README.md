@@ -118,9 +118,13 @@ A rule tells when the cost grows fast. The law obeys the rule at the knee, and n
 | --- | --- |
 | `{ kind: "rise", share }` | The first load where the value is `1 + share` times the value at the start of the search. |
 | `{ kind: "slope", factor }` | The first load where the slope is `factor` times the slope at the start of the search. |
-| `{ kind: "floor", share }` | The first load after the floor where the value is `1 + share` times the floor. The floor is the least value of the law with its constants on the grid, before the edge. |
+| `{ kind: "floor", share }` | The first load after the floor where the value is `1 + share` times the floor. The floor of a row is its least value on the grid, before its edge. |
 
-The rule `floor` is for a law that falls before it grows, for example a latency with a cold start at a low rate. The knee has the field `floor`: the `load` and the `value` of the floor. Each replicate uses the floor of the constants, thus a replicate with a value below 0 at the start does not stop the search.
+The rule `floor` is for a law that falls before it grows, for example a latency with a cold start at a low rate. The knee has the field `floor`: the `load` and the `value` of the floor of the constants.
+
+- **Each row has its own floor.** Thus the knee of a replicate is always after its floor, and the interval holds the uncertainty of the floor.
+- **A replicate with no floor above 0** has no knee. The field `noFloor` counts these replicates, and the interval leaves them out.
+- **Too many replicates with no floor** give a problem. The interval can leave out the replicates of one tail of the level, for example 25 of 1000 at the level 0.95.
 
 The search goes along the range of the variable. The options `from` and `to` change it, and the point `at` gives each other variable. The search tests a grid of `KNEE_STEPS` steps on the scale of the variable, then a bisection finds each crossing. The option `steps` changes the count.
 
