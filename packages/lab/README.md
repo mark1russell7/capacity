@@ -172,7 +172,7 @@ The plan runs each night, not on each pull request. Its time limit is 54 minutes
 
 ### The request rate
 
-The plan `rate` sends the bare request to the bare subject at 25 rates, from 100 to 36000 requests each second. The subject has one core and 512 MiB. The points of the laws of the request rate come from its records (CAP-20). The law files, with their intervals and the knee, are CAP-53.
+The plan `rate` sends the bare request to the bare subject at 25 rates, from 100 to 36000 requests each second. The subject has one core and 512 MiB. The points of the laws of the request rate come from its records (CAP-20). Its law set tells the laws of its records (refer to [The laws](#the-laws)). The law files, with their intervals and the knee, are CAP-53.
 
 | Part | The value | Why |
 | --- | --- | --- |
@@ -229,12 +229,45 @@ The workflow has three steps:
 | `<case>.result.json` | The raw result of the cell of each case, or of the run of the children of a start case. A later analysis can judge it again. |
 | `timed.json` | The manifest of the run, with the format `capacity-timed/1`. |
 
-The manifest has the plan, the CI run and its `attempt`. It also has the machine of the first record, the times, the files of each case and the verdict. The CI run (`runOf`) has the form of a run of the evidence of a law: its address, its commit and its UTC time. Thus a law file gets its evidence from the manifest (CAP-17).
+The manifest has the plan, the CI run and its `attempt`. It also has the machine of the first record, the times, the files of each case and the verdict. The CI run (`runOf`) has the form of a run of the evidence of a law: its address, its commit and its UTC time. Thus a law file gets its evidence from the manifest (refer to [The laws](#the-laws)).
 
 - **The CPU model** of a run is `machine.cpu` of the manifest and of each record. The summary of the job also tells it.
 - **The commit** of a pull request is the merge commit, because the job measures the code of that commit.
 - **A case that throws** stops the plan with no manifest. The files of the cases before it stay in the artifact.
 - **The command.** `node src/timed.main.ts plan --event <event>` gives the matrix as JSON, with no Docker. `node src/timed.main.ts measure --plan <id> --out <folder> --run <number>` measures a plan. Only CI starts `measure`. The run turns the order of the arms of a start case.
+
+## The laws
+
+A plan with the field `laws` gives laws from its records. The law set tells the class of its cases, the load variable and each measure of a law. The plan `rate` has a law set.
+
+```json
+"laws": {
+  "class": "rate",
+  "variable": { "id": "rate", "unit": "{request}/s", "scale": "log" },
+  "measures": [{ "id": "cpu.request", "title": "The CPU time of one request", "residual": "relative", "forms": ["linear", "hinge"] }]
+}
+```
+
+- **The check of the set.** `lawSetProblems` examines the set with the plan. Each case must be a case of load of the class of the set. The demand of each case must give a point of the variable. Each measure must have a noise floor (`FLOOR_MEASURES`).
+- **One law for each CPU model.** The id of a law is `<subject>/<plan>/<cpu>/<measure>`, for example `node-http/rate/epyc-7763/cpu.request`. `CPU_IDS` gives the id of each CPU model of the runners. A CPU model with no id gives a problem, not a law.
+- **The points.** Each case of each job gives one point: the median of its runs. A law needs 40 points or more (`leastCount` of the level 0.95). Thus a plan of 25 cases needs two jobs or more on each CPU model. Dispatch it with `-f runs='[1,2,3,4,5]'`.
+- **The jobs.** A job with no CI run, with a problem in its verdict, or with records of two CPU models gives no point. The summary tells each skipped job.
+- **The conditions.** The facts that do not change between the points are the conditions of the law (`conditionsOf`). They are the class, the CPU model, the limits, the duration and the arrivals. The connections and the version of the harness are conditions too. A case with other facts gives a problem.
+- **The noise.** Each law gets the floor of its measure from the jobs of the check `floor` on the same CPU model. With no floor on that CPU model, the law gets the largest floor of the jobs.
+- **The fit.** `fitLaw` of `@mark1russell7/capacity` fits each form of the measure. The law keeps each form that lost, with its error, in `fit.losers`. `checkLaw` examines each law before the command writes it.
+
+### The command and the workflow
+
+The fit of the laws of a plan takes minutes, thus only CI starts it. The workflow `laws.yml` downloads the artifacts of each Lab run of its input `runs`, and fits the laws of each plan with a law set.
+
+```sh
+gh workflow run laws.yml -R mark1russell7/capacity -f runs='<run of the plan rate> <run of the plan floor>'
+```
+
+- `node src/laws.main.ts fit --records <folder> --out <folder>` reads each manifest `timed.json` in the folder and in its subfolders.
+- It writes each law into `<out>/<id>.law.json`, then it reads the file again with `readLaw`.
+- A problem, or no law, gives the exit code 1. The summary of the job tells each law, each problem and each skipped job.
+- The workflow uploads the files as the artifact `laws-<run>`. A pull request puts them into the repository.
 
 ## The start cases
 

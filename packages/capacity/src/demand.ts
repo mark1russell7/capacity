@@ -13,7 +13,7 @@ import {
   whyNotConvertible,
   type Quantity,
 } from "@mark1russell7/quantity";
-import type { Law } from "./law.ts";
+import type { Law, Variable } from "./law.ts";
 import { finite } from "./names.ts";
 import type { LoadPoint } from "./value.ts";
 import { demandProblems, workloadProblem } from "./workload-check.ts";
@@ -211,8 +211,16 @@ export interface PointOptions {
   readonly load?: Load;
 }
 
+/**
+ * A point law is the part of a law that a load point reads: its id, and the id and the unit of each
+ * variable. Thus a caller can get the points of a law before the fit of the law.
+ */
+export interface PointLaw extends Pick<Law, "id"> {
+  readonly variables: readonly Pick<Variable, "id" | "unit">[];
+}
+
 /** This function gives the point of a law from a rate, the variables of one request, the levels of a demand and `given`. */
-const pointOf = (demand: Demand, law: Law, rate: Quantity | "total", request: Amounts, given: Amounts): Result<LoadPoint, WorkloadProblem> => {
+const pointOf = (demand: Demand, law: PointLaw, rate: Quantity | "total", request: Amounts, given: Amounts): Result<LoadPoint, WorkloadProblem> => {
   const point: Record<string, number> = {};
   for (const variable of law.variables) {
     const name = variable.id;
@@ -267,7 +275,7 @@ const pointOf = (demand: Demand, law: Law, rate: Quantity | "total", request: Am
 export const loadPointOf = (
   demand: Demand,
   id: string,
-  law: Law,
+  law: PointLaw,
   given: Amounts = {},
   options: PointOptions = {},
 ): Result<LoadPoint, WorkloadProblem> => {
@@ -285,7 +293,7 @@ export const loadPointOf = (
  *
  * It gives the problems of `loadPointOf`, with no problem of a class.
  */
-export const instancePointOf = (demand: Demand, law: Law, given: Amounts = {}): Result<LoadPoint, WorkloadProblem> => {
+export const instancePointOf = (demand: Demand, law: PointLaw, given: Amounts = {}): Result<LoadPoint, WorkloadProblem> => {
   const bad = firstProblem(demand);
   if (bad !== undefined) return err(bad);
   return pointOf(demand, law, "total", {}, given);

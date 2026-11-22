@@ -65,6 +65,24 @@ export { FLOOR_K, FLOOR_LIMITS, FLOOR_MEASURES, FLOOR_PAIRS, floorCheck, floorPa
 export { RATE_LAG_LIMIT, RATE_MEASURES, coresOf, rateCheck, type RateMeasure } from "./rate.ts";
 export { LAG_LIMIT, caseValue, countProblems, lagProblems, worstLag } from "./reads.ts";
 export {
+  CPU_IDS,
+  RECORD_CONDITIONS,
+  conditionsOf,
+  lawSetProblems,
+  lawsOf,
+  lawsSummaryOf,
+  type FittedLaw,
+  type LawJob,
+  type LawMeasure,
+  type Laws,
+  type LawSet,
+  type LawSetProblem,
+  type LawsOptions,
+  type LawsProblem,
+  type LawsProblemCode,
+  type LawVariable,
+} from "./laws.ts";
+export {
   MAX_JOB_MINUTES,
   MAX_JOBS,
   PLAN_FORMAT,

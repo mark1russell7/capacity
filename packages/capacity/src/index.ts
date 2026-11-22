@@ -31,7 +31,7 @@ export type {
   Variable,
 } from "./law.ts";
 export { DEFAULT_LEVEL, LAW_FORMAT, MAX_VARIABLES, leastCount } from "./law.ts";
-export { SLUG } from "./names.ts";
+export { NAME, SLUG } from "./names.ts";
 export { checkLaw } from "./check.ts";
 export type { Binding, Bounds, CatalogForm, Grid, Points, Shape, Start, Term } from "./forms.ts";
 export {
@@ -67,7 +67,7 @@ export type {
 } from "./workload.ts";
 export { NO_DEMAND, RATE, WORKLOAD_FORMAT } from "./workload.ts";
 export { checkWorkload, demandProblems } from "./workload-check.ts";
-export type { Load, PointOptions, ShareOptions } from "./demand.ts";
+export type { Load, PointLaw, PointOptions, ShareOptions } from "./demand.ts";
 export { instancePointOf, loadPointOf, mergeDemands, scaleDemand, shareOf, totalRate } from "./demand.ts";
 export type {
   Catalog,

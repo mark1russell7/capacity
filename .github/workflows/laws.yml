@@ -1,0 +1,73 @@
+# The fit of the laws, on a GitHub runner. The fit of the laws of a plan takes minutes, thus only CI starts it.
+#
+# A person starts it with the ids of Lab runs (lab.yml). The job downloads the artifacts lab-* of each run: the records,
+# the raw results and the manifest timed.json of each job. The command laws.main.ts fits the laws of each plan with a law
+# set. The jobs of the check floor give the noise of each law. The job uploads the law files as the artifact laws-<run>.
+# Then a person puts the files in a pull request. For example:
+#     gh workflow run laws.yml -R mark1russell7/capacity -f runs='<lab run> <lab run of the plan floor>'
+#     gh run download <laws run> -R mark1russell7/capacity -n laws-<laws run> -D packages/capacity/laws
+name: Laws
+
+on:
+  workflow_dispatch:
+    inputs:
+      runs:
+        description: The ids of the Lab runs, separated by spaces. Their records give the laws and the noise floors.
+        type: string
+        required: true
+      bootstrap:
+        description: The count of the bootstrap runs of each fit.
+        type: string
+        default: "1000"
+
+permissions:
+  contents: read
+
+jobs:
+  laws:
+    runs-on: ubuntu-latest
+    # the fits of the laws of a plan on two or three CPU models, each with its bootstrap runs
+    timeout-minutes: 120
+    permissions:
+      contents: read
+      # gh run download reads the artifacts of the Lab runs
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # The pnpm version comes from "packageManager" in package.json
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 26
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # Each artifact goes into its own folder: records/<run>/<artifact>/timed.json
+      - name: The records of the Lab runs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUNS: ${{ inputs.runs }}
+          RECORDS: ${{ runner.temp }}/records
+        run: |
+          for run in $RUNS; do
+            if [[ ! "$run" =~ ^[0-9]+$ ]]; then
+              echo "The run id \"$run\" is not a number." >&2
+              exit 1
+            fi
+            gh run download "$run" -R "$GITHUB_REPOSITORY" -p 'lab-*' -D "$RECORDS/$run"
+          done
+      # A law that the records do not give, or no law, fails the step. The summary tells each problem.
+      - name: The fit of the laws
+        env:
+          RECORDS: ${{ runner.temp }}/records
+          OUT: ${{ runner.temp }}/laws
+          BOOTSTRAP: ${{ inputs.bootstrap }}
+        run: node packages/lab/src/laws.main.ts fit --records "$RECORDS" --out "$OUT" --runs "$BOOTSTRAP"
+      - name: The law files
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: laws-${{ github.run_id }}
+          path: ${{ runner.temp }}/laws
+          if-no-files-found: warn

@@ -4,6 +4,18 @@
   "title": "The laws of the request rate: the bare request from 100 to 36000 requests each second on one core",
   "check": "rate",
   "triggers": [],
+  "laws": {
+    "class": "rate",
+    "variable": { "id": "rate", "unit": "{request}/s", "scale": "log" },
+    "measures": [
+      { "id": "cpu.request", "title": "The CPU time of one request", "residual": "relative", "forms": ["constant", "linear", "power", "logarithm", "hinge", "queue"] },
+      { "id": "memory", "title": "The memory of the subject at the end of a run", "residual": "relative", "forms": ["constant", "linear", "power", "logarithm", "hinge", "queue"] },
+      { "id": "memory.high", "title": "The highest memory of the subject in a run", "residual": "relative", "forms": ["constant", "linear", "power", "logarithm", "hinge", "queue"] },
+      { "id": "latency.p50", "title": "The median latency of a request", "residual": "relative", "forms": ["constant", "linear", "power", "logarithm", "hinge", "queue"] },
+      { "id": "latency.p90", "title": "The 90th percentile of the latency of a request", "residual": "relative", "forms": ["constant", "linear", "power", "logarithm", "hinge", "queue"] },
+      { "id": "latency.p99", "title": "The 99th percentile of the latency of a request", "residual": "relative", "forms": ["constant", "linear", "power", "logarithm", "hinge", "queue"] }
+    ]
+  },
   "cases": [
     {
       "format": "capacity-case/1",
