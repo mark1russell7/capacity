@@ -209,6 +209,30 @@ The Lab run 44964347304 gives the use of the CPUs at each rate. Four of its five
 - **The work outside the subject.** Approximately a third of CPU 0 is work outside the control group of the subject (`cpuset.busy` less `cores`). Its softirq is approximately 0.1 cores.
 - **The driver is not the limit.** Its CPUs are 2.37 busy of 3 at 36000. Its user time stays at approximately 1.6 cores from 20000 requests each second. Thus its CPU time for each request falls under load.
 
+### The overhead of the runner
+
+The plan `overhead` measures the cost of the service runner (CAP-29). Each pair of the plan sends one load to the bare subject and to the service subject, on one runner. Thus the difference of a pair is the cost of the runner at that load. Refer to [The service subject](#the-service-subject).
+
+| Part | The value | Why |
+| --- | --- | --- |
+| The pairs | 8 rates: 100, 500, 1000, 2000, 3000, 4000, 6000 and 8000 requests each second | The rates stay below the knee of the bare subject, at approximately 12000 requests each second. A law needs 40 points from 5 jobs, thus 8 points in each job. |
+| The order | The two cases of a pair are next to each other. The bare case is first in the pairs 100, 1000, 3000 and 6000. The service case is first in the other pairs. | A drift of the runner in a job adds to the case that comes later. The alternate order puts the drift on the two sides equally. |
+| The load | The load of the plan `rate`: the bare request, Poisson arrivals with the seed `rate`, a pool of 64 connections, 1 s, 3 runs after one warm-up run, one core and 512 MiB | The bare side has the cases of the plan `rate`. Thus the two plans give comparable points. |
+
+The check `overhead` (`overheadCheck`) gives each value and each problem of the check `rate`. It also gives these values:
+
+| Value | What it is |
+| --- | --- |
+| `<pair>.<measure>` | The overhead at the load of the pair: the value of the case `<pair>/service` less the value of the case `<pair>/bare`. |
+| `<measure>.overhead` | The median of the overheads of the pairs. |
+
+- The measures are the measures of `OVERHEAD_MEASURES`: `cpu.request`, `memory`, `memory.high`, `network.rx.request`, `network.tx.request`, `latency.p50`, `latency.p90` and `latency.p99`.
+- A pair has the cases `<pair>/bare` and `<pair>/service`, with the subjects of `OVERHEAD_SIDES` and one load. A case with no partner, another subject or another load is a problem.
+- The reply of the service subject has one more header, `content-type`. Thus `network.tx.request` has an overhead of approximately the size of that header.
+- The subjects have no measure of their event-loop lag. The latency overhead includes the lag that the runner adds.
+- The values of one job are not a law. The law of the overhead, with an interval over 5 jobs or more, is the next part of CAP-29.
+- The plan has no trigger: a person starts it. Its time limit is 55 minutes.
+
 ## The timed runs
 
 A timed run is one job of the workflow `lab.yml`: it measures one plan on one runner of GitHub. Only CI starts a timed run, because the lab needs Docker and a machine with no other load.
@@ -626,3 +650,26 @@ The program writes JSON lines on its standard output. Each line has `ev` and `t`
 ### What the subject does not have
 
 The subject has no instrument. The CPU time, the memory and the network bytes of a run come from the container (CAP-11). The event-loop lag and the readings of the heap come later from their homes, as a preload of Node (CAP-12 and CAP-13). Thus each subject of each layer has the same instruments, and the subject stays bare.
+
+## The service subject
+
+The subject `node-http-service` (`NODE_HTTP_SERVICE`) is layer 2: the work of the bare subject through the service runner of `@mark1russell7/service` (CAP-29). The two subjects do the same work for each class. Thus the difference of their measures is the cost of the runner.
+
+- **The same work.** The server of `node:http` is a transport of the service (`httpTransport`). Each request of a class goes through `handle`, thus the service admits it, counts it and can cut it. The work is `perform`, as in the bare subject.
+- **The same reply.** The reply has the bytes of the reply of the bare subject. The service adds one header: `content-type: application/octet-stream`. That header is a cost of the runner, thus the network bytes show it.
+- **A pod.** The declaration is a pod at the defaults of Kubernetes, with no dependency and no check. Its probes answer on the same port, after `/health`. A check and its loop are a cost of their own (CAP-30).
+- **The same program.** The program `node-http-service.main.ts` has the flags and the lines of the bare subject. The line `listening` comes at the end of the startup of the service, and it also gives `state`.
+- **The signals.** The service owns SIGTERM and SIGINT. The program writes `stopping`, and the service drains and closes in the phases of its declaration.
+- **Other answers.** A path that is not a class gets 404, and a body of a different size gets 500. The driver counts each as a failure, as it does for the 400 of the bare subject.
+
+### The packages
+
+The service subject starts as an app of this repository starts. Node starts its own files from TypeScript, and its packages are JavaScript in `node_modules`.
+
+- The stock image of Node has no packages. Thus `esbuild` bundles each export of `packages` with the packages that it imports (`packageFiles`). The modules go into `node_modules`, with a `package.json` for each package.
+- The two subjects start their own files through the TypeScript loader of Node. Thus the cost of the loader is the same on the two sides of a pair, and the difference is the cost of the runner.
+- The modules keep each module of the imports (`treeShaking: false`), as Node loads an installed package. Thus the code in memory is the code of the program and its packages.
+- The version of each package comes from the lockfile of this repository. Thus a change of the runner is a change of the lockfile, and the lab runs again.
+- The lab makes the modules one time in a process, in approximately 0.1 to 0.3 s.
+
+The first run of the plan `overhead` started the service subject as one bundle. That bundle started with no TypeScript loader. Thus the bare side had approximately 7 MiB more memory at 100 requests each second. The loader of Node holds approximately 3.5 MiB of heap and 3.6 MiB of external memory.

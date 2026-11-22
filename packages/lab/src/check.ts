@@ -2,6 +2,7 @@ import type { Problem } from "@mark1russell7/capacity";
 import { controlCheck } from "./control.ts";
 import { floorCheck } from "./floor.ts";
 import { gateCheck } from "./gate.ts";
+import { overheadCheck } from "./overhead.ts";
 import { rateCheck } from "./rate.ts";
 import type { CaseRecord } from "./record.ts";
 
@@ -27,7 +28,7 @@ export interface Verdict {
 export type Check = (records: readonly CaseRecord[]) => Pick<Verdict, "values" | "problems">;
 
 /** These checks are the checks that a plan can name, by their names. */
-export const CHECKS: Readonly<Record<string, Check>> = { control: controlCheck, floor: floorCheck, rate: rateCheck, gate: gateCheck };
+export const CHECKS: Readonly<Record<string, Check>> = { control: controlCheck, floor: floorCheck, rate: rateCheck, gate: gateCheck, overhead: overheadCheck };
 
 /**
  * This function gives the problems of a record that each plan refuses:
