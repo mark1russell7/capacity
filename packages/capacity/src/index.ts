@@ -7,6 +7,9 @@
  * cost starts to grow fast. Its edge is the first load with no value. The gate of some laws tells if new
  * measured values stay in the run ranges of their laws.
  *
+ * The contract of an app gives its load variables, its classes of requests, its start with fakes of its
+ * outside services, and its live metrics. Each app gives the same contract.
+ *
  * An instance type gives the resources of one copy of a service. A limit is a ceiling on one
  * measure, with headroom. The package gives the share of each limit that a value takes.
  *
@@ -70,6 +73,30 @@ export type {
 } from "./workload.ts";
 export { NO_DEMAND, RATE, WORKLOAD_FORMAT } from "./workload.ts";
 export { checkWorkload, demandProblems } from "./workload-check.ts";
+export type {
+  AppClass,
+  AppCommand,
+  AppContract,
+  AppEntry,
+  AppProblem,
+  AppProblemCode,
+  AppProcess,
+  AppRange,
+  AppReady,
+  AppSeries,
+  AppService,
+  AppStart,
+  AppVariable,
+  HttpEntry,
+  MetricsGap,
+  SeriesTarget,
+  ServiceEntry,
+  VariableKind,
+} from "./app.ts";
+export { APP_FILE, APP_FORMAT } from "./app.ts";
+export { appWorkloadProblems, checkApp, fillPlaceholders, metricsGaps, placeholdersOf, requestPath } from "./app-check.ts";
+export type { MetricsWindow, SeriesReading } from "./app-metrics.ts";
+export { counterIncrease, observationOf } from "./app-metrics.ts";
 export type { Load, PointLaw, PointOptions, ShareOptions } from "./demand.ts";
 export { instancePointOf, loadPointOf, mergeDemands, scaleDemand, shareOf, totalRate } from "./demand.ts";
 export type {

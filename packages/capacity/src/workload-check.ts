@@ -27,8 +27,8 @@ const amountProblems = (amounts: Amounts, path: string, owner: string): readonly
  * This function examines a demand and gives each problem that it finds. A demand with no problem
  * gives an empty list.
  *
- * It examines the id and the rate of each class, and the name and the amount of each variable and
- * each level. It examines that a variable has one kind of unit in each class, and that no name is
+ * It examines the id, the class of the app and the rate of each class. It examines the name and the amount of
+ * each variable and each level. It examines that a variable has one kind of unit in each class, and that no name is
  * a level and a variable.
  */
 export const demandProblems = (demand: Demand): readonly WorkloadProblem[] => {
@@ -44,6 +44,9 @@ export const demandProblems = (demand: Demand): readonly WorkloadProblem[] => {
     ids.add(entry.id);
     if (!SLUG.test(entry.id)) {
       problems.push(workloadProblem("id", `${path}.id`, `The id "${entry.id}" is not lower-case words joined by ".", "-" or "/".`));
+    }
+    if (entry.of !== undefined && !SLUG.test(entry.of)) {
+      problems.push(workloadProblem("class", `${path}.of`, `The class "${entry.of}" of the app is not lower-case words joined by ".", "-" or "/".`));
     }
     if (!isQuantity(entry.rate)) {
       problems.push(workloadProblem("rate", `${path}.rate`, `The rate of the class "${entry.id}" is not a finite amount in a canonical unit.`));

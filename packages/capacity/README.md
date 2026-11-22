@@ -2,14 +2,14 @@
 
 This package has the performance and capacity models. A law gives one measure of a subject as a function of its load variables, with an interval. A workload gives the load. An instance type gives the resources of one instance, and a limit set gives the ceilings.
 
-**State: CAP-1, CAP-2, CAP-3, CAP-5 and CAP-7 of the [roadmap](../../docs/ROADMAP.md).** The knee and the scale rule come next. The package stays private until its first npm release (CAP-8).
+**State: the [roadmap](../../docs/ROADMAP.md) tells the state of each item.** The package stays private until its first npm release (CAP-8).
 
 ## Entries
 
 | Entry | What it has |
 | --- | --- |
-| `@mark1russell7/capacity` | The records of a law, a workload, a composition, an instance type and a limit set, with their checks. It also has the value of a law and of a composition, the catalog of forms, the fit of a law, the algebra of demands and the use of a limit. A browser can import it. |
-| `@mark1russell7/capacity/schema` | The schema of each file, with `readLaw`, `readWorkload`, `readComposition`, `readInstance` and `readLimits`. This entry needs `zod`. |
+| `@mark1russell7/capacity` | The records of a law, a workload, a composition, an instance type, a limit set and the contract of an app, with their checks. It also has the value of a law and of a composition, the catalog of forms, the fit of a law, the algebra of demands and the use of a limit. A browser can import it. |
+| `@mark1russell7/capacity/schema` | The schema of each file, with `readLaw`, `readWorkload`, `readComposition`, `readInstance`, `readLimits` and `readApp`. This entry needs `zod`. |
 
 The package holds the models and the rules. It measures nothing, and it reads no file.
 
@@ -463,6 +463,65 @@ The rate of a class is its count, divided by the seconds of the window. Thus it 
 
 A workload with no class is correct: an app can have no request.
 
+## The contract of an app
+
+The contract of an app is one record that each app gives to the lab and to the models. The bare subjects of the lab give the same record. The file `capacity-app.json` (`APP_FILE`) at the root of the repository of an app holds its contract, in the format `capacity-app/1`. A repository with more than one subject keeps each contract next to its subject.
+
+| Part | What it tells |
+| --- | --- |
+| `variables` | Each load variable: its kind, its unit and its range. A `request` variable comes with each request, a `level` stays in the app, and a `store` is in the store at the start. |
+| `classes` | Each kind of request: the range of its rate, its request variables and its entry. The entry is a request of HTTP with a path template, or an outside service. |
+| `start` | The commands `install`, `check` and `seed`, and the process `run` with its ready signal. A command is a program and its arguments, with no shell. |
+| `services` | Each outside service that the app calls, and the fake that the lab starts in its place. |
+| `metrics` | Each live series of the app: a counter or a gauge, its unit and what it measures. |
+
+The lab puts a value into each placeholder of a command before the start: `{port}`, `{store}`, `{workload}`, `{service.<id>}` and `{variable.<id>}`. `fillPlaceholders(text, values)` does this, and `requestPath(entry, amounts)` gives the path of a request of HTTP.
+
+### The check of a contract
+
+`checkApp(app)` gives each problem of a contract, with a code and the path of the field. `readApp(data)` examines the shape of the data first, then it uses `checkApp`.
+
+- Each id is unique in its list. The name `rate` is only the rate of a class.
+- Each unit is a canonical unit. Each range goes from a finite amount to the same or a larger amount. A range on the scale `log` starts above 0.
+- The rate of a class is a count in a unit of time.
+- A request of HTTP sets each request variable of its class, in its path or in its body. The body is in bytes.
+- Each command has a program and a folder in the repository. It holds only the placeholders of its place.
+- The run gets its port, the store and the URL of each service. The seed gets the store and sets each store variable. Each fake gets its port.
+- Each series has the kind and the unit of what it measures. Two series do not measure the same thing.
+
+### The live metrics of an app
+
+`metricsGaps(app)` gives each part of the demand that the live metrics of the app cannot give. A gap is the rate of a class, the total of a request variable, or a level. A contract with no gap gives its whole demand from its metrics.
+
+`observationOf(app, window, readings)` gives the observation of a window from the readings of the series. Then `observedWorkload` gives the workload of the window.
+
+```ts
+import { observationOf, observedWorkload } from "@mark1russell7/capacity";
+import { readApp } from "@mark1russell7/capacity/schema";
+
+const app = readApp(contractData); // the data of capacity-app.json
+if (app.tag === "ok") {
+  const window = { origin: "https://metrics.example/shop", from: "2026-11-22T14:00:00Z", to: "2026-11-22T14:01:00Z" };
+  const observation = observationOf(app.value, window, [
+    { series: "shop_read_total", at: "2026-11-22T14:00:00Z", value: 0 },
+    { series: "shop_read_total", at: "2026-11-22T14:01:00Z", value: 54000 },
+    // and the readings of the other series of the contract
+  ]);
+  // observation.value.classes[0].count: { value: 54000, unit: "{request}" }
+  // observedWorkload(observation.value, name).value.classes[0].rate: { value: 900, unit: "{request}/s" }
+}
+```
+
+- The count of a class is the increase of its counter (`counterIncrease`). A value below the value before it is a new start of the process, thus the increase adds the whole value.
+- The mean of a request variable is the increase of its total, divided by the count of its class.
+- A level is the mean of the readings of its gauge, with the same weight for each reading. Item CAP-63 adds a weight for the time of each reading.
+
+### A workload against its app
+
+`appWorkloadProblems(app, workload)` examines a workload against the contract of its app. Each class of the workload is a class of the app: the class that its field `of` names, or else its id. Thus a workload can have two classes of one class of the app, for example small reads and large reads.
+
+The rates, the amounts and the levels of the workload are in the ranges of the app. Each class of the workload gives each request variable of its class of the app.
+
 ## The composition of laws
 
 A composition gives one measure of a subject as a sum of laws over a demand. Layer 1 is the CPU of a bare Node server. Layer 2 is layer 1 plus the cost of the service runner.
@@ -708,7 +767,7 @@ Tests hold the scale rule and the reach against each other on generated demands:
 | Part | Home |
 | --- | --- |
 | Units and amounts | `@mark1russell7/quantity` |
-| Quantiles, least squares, the fit of a separable model with its bootstrap and held-out ranks, and the tests of the gate (`binomialTest`, `holm`, `partialConjunction`) | `@mark1russell7/rigor-statistics` |
+| Means, quantiles, least squares, the fit of a separable model with its bootstrap and held-out ranks, and the tests of the gate (`binomialTest`, `holm`, `partialConjunction`) | `@mark1russell7/rigor-statistics` |
 | The outcomes of a gate: pass, block and no read (`gateOf`) | `@mark1russell7/rigor-bench` |
 | Programs and their evaluation | `@mark1russell7/vex` and `@mark1russell7/vex-domains` |
 | A value or an error | `@mark1russell7/optional` |

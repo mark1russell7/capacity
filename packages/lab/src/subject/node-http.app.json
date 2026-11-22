@@ -1,0 +1,96 @@
+{
+  "format": "capacity-app/1",
+  "id": "node-http",
+  "title": "The bare subject: a server of node:http at the defaults of Node",
+  "repository": "https://github.com/mark1russell7/capacity.git",
+  "variables": [
+    {
+      "id": "body",
+      "title": "The bytes of the body of the request",
+      "kind": "request",
+      "unit": "B",
+      "min": 0,
+      "max": 16777216,
+      "scale": "linear"
+    },
+    {
+      "id": "alloc",
+      "title": "The bytes that the request allocates and then drops",
+      "kind": "request",
+      "unit": "B",
+      "min": 0,
+      "max": 268435456,
+      "scale": "linear"
+    },
+    {
+      "id": "work",
+      "title": "The CPU time of the request on the main thread",
+      "kind": "request",
+      "unit": "us",
+      "min": 0,
+      "max": 10000000,
+      "scale": "linear"
+    },
+    {
+      "id": "wait",
+      "title": "The wait of the request with no CPU time",
+      "kind": "request",
+      "unit": "ms",
+      "min": 0,
+      "max": 600000,
+      "scale": "linear"
+    },
+    {
+      "id": "reply",
+      "title": "The bytes of the body of the reply",
+      "kind": "request",
+      "unit": "B",
+      "min": 0,
+      "max": 16777216,
+      "scale": "linear"
+    }
+  ],
+  "classes": [
+    {
+      "id": "request",
+      "title": "A request of a request class",
+      "rate": {
+        "unit": "{request}/s",
+        "min": 0,
+        "max": 36000,
+        "scale": "linear"
+      },
+      "request": [
+        "body",
+        "alloc",
+        "work",
+        "wait",
+        "reply"
+      ],
+      "entry": {
+        "kind": "http",
+        "method": "POST",
+        "path": "/?body={body}&alloc={alloc}&work={work}&wait={wait}&reply={reply}",
+        "body": "body"
+      }
+    }
+  ],
+  "start": {
+    "run": {
+      "argv": [
+        "node",
+        "node-http.main.ts",
+        "--port",
+        "{port}"
+      ],
+      "cwd": "packages/lab/src/subject",
+      "env": {},
+      "ready": {
+        "kind": "line",
+        "text": "\"ev\":\"listening\""
+      }
+    }
+  },
+  "services": [],
+  "metrics": []
+}
