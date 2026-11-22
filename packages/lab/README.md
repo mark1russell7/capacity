@@ -401,6 +401,8 @@ A start case can also model the disk, the page cache and the other processes of 
 | `watchHeapPeak`, `watchLive`, `watchGc` | The heap peaks and the GC time of the watch, from the GC profiler. |
 | `passes` | The count of passes in the watch. |
 | `limit` | The heap size limit of V8 in the child. |
+| `writes`, `writeLongest` | The count of the writes of the snapshot, and the longest block of the event loop in one write. |
+| `writeStore`, `writeRows`, `writeWall`, `writeCpu` | The longest time of one write: the store, the build of the rows, the wall time and the CPU time. |
 
 - **A start that does not fit.** A child that passes a limit of the target is a failure of its arm on its point, with a kind. The kind `time` is the time limit of the child. The kind `memory` is the memory limit of the container. The kind `heap` is the heap limit of V8. A failure has no reading, and the other arms still start.
 - **The ready windows.** `windowReads` gives the read of each child in each window. A child with a reading is `ready` when its readiness and one probe interval are in the window. Else it is `late`.
@@ -414,10 +416,11 @@ The container does not model all of the target machine:
 
 - With no machine model, it does not have the other load of the target. That load is its other processes, the traffic of its swap and its waits on the disk.
 - A limit of the disk models the rate and the count of the reads. It does not model the delay of each read.
+- A read of SQLite with `pread` gives no major fault. Thus the count of major faults is not the count of the reads on the disk.
 - The CPUs of the host of the lab are not the CPUs of the target. Thus a time of the lab is a time on the CPU of the record.
 - The page cache of the store counts in the memory of the container. The kernel takes back clean cache first.
 
-Five plans measure the start of alerts. Each one has no check and no trigger. The arm `cloud` is the build of the cloud machine with the graft of the measured start. In the first three plans, the arm `new` is the current build.
+Seven plans measure the start of alerts. Each one has no check and no trigger. The arm `cloud` is the build of the cloud machine with the graft of the measured start. In the first three plans, the arm `new` is the current build.
 
 - `alerts-start` measures logs from 16 MiB to 512 MiB, and the log of the cloud machine, with the shapes and the transit copy of the cloud machine. It reads the windows of 90 s, of 308.012 s and of 600 s.
 - `alerts-start-files` measures a log of 64 MiB with 3 sizes of the shapes file and 3 sizes of the transit copy. Its second case is the knee of the cloud log:
@@ -430,6 +433,11 @@ Five plans measure the start of alerts. Each one has no check and no trigger. Th
   - The arms are the cloud build, the build of the start snapshot, and the current build without and with the snapshot.
   - The point `file-1844-again` is a second start after `file-1844`.
   - The observations of the knee are in the two plans. When the lab agrees with them, the other arms tell the time on the machine.
+  - The cap of the operations comes from the major faults, thus it binds first. The disk of the lab is 4 to 5 times slower than the machine.
+- `alerts-start-bytes-mean` and `alerts-start-bytes-peak` measure the knee on the same model, with a cap of the operations at the byte rate divided by 4 KiB.
+  - Thus the byte rate binds, and not the count of the operations.
+  - A live start of the cloud machine read at 3.2 MiB/s or more. Its disk gives a mean of 11.2 KiB and 15.9 ms for each read. The lab does not model that delay.
+  - The arms are the cloud build and the current build with the snapshot. The current build also gives the time of each write of the snapshot.
 
 A person starts a plan by hand, for example with 5 runs:
 
@@ -437,7 +445,7 @@ A person starts a plan by hand, for example with 5 runs:
 gh workflow run lab.yml -R mark1russell7/capacity --ref <branch> -f plans=alerts-start -f runs='[1,2,3,4,5]'
 ```
 
-The programs of alerts are in `src/subject`. `alerts-seed.main.ts` writes a store with `seedStore` of the testkit of the tree. The seed writes the events at the rate of a live log, thus a larger log has more days of events. `alerts-start.main.ts` opens the store with `openMeasuredRuntime` of the runtime of the tree. `alerts-config.json` is the configuration of each store: one place, one person and one channel, with made-up codes.
+The programs of alerts are in `src/subject`. `alerts-seed.main.ts` writes a store with `seedStore` of the testkit of the tree. The seed writes the events at the rate of a live log, thus a larger log has more days of events. `alerts-start.main.ts` opens the store with `openMeasuredRuntime` of the runtime of the tree. With the snapshot, it also asks for the time of each write of the snapshot. An older tree ignores that option, and its measures of the writes are `null`. `alerts-config.json` is the configuration of each store: one place, one person and one channel, with made-up codes.
 
 ## The request classes
 

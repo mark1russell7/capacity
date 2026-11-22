@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import type { Plan } from "./plan.ts";
 import {
@@ -69,10 +69,17 @@ const bare = (more: Partial<StartCase> | Record<string, unknown>): StartCase => 
 const paths = (value: StartCase): readonly string[] => startCaseProblems(value).map((each) => `${each.code} ${each.path}`);
 
 describe("startCaseProblems", () => {
-  it("gives no problem for a correct case, and for the cases of the five plans of the start of alerts", () => {
+  it("gives no problem for a correct case, and for each case of each plan of the start of alerts in the folder of the plans", () => {
     expect(startCaseProblems(CASE)).toEqual([]);
-    for (const name of ["alerts-start", "alerts-start-files", "alerts-start-horizon", "alerts-start-disk-mean", "alerts-start-disk-peak"]) {
-      const plan = JSON.parse(readFileSync(new URL(`../plans/${name}.json`, import.meta.url), "utf8")) as Plan;
+    const folder = new URL("../plans/", import.meta.url);
+    const plans = readdirSync(folder)
+      .filter((name) => name.endsWith(".json"))
+      .map((name) => ({ name, plan: JSON.parse(readFileSync(new URL(name, folder), "utf8")) as Plan }));
+    // A plan with a start case has the name of a start plan, and a start plan has start cases only, each with no problem.
+    const starts = plans.filter(({ plan }) => plan.cases.some(isStartCase));
+    expect(starts.map(({ name }) => name)).toEqual(plans.map(({ name }) => name).filter((name) => name.startsWith("alerts-start")));
+    expect(starts.map(({ name }) => name)).toContain("alerts-start-bytes-peak.json");
+    for (const { plan } of starts) {
       expect(plan.cases.filter(isStartCase)).toHaveLength(plan.cases.length);
       expect(plan.cases.filter(isStartCase).flatMap((each) => startCaseProblems(each))).toEqual([]);
     }

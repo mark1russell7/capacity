@@ -20,6 +20,7 @@ import {
   targetCheckOf,
   targetMismatches,
   windowReads,
+  writeMeasures,
   type HostDisk,
   type StartReading,
   type StartRecord,
@@ -83,6 +84,8 @@ const PEAK: Readonly<Record<string, number>> = { base: 200 * MIB, new: 150 * MIB
 const readinessOf = (arm: string, point: string): number => (arm === "base" && point === "large" ? 120_000 : 4000);
 
 /** The samples of a child with the flag --samples: one sample, with a null for each value that the child cannot read. */
+/** This write is the record of one write of the snapshot of a tree with the option timeSnapshot (AL-115). */
+const WRITE = { at: 1, rows: 2000, chars: 31_000_000, rowsMs: 900, writeMs: 1400, cpuMs: 2500, wallMs: 3100, longestMs: 45, chunks: 64 };
 const SAMPLE = { ms: 5000, readBytes: 40 * MIB, writeBytes: MIB, majorFaults: 2000, rss: 100 * MIB, cgroup: { memory: 500 * MIB, swap: null, readBytes: 400 * MIB, writeBytes: null, reads: 1000, writes: null } };
 
 /** This function gives the line of the start program for one child, as the real program prints it. */
@@ -114,6 +117,8 @@ const startLine = (arm: string, point: string, argv: readonly string[] = []): st
     closeMs: 20,
     ballasts,
     samples: argv.includes("--samples") ? [SAMPLE] : [],
+    // A child with the snapshot gives one write. The fake tree of an arm with no snapshot has no record of the writes.
+    ...(argv.includes("--snapshot") ? { writes: [WRITE] } : {}),
     open: ["FSReqCallback"],
     endMs: readiness + 500 + 1500 + 120_000 + 20,
   };
@@ -414,9 +419,9 @@ describe("the machine model of measureStart", () => {
     ]);
     expect(firsts.every(({ options }) => options.disks === undefined)).toBe(true);
     expect(firsts.map(({ call }) => call.timeoutMs)).toEqual([480_000, 480_000]);
-    expect(record.firsts.map((each) => [each.point, each.after, each.arm, each.passes, each.files])).toEqual([
-      ["again", "large", "base", 10, { "first.txt": { value: 4, unit: "B" }, "point.txt": { value: 5, unit: "B" }, "snapshot.bin": { value: 1024, unit: "B" } }],
-      ["again", "large", "new", 10, { "first.txt": { value: 3, unit: "B" }, "point.txt": { value: 5, unit: "B" } }],
+    expect(record.firsts.map((each) => [each.point, each.after, each.arm, each.passes, each.writes?.value ?? null, each.writeLongest?.value ?? null, each.files])).toEqual([
+      ["again", "large", "base", 10, 1, 45, { "first.txt": { value: 4, unit: "B" }, "point.txt": { value: 5, unit: "B" }, "snapshot.bin": { value: 1024, unit: "B" } }],
+      ["again", "large", "new", 10, null, null, { "first.txt": { value: 3, unit: "B" }, "point.txt": { value: 5, unit: "B" } }],
     ]);
 
     // Each child opens its home in place, with the ballasts of the target and of its arm, the snapshot of its arm and the samples.
@@ -447,7 +452,9 @@ describe("the machine model of measureStart", () => {
     expect(summary).toContain("- The other processes of the target: 322 MiB at start.");
     expect(summary).toContain("- The ballasts of the arm `new`: 69 MiB at ready.");
     expect(summary).toContain("- The first start of `base` on `large` for `again`: ");
-    expect(summary).toContain(", 10 passes, 3 files of 1 KiB.");
+    expect(summary).toContain(", 10 passes, 1 write, the longest block 45 ms, 3 files of 1 KiB.");
+    expect(summary).toContain(", 10 passes, no read of the writes, 2 files of ");
+    expect(summary).toMatch(/\| `base` \|[^\n]* \| 10 \| 1 write, the longest block 45 ms \|\n/);
     // A point with the field after has the sizes of its seed point.
     expect(summary).toContain("| `again` | 64 MiB | 2 MiB | 0 B | `new` | 4 s | ready | ready | 5 s | 300 MiB | 4000 | 150 MiB |");
   });
@@ -576,6 +583,24 @@ describe("startMeasures", () => {
     expect(startMeasures(1, { extra: { ballastMs: 300, io: { readBytes: 7, majorFaults: 2 } } })).toMatchObject({ ballast: { value: 300, unit: "ms" }, read: { value: 7, unit: "B" }, faults: { value: 2, unit: "{fault}" } });
     expect(startMeasures(1, { extra: { ready: { peakRss: 80 } } }).peak).toEqual({ value: 80, unit: "B" });
   });
+
+  it("gives the count of the writes of the snapshot and the longest time of each kind, and null for a tree with no record", () => {
+    const writes = [WRITE, { ...WRITE, at: 2, rowsMs: 1200, writeMs: 900, cpuMs: 2000, wallMs: 3500, longestMs: 80 }];
+    expect(writeMeasures({ extra: { writes } })).toEqual({
+      writes: { value: 2, unit: "{write}" },
+      writeLongest: { value: 80, unit: "ms" },
+      writeStore: { value: 1400, unit: "ms" },
+      writeRows: { value: 1200, unit: "ms" },
+      writeWall: { value: 3500, unit: "ms" },
+      writeCpu: { value: 2500, unit: "ms" },
+    });
+    expect(startMeasures(1, { extra: { writes } })).toMatchObject({ writes: { value: 2, unit: "{write}" }, writeLongest: { value: 80, unit: "ms" } });
+    // A start with no write gives a count of 0 and no time.
+    expect(writeMeasures({ extra: { writes: [] } })).toEqual({ writes: { value: 0, unit: "{write}" }, writeLongest: null, writeStore: null, writeRows: null, writeWall: null, writeCpu: null });
+    // A tree before AL-115 gives null for each measure. A field of a wrong type gives no value.
+    for (const extra of [{}, { writes: null }, { writes: { longestMs: 1 } }]) expect(Object.values(writeMeasures({ extra }))).toEqual(Array<null>(6).fill(null));
+    expect(writeMeasures({ extra: { writes: [{ longestMs: "9" }, { longestMs: 3 }] } }).writeLongest).toEqual({ value: 3, unit: "ms" });
+  });
 });
 
 describe("windowReads and observationReads", () => {
@@ -654,9 +679,9 @@ describe("startRecordProblems and startSummaryOf", () => {
     expect(summary).toContain(` of memory\\, 2 GiB of swap\\, Node v24\\.21\\.0. The image: \`${DIGEST}\`.`);
     expect(summary).toContain("- The check child: the heap limit of V8 is 530.5 MiB, and the container starts in 0 ms.");
     expect(summary).toContain(`\`base\` ${A.slice(0, 7)} with 1 graft in `);
-    expect(summary).toContain("| Point | `log` | `shapes` | `transit` | Arm | Readiness | In 1 min 30 s | In 4 min | Ready | Read to ready | Major faults | VmHWM at ready | Heap peak | Live heap | GC | VmHWM of the watch | Passes |");
-    expect(summary).toContain(`|${" --- |".repeat(17)}\n`);
-    expect(summary).toContain("| `small` | 16 MiB | 0 B | 0 B | `new` | 4 s | ready | ready | 5 s | 300 MiB | 4000 | 150 MiB | 120 MiB | 60 MiB | 250 ms | 151 MiB | 10 |");
+    expect(summary).toContain("| Point | `log` | `shapes` | `transit` | Arm | Readiness | In 1 min 30 s | In 4 min | Ready | Read to ready | Major faults | VmHWM at ready | Heap peak | Live heap | GC | VmHWM of the watch | Passes | Writes of the snapshot |");
+    expect(summary).toContain(`\n|${" --- |".repeat(18)}\n`);
+    expect(summary).toContain("| `small` | 16 MiB | 0 B | 0 B | `new` | 4 s | ready | ready | 5 s | 300 MiB | 4000 | 150 MiB | 120 MiB | 60 MiB | 250 ms | 151 MiB | 10 | no read of the writes |");
     expect(summary).not.toContain("- The disk ");
     expect(summary).not.toContain("- The cache is cold");
     expect(summary).toContain("| `large` | 64 MiB | 2 MiB | 0 B | `base` | 2 min | late | ready |");
