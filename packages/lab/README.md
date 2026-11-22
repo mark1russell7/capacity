@@ -357,7 +357,7 @@ The knee of a latency is the rate where the latency leaves its floor. The plan `
 
 ### A known problem
 
-The field `known` of a measure marks a problem that the fit of the measure gives until an item of the roadmap removes it. The plan `rate` gives the median the mark `{ "item": "CAP-57", "code": "flat" }`.
+The field `known` of a measure marks a problem that the fit of the measure gives until an item of the roadmap removes it. The plans `rate` and `overhead` give the median the mark `{ "item": "CAP-57", "code": "flat" }`.
 
 - **The codes.** The code is one of `KNOWN_CODES`, the codes of `checkLaw` that come from the data of a fit. Today the list has only `flat`. Each code of the list refuses the law, thus a measure with a mark has no law file.
 - **A known problem.** The fit puts a problem of the measure with that code into the list `known`, with its item. The summary tells it, and it does not fail the fit.
@@ -716,3 +716,5 @@ The second run (45061643369) started the two sides through the loader. Its 5 job
 - The memory overhead was 1.0 to 1.4 MiB at 100 requests each second, and 7.8 to 15.5 MiB at the other rates.
 - The median CPU overhead was 109 to 174 µs for each request. The bare side used 37 to 418 µs for each request.
 - On 3 of the 5 machines, the median latency overhead stayed below 2.2 ms up to 8000 requests each second. On the 2 slower machines, it was more than 10 ms from 3000 or 4000 requests each second.
+
+The fourth run (45066776472) gave 7 more jobs at the same commit of the subjects. The Laws run 45069050798 fits the laws of the overhead from the runs 2, 3 and 4. Nine of their jobs were on the Intel Xeon 6975P-C. The README of the package `capacity` gives the laws and the compositions of layer 2. On that CPU model, the runner uses approximately 1.5 to 2 times the CPU of the bare server from 1000 requests each second.

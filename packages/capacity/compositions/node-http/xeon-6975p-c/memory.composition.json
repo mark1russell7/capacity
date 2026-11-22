@@ -1,0 +1,16 @@
+{
+  "format": "capacity-composition/1",
+  "id": "node-http/xeon-6975p-c/memory",
+  "title": "The highest memory of a bare Node HTTP server on the Intel Xeon 6975P-C",
+  "subject": "node-http",
+  "measure": {
+    "id": "memory",
+    "unit": "B"
+  },
+  "terms": [
+    {
+      "law": "node-http/rate/xeon-6975p-c/memory.high",
+      "over": "instance"
+    }
+  ]
+}
