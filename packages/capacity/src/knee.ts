@@ -85,8 +85,8 @@ export interface Knee {
   readonly noFloor?: number;
 }
 
-/** A curve gives the value of one row of a law at each load of the variable. A load with no finite value gives undefined. */
-type Curve = (loads: readonly number[]) => readonly (number | undefined)[];
+/** A curve gives the value of one row of a law or of a composition at each load. A load with no finite value gives undefined. */
+export type Curve = (loads: readonly number[]) => readonly (number | undefined)[];
 
 /** This number sets the farthest distance from a peak where the pole test reads the size of the law. It is a share of the width of the bracket. */
 const NEAR = 1e-6;
@@ -201,13 +201,13 @@ const stepAt = (load: number, unit: number): number => STEP * Math.max(Math.abs(
  * A test tells if the law passes a mark at one load. The value at the load is optional: without
  * it, the test reads the curve. A load with no finite value does not pass.
  */
-type Test = (load: number, value?: number) => boolean;
+export type Test = (load: number, value?: number) => boolean;
 
 /**
  * The context of the test of one row: its curve, its start value, its path, its start load and its
  * step unit. It also has the grid, the values of the row on the grid and the edge of the row.
  */
-interface TestContext {
+export interface TestContext {
   readonly curve: Curve;
   readonly start: number;
   readonly path: string;
@@ -222,7 +222,7 @@ interface TestContext {
  * A test maker gives the test of one row, or the problem that stops the test at the start of the
  * search. An undefined test tells that the rule cannot apply to the row. Then the row has no crossing.
  */
-type TestOf = (context: TestContext) => Result<Test | undefined, LawProblem>;
+export type TestOf = (context: TestContext) => Result<Test | undefined, LawProblem>;
 
 /**
  * This function gives the first load before the edge where the test holds. It gives Infinity when
@@ -246,17 +246,24 @@ const firstHolds = (holds: Test, grid: readonly number[], values: readonly (numb
 };
 
 /** The crossing and the edge of one row of a law. An undefined crossing tells that the rule cannot apply to the row. */
-interface RowResult {
+export interface RowResult {
   readonly crossing: number | undefined;
   readonly edge: number;
 }
 
-/** This function gives the first load where one row of a law passes its test, and the edge of the row. */
-const rowOf = (curve: Curve, path: string, testOf: TestOf, grid: readonly number[], unit: number): Result<RowResult, LawProblem> => {
+/** This function gives the first load where one row passes its test, and the edge of the row. The text `what` names the owner of the row in a problem. */
+export const rowOf = (
+  curve: Curve,
+  path: string,
+  testOf: TestOf,
+  grid: readonly number[],
+  unit: number,
+  what = "law",
+): Result<RowResult, LawProblem> => {
   const values = curve(grid);
   const start = values[0];
   const from = grid[0] as number;
-  if (start === undefined) return err(problem("value", path, `The law has no value at the start of the search, ${from}.`));
+  if (start === undefined) return err(problem("value", path, `The ${what} has no value at the start of the search, ${from}.`));
   const edge = edgeOf(curve, grid, values, start);
   const test = testOf({ curve, start, path, from, unit, grid, values, edge });
   if (test.tag === "err") return test;
@@ -293,7 +300,7 @@ const ruleTest =
   };
 
 /** This function gives the test of an amount: the value is above the amount. */
-const amountTest =
+export const amountTest =
   (amount: number): TestOf =>
   ({ curve }) =>
     ok((load, value = valueOf(curve, load)) => value !== undefined && value > amount);
@@ -319,21 +326,28 @@ export const kneeRuleProblem = (rule: unknown, path = "rule"): LawProblem | unde
   return problem("knee", `${path}.kind`, `The kind of the rule is ${JSON.stringify(kind) ?? "undefined"}. It must be one of ${KNEE_KINDS.join(", ")}.`);
 };
 
+/** An open value is a value of a search with the interval of its replicates. A null value or end is past the end of the search. */
+export interface OpenValue {
+  readonly value: number | null;
+  readonly interval: OpenRange;
+}
+
 /**
- * This function gives the crossing of the values of the rows. The first value is the value of the
- * estimate. An infinite value is past the end of the search.
+ * This function gives the open value of the values of the rows. The first value is the value of the
+ * estimate. A value past `end` is past the end of the search, and an infinite value is too.
  */
-const crossingFrom = (values: readonly number[], level: number, range: Range, end: number): Crossing => {
+export const openValueOf = (values: readonly number[], level: number, end: number): OpenValue => {
   // The quantiles interpolate. A large finite number keeps each interpolation finite, and each end past the search becomes null.
   const [value, ...spread] = values.map((entry) => (Number.isFinite(entry) ? entry : Number.MAX_VALUE));
   const interval = intervalOf(value as number, spread, level);
   const open = (entry: number): number | null => (entry > end ? null : entry);
-  const found = open(value as number);
-  return {
-    value: found,
-    interval: { low: open(interval.low), high: open(interval.high) },
-    outside: found !== null && (found < range.low || found > range.high),
-  };
+  return { value: open(value as number), interval: { low: open(interval.low), high: open(interval.high) } };
+};
+
+/** This function gives the crossing of the values of the rows. The flag `outside` tells that the value is outside `range`. */
+const crossingFrom = (values: readonly number[], level: number, range: Range, end: number): Crossing => {
+  const found = openValueOf(values, level, end);
+  return { ...found, outside: found.value !== null && (found.value < range.low || found.value > range.high) };
 };
 
 /**
@@ -360,6 +374,25 @@ interface Along {
   readonly edge: Crossing;
   readonly skipped: number;
 }
+
+/**
+ * This function gives the grid of a search from `from` to `to` in `steps` steps, or its problem. A
+ * grid on the scale `log` starts above 0. The text `owner` names the variable of the search in a problem.
+ */
+export const searchGrid = (from: number, to: number, steps: number, log: boolean, owner: string): Result<readonly number[], LawProblem> => {
+  if (!(Number.isFinite(from) && Number.isFinite(to) && from < to)) {
+    return err(problem("range", "from", `The search goes from ${from} to ${to}. It must go from a finite number to a larger finite number.`));
+  }
+  if (log && !(from > 0)) return err(problem("range", "from", `${owner} has the scale "log", thus the search starts above 0.`));
+  if (!(Number.isInteger(steps) && steps >= 2 && steps <= MAX_STEPS)) {
+    return err(problem("knee", "steps", `The search has ${steps} steps. It must have a whole number of steps from 2 to ${MAX_STEPS}.`));
+  }
+  return ok(
+    Array.from({ length: steps + 1 }, (_, index) =>
+      index === steps ? to : log ? from * (to / from) ** (index / steps) : from + ((to - from) * index) / steps,
+    ),
+  );
+};
 
 /**
  * This function gives the setup of a search along one variable of a law, or its problem. The function
@@ -391,21 +424,9 @@ const searchOf = (law: Law, variable: string, options: KneeOptions, check: () =>
 
   const from = options.from ?? target.min;
   const to = options.to ?? target.max;
-  if (!(Number.isFinite(from) && Number.isFinite(to) && from < to)) {
-    return err(problem("range", "from", `The search goes from ${from} to ${to}. It must go from a finite number to a larger finite number.`));
-  }
   const log = target.scale === "log";
-  if (log && !(from > 0)) {
-    return err(problem("range", "from", `The variable "${variable}" has the scale "log", thus the search starts above 0.`));
-  }
-  const steps = options.steps ?? KNEE_STEPS;
-  if (!(Number.isInteger(steps) && steps >= 2 && steps <= MAX_STEPS)) {
-    return err(problem("knee", "steps", `The search has ${steps} steps. It must have a whole number of steps from 2 to ${MAX_STEPS}.`));
-  }
-
-  const grid = Array.from({ length: steps + 1 }, (_, index) =>
-    index === steps ? to : log ? from * (to / from) ** (index / steps) : from + ((to - from) * index) / steps,
-  );
+  const grid = searchGrid(from, to, options.steps ?? KNEE_STEPS, log, `The variable "${variable}"`);
+  if (grid.tag === "err") return grid;
   const names = law.constants.map((constant) => constant.id);
   const program: Expr = law.form.program;
   const curveOf =
@@ -415,7 +436,7 @@ const searchOf = (law: Law, variable: string, options: KneeOptions, check: () =>
   const outside = law.variables
     .filter((entry) => entry.id !== variable && ((base[entry.id] as number) < entry.min || (base[entry.id] as number) > entry.max))
     .map((entry) => entry.id);
-  return ok({ target, level, search: { low: from, high: to }, grid, unit: log ? 0 : to - from, curveOf, outside });
+  return ok({ target, level, search: { low: from, high: to }, grid: grid.value, unit: log ? 0 : to - from, curveOf, outside });
 };
 
 /** This function searches a law for the first load that passes a test, in the constants and in each replicate. */

@@ -140,7 +140,8 @@ describe("the laws of a composition", () => {
       ],
       cases,
     );
-  });
+    // The test takes about 3 s on a CI runner when nothing else runs. The 21 test files share 4 CPUs, so the limit is 30 s.
+  }, 30_000);
 
   it("gives the sum of its parts, and holds the value in its interval", () => {
     fc.assert(
