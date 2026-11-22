@@ -108,12 +108,9 @@ describe("the plan files of the lab", () => {
     expect(planMinutes(rate!)).toBeLessThanOrEqual(MAX_JOB_MINUTES);
   });
 
-  it("have the three plans of the start of alerts: no check, no trigger, only start cases, in the time of one job", () => {
-    const plans = [
-      ["alerts-start", ["alerts-start/log"], ["cloud", "new"]],
-      ["alerts-start-files", ["alerts-start/files", "alerts-start/knee"], ["cloud", "new"]],
-      ["alerts-start-horizon", ["alerts-start/horizon"], ["cloud", "new", "horizon"]],
-    ] as const;
+  it("have the plan of the start of alerts: no check, no trigger, only start cases, in the time of one job", () => {
+    // CAP-62 retired the plans alerts-start-files, alerts-start-horizon, alerts-start-disk-mean and alerts-start-disk-peak. The README of the lab keeps their results.
+    const plans = [["alerts-start", ["alerts-start/log"], ["cloud", "new"]]] as const;
     for (const [id, cases, arms] of plans) {
       const start = readPlans(PLANS).plans.find((each) => each.id === id);
       expect(start?.check).toBeNull();
@@ -127,45 +124,36 @@ describe("the plan files of the lab", () => {
     }
   });
 
-  it("have the plan of the two starts of alerts: the contract and the start subject on one commit, one seed and the sizes of one store", () => {
+  it("have the plan of the start of alerts from its contract: the arms on the commit of the seeder, the seed of the contract", () => {
+    // The run 45044576905 compared this case with the same start through the start subject of the lab. The two agreed, thus CAP-62 deleted the subject case.
     const plan = readPlans(PLANS).plans.find((each) => each.id === "alerts-start-app");
     expect(plan?.check).toBeNull();
     expect(plan?.triggers).toEqual([]);
-    const [contract, subject, ...more] = (plan?.cases ?? []).filter(isStartCase);
+    const [contract, ...more] = (plan?.cases ?? []).filter(isStartCase);
     expect(more).toEqual([]);
-    expect([contract?.id, contract?.app, subject?.id, subject?.subject]).toEqual(["alerts-start-app/contract", "https://github.com/metrograph-labs/alerts.git", "alerts-start-app/subject", "alerts"]);
+    expect([contract?.id, contract?.app, contract?.subject]).toEqual(["alerts-start-app/contract", "https://github.com/metrograph-labs/alerts.git", "alerts-runtime"]);
     // The seed script of the contract gives seedStore the seed al124, the log and the sizes of the cache files of one live copy.
-    // The start subject gives it the same, thus the two cases open the same store, and only the start differs.
-    const shared = (value: StartCase) => [value.format, value.seeder, value.seed, value.rounds, value.watch, value.probe, value.target, value.limit, value.windows, value.observed];
-    expect(shared(contract!)).toEqual(shared(subject!));
     expect(contract!.seed).toBe("al124");
-    const [armsA, armsB, pointsA, pointsB] = [contract!.arms, subject!.arms, contract!.points, subject!.points];
-    expect(armsA.map(({ id, commit, ballast }) => ({ id, commit, ballast }))).toEqual(armsB.map(({ id, commit, ballast }) => ({ id, commit, ballast })));
-    expect(new Set([...armsA, ...armsB].map((arm) => arm.commit))).toEqual(new Set([contract!.seeder]));
-    expect(armsB.every((arm) => arm.snapshot === true)).toBe(true);
-    expect(pointsA.map((point) => [point.id, point.at["log"]])).toEqual(pointsB.map((point) => [point.id, point.at["log"]]));
-    expect(pointsB.map((point) => [point.at["shapes"], point.at["transit"]])).toEqual(pointsB.map(() => [{ value: 30466048, unit: "B" }, { value: 3122485, unit: "B" }]));
+    expect(new Set(contract!.arms.map((arm) => arm.commit))).toEqual(new Set([contract!.seeder]));
     expect(planMinutes(plan!)).toBeLessThanOrEqual(MAX_JOB_MINUTES);
   });
 
   it("bracket the knee of the cloud log with one ready fact and one late fact of the cloud arm", () => {
-    const knee = readPlans(PLANS).plans.find((each) => each.id === "alerts-start-files")?.cases.find((each) => each.id === "alerts-start/knee");
-    if (!isStartCase(knee)) throw new Error("The plan alerts-start-files has no knee case.");
-    // The horizon case is the knee case with the arm of AL-109 and more rounds. Thus its points and its facts are the same.
-    const [horizon] = readPlans(PLANS).plans.find((each) => each.id === "alerts-start-horizon")?.cases ?? [];
-    if (!isStartCase(horizon)) throw new Error("The plan alerts-start-horizon has no start case.");
-    expect({ ...horizon, id: knee.id, title: knee.title, arms: knee.arms, rounds: knee.rounds }).toEqual(knee);
-    expect(horizon.arms.at(-1)).toEqual({ id: "horizon", commit: "79860e0eb2341e3ddd794ca772aee036bd2cffdf" });
-    expect(horizon.rounds).toBe(3);
-    // The cut point is the file of 18:44Z times the share of the body characters up to the last good start.
-    expect(knee.points.map((point) => [point.id, point.at["log"]?.value])).toEqual([
-      ["cut-1030", Math.round((197156864 * 154047519) / 158938576)],
-      ["file-1844", 197156864],
-    ]);
-    expect(knee.observed.map((each) => [each.point, each.arm, each.ready])).toEqual([
-      ["cut-1030", "cloud", true],
-      ["file-1844", "cloud", false],
-    ]);
+    // The two plans of the bytes of the disk keep the points of the knee, and the start after the start of file-1844.
+    for (const id of ["alerts-start-bytes-mean", "alerts-start-bytes-peak"]) {
+      const [knee] = readPlans(PLANS).plans.find((each) => each.id === id)?.cases ?? [];
+      if (!isStartCase(knee)) throw new Error(`The plan ${id} has no start case.`);
+      // The cut point is the file of 18:44Z times the share of the body characters up to the last good start.
+      expect(knee.points.map((point) => [point.id, point.at["log"]?.value, point.after])).toEqual([
+        ["cut-1030", Math.round((197156864 * 154047519) / 158938576), undefined],
+        ["file-1844", 197156864, undefined],
+        ["file-1844-again", 197156864, "file-1844"],
+      ]);
+      expect(knee.observed.map((each) => [each.point, each.arm, each.ready])).toEqual([
+        ["cut-1030", "cloud", true],
+        ["file-1844", "cloud", false],
+      ]);
+    }
   });
 });
 

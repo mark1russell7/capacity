@@ -544,32 +544,75 @@ The container does not model all of the target machine:
 - The CPUs of the host of the lab are not the CPUs of the target. Thus a time of the lab is a time on the CPU of the record.
 - The page cache of the store counts in the memory of the container. The kernel takes back clean cache first.
 
-Seven plans measure the start of alerts. Each one has no check and no trigger. The arm `cloud` is the build of the cloud machine with the graft of the measured start. In the first three plans, the arm `new` is the current build.
+Three plans measure the start of alerts with the start subject `alerts`. Each one has no check and no trigger. The arm `cloud` is the build of the cloud machine with the graft of the measured start.
 
-- `alerts-start` measures logs from 16 MiB to 512 MiB, and the log of the cloud machine, with the shapes and the transit copy of the cloud machine. It reads the windows of 90 s, of 308.012 s and of 600 s.
-- `alerts-start-files` measures a log of 64 MiB with 3 sizes of the shapes file and 3 sizes of the transit copy. Its second case is the knee of the cloud log:
+- `alerts-start` measures logs from 16 MiB to 512 MiB, and the log of the cloud machine, with the shapes and the transit copy of the cloud machine. It reads the windows of 90 s, of 308.012 s and of 600 s. The arm `new` is the current build.
+- `alerts-start-bytes-mean` and `alerts-start-bytes-peak` measure the knee of the cloud log on the model of the cloud machine. The model has a cold cache, the other processes and the disk of the machine.
   - The point `cut-1030` is the log at the last start that was ready in 90 s. A count of the events of the cloud log gives its size.
-  - The point `file-1844` is the log when the starts stopped at 90 s. The two points are 3% apart.
-  - When the lab reads the two points the same, the size of the log does not explain the change.
-- `alerts-start-horizon` measures the two points of the knee in 3 rounds, with a third arm. The arm `horizon` is the build of the horizon change of the state of alerts.
-- `alerts-start-disk-mean` and `alerts-start-disk-peak` measure the knee on the model of the cloud machine: a cold cache, the other processes of the machine, and its disk.
-  - The disk has the mean rate or the peak rate of a study of the cloud start.
-  - The arms are the cloud build, the build of the start snapshot, and the current build without and with the snapshot.
-  - The point `file-1844-again` is a second start after `file-1844`.
-  - The observations of the knee are in the two plans. When the lab agrees with them, the other arms tell the time on the machine.
-  - The cap of the operations comes from the major faults, thus it binds first. The disk of the lab is 4 to 5 times slower than the machine.
-- `alerts-start-bytes-mean` and `alerts-start-bytes-peak` measure the knee on the same model, with a cap of the operations at the byte rate divided by 4 KiB.
-  - Thus the byte rate binds, and not the count of the operations.
+  - The point `file-1844` is the log when the starts stopped at 90 s. The two points are 3% apart. The point `file-1844-again` is a second start after `file-1844`.
+  - The disk has the mean rate or the peak rate of a study of the cloud start. The cap of the operations is the byte rate divided by 4 KiB. Thus the byte rate binds, and not the count of the operations.
   - A live start of the cloud machine read at 3.2 MiB/s or more. Its disk gives a mean of 11.2 KiB and 15.9 ms for each read. The lab does not model that delay.
   - The arms are the cloud build and the current build with the snapshot. The current build also gives the time of each write of the snapshot.
 
-An eighth plan, `alerts-start-app`, compares the start from the contract of alerts with the start subject `alerts`, on one commit.
+The plan `alerts-start-app` starts alerts from its contract, on the commit of the seeder.
 
-- The case `alerts-start-app/contract` starts alerts from `capacity-app.json`. The case `alerts-start-app/subject` starts it with the programs of the lab.
-- The two cases seed with the seed `al124`, the same log and the cache sizes of one live copy. Thus they open the same store.
+- The case `alerts-start-app/contract` starts alerts from `capacity-app.json`. It seeds with the seed `al124` and the cache sizes of one live copy.
 - The two arms are the same build. The arm `deploy` adds the ballast of the deploy process at ready.
-- The start subject gives the passes and the writes of the snapshot. The contract gives them after CAP-65.
-- When the two cases agree, and after CAP-65, a change removes the start subject `alerts` and its programs.
+- The contract gives the passes and the writes of the snapshot after CAP-65. Then a change removes the start subject `alerts` and its programs.
+
+#### The results of the plans of the start of alerts
+
+The Actions artifacts of these runs expire in February 2027. Thus this section keeps their results. The machine of the observations is a small cloud machine with 2 CPUs, 964.6 MiB of memory and 2 GiB of swap.
+
+An observation is a fact of the machine, for example "the cloud build was not ready in 90 s at `file-1844`". A job exits 1 when the lab reads a window of an observation differently from the machine. CAP-62 retired the plans `alerts-start-files`, `alerts-start-horizon`, `alerts-start-disk-mean` and `alerts-start-disk-peak`.
+
+- **`alerts-start`** (the runs [44941391218](https://github.com/mark1russell7/capacity/actions/runs/44941391218) and [44945165388](https://github.com/mark1russell7/capacity/actions/runs/44945165388)):
+  - Each of the 90 children is ready in each window, but each job exits 1 on one observation.
+  - The median `ready` of `cloud` is 4.89 s at 16 MiB, 9.59 s at 256 MiB and 24.12 s at 512 MiB.
+  - At 512 MiB, `cloud` has a `peak` of 607.2 to 622.5 MiB and a `heapPeak` of 470.3 to 473.8 MiB.
+  - At the point `cloud`, `cloud` and `cloud~aa` have a `readiness` of 2.53 to 4.96 s, and the machine is not ready in 90 s.
+- **`alerts-start-files`** (retired, the same runs):
+  - Each of the 135 children is ready in 90 s, but each job exits 1 on one observation.
+  - With the arm `cloud`, shapes files of 0, 44.2 and 88.4 MiB give a median `peak` of 274.6, 449.7 and 588.9 MiB.
+  - At the knee, the median `ready` of `cloud` is 7.66 s at `cut-1030` and 7.81 s at `file-1844`.
+  - At `file-1844`, `cloud` and `cloud~aa` have a `readiness` of 2.87 to 6.05 s, and the machine is not ready in 90 s.
+- **`alerts-start-horizon`** (retired, the run [44943060999](https://github.com/mark1russell7/capacity/actions/runs/44943060999)):
+  - Each of the 120 children is ready in 90 s, but each job exits 1 on one observation.
+  - At `cut-1030`, the median `ready` is 12.78 s for `horizon`, 7.40 s for `new` and 7.07 s for `cloud`.
+  - At `cut-1030`, the median `live` heap is 200.8 MiB for `horizon`, 280.7 MiB for `new` and 329.2 MiB for `cloud`.
+  - At `file-1844`, `cloud` and `cloud~aa` have a `readiness` of 2.70 to 4.88 s, and the machine is not ready in 90 s.
+- **`alerts-start-disk-mean`** (retired, the run [44955644597](https://github.com/mark1russell7/capacity/actions/runs/44955644597)):
+  - The disk had 5.5 MiB/s and 100 operations each second. Each of the 60 children of the jobs 1 to 4 passed its time limit of 660 s.
+  - Thus the plan has no reading, and the two observations of the knee have no read. Each job exits 1.
+  - Job 5 has no record, because the drop of the page cache took more than 60 s.
+  - A first start of each arm, with no limits of the disk and no ballasts, takes 127.4 to 139.9 s.
+- **`alerts-start-disk-peak`** (retired, the same run):
+  - The disk had 14 MiB/s and 200 operations each second. 73 of 75 children give a reading, and each is late in the windows of 90 s and 308.012 s.
+  - At `cut-1030`, the `readiness` of `cloud` is 416.3 to 461.6 s, and that of the other three arms is 473.0 to 501.6 s.
+  - At `file-1844-again`, the snapshot arms `checkpoint` and `snapshot` have a `readiness` of 421.6 to 422.7 s, and `full` has 496.1 to 510.6 s.
+  - Each job exits 1: at `cut-1030`, `cloud` and `cloud~aa` are late, and the machine is ready in 90 s. Thus the cap of the operations made the disk of the lab too slow. The bytes plans replace it.
+- **`alerts-start-bytes-mean`** (the run [45001158462](https://github.com/mark1russell7/capacity/actions/runs/45001158462)):
+  - Each child is ready in 90 s, but the machine is not ready at `file-1844`. Thus each job exits 1.
+  - At `cut-1030` and `file-1844`, the `readiness` of `cloud` and `cloud~aa` is 62.2 to 67.1 s, and that of `main` is 72.6 to 77.9 s.
+  - There, each child of `main` writes one snapshot, and the longest block of one write is 406.6 to 515.1 ms.
+  - At `file-1844-again`, the `readiness` of `main` is 60.3 to 60.7 s, and its `firstPass` is at most 0.13 s.
+- **`alerts-start-bytes-peak`** (the same run):
+  - Each child is ready in 90 s, but the machine is not ready at `file-1844`. Thus each job exits 1.
+  - At `cut-1030` and `file-1844`, the `readiness` of `cloud` and `cloud~aa` is 25.5 to 36.6 s, and that of `main` is 28.9 to 39.7 s.
+  - There, each child of `main` writes one snapshot, and the longest block of one write is 170.6 to 823.4 ms.
+  - At `file-1844-again`, the `readiness` of `main` is 23.9 to 25.5 s, and its `firstPass` is at most 0.14 s.
+- **`alerts-start-app`** (the run [45044576905](https://github.com/mark1russell7/capacity/actions/runs/45044576905)), with the case `alerts-start-app/subject` that CAP-62 deleted:
+  - The plan passes, and each of the 90 children of the two cases is ready in 90 s.
+  - The case `alerts-start-app/subject` started the same commit and the same store with the start subject of the lab.
+  - The medians of `peak` and `live` of the two cases differ by at most 7.8 MiB and 0.4 MiB.
+
+| Point | The median `ready` from the contract | The median `ready` from the subject | The two ranges |
+| --- | --- | --- | --- |
+| `log-16` | 5.68 s | 5.29 s | 4.46 to 7.33 s and 4.05 to 7.13 s |
+| `cut-1030` | 11.72 s | 13.18 s | 9.11 to 15.05 s and 8.76 to 15.83 s |
+| `log-256` | 17.06 s | 17.26 s | 11.46 to 19.04 s and 12.44 to 19.37 s |
+
+At each point, the ranges of the two cases overlap. At `cut-1030`, the ratio of the medians is 0.89. That is a little below the lowest A/A ratios of the two cases, 0.93 and 0.91. The lab made no statistical test. The ranges and the memory agree, thus the contract case replaces the subject case.
 
 A person starts a plan by hand, for example with 5 runs:
 
