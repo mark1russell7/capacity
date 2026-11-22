@@ -475,6 +475,25 @@ gh workflow run lab.yml -R mark1russell7/capacity --ref <branch> -f plans=alerts
 
 The programs of alerts are in `src/subject`. `alerts-seed.main.ts` writes a store with `seedStore` of the testkit of the tree. The seed writes the events at the rate of a live log, thus a larger log has more days of events. `alerts-start.main.ts` opens the store with `openMeasuredRuntime` of the runtime of the tree. With the snapshot, it also asks for the time of each write of the snapshot. An older tree ignores that option, and its measures of the writes are `null`. `alerts-config.json` is the configuration of each store: one place, one person and one channel, with made-up codes.
 
+### The laws of the start cases
+
+The field `startLaws` of a plan tells the laws that its start records give. `startLawsOf(plan, jobs, options)` fits them.
+
+| Field | What it is |
+| --- | --- |
+| `variable` | A variable of the subject, for example `log` in MiB. The size of its file in the seeded store of a point is the value of the variable. |
+| `measures` | The measures of the readings that get a law, each with its law slug, its title, its residual, its forms and its knee rule. |
+| `conditions` | The facts that the records do not hold. A name of `START_CONDITIONS` comes from the records. |
+
+- Each CPU model gets one law for each arm, each kind of start and each measure. The id of a law is `<subject>/<plan>/<cpu>/<arm>/<start>/<law>`.
+- A point with the field `after` is a second start. Its laws have the start `second`, and the other laws have the start `first`.
+- The conditions hold the image, the seeder, the commit and a hash of the arm and of the target. Thus a law of one build does not mix with a law of another build.
+- The A/A pairs of the base on the CPU model and the kind of start give the noise floor of each measure.
+- A start that passed a limit of the target has no reading. The result tells it in `skipped`.
+- A plan has a law set or a start law set, not the two. A plan with a start law set has only start cases.
+
+The command `fit` of `laws.main.ts` fits the start laws of each plan with a start law set.
+
 ## The request classes
 
 A request class is the work that one request asks of a synthetic subject. Each field is one load variable, thus a law can move one variable alone.

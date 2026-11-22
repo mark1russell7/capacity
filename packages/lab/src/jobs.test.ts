@@ -33,7 +33,7 @@ const writeJob = (name: string, started: string, more: Partial<Timed> = {}): voi
 };
 
 describe("the reader of the jobs of a folder", () => {
-  it("reads each manifest of the folder and of its subfolders, in the order of their paths, with its records of load", () => {
+  it("reads each manifest of the folder and of its subfolders, in the order of their paths, with its records of load and its start records", () => {
     folder = mkdtempSync(join(tmpdir(), "capacity-jobs-"));
     writeJob("lab-rate-2-1", "2026-11-22T06:02:00Z");
     writeJob("lab-rate-1-1/deep", "2026-11-22T06:01:00Z");
@@ -41,6 +41,7 @@ describe("the reader of the jobs of a folder", () => {
     const jobs = readJobs(folder);
     expect(jobs.map((each) => each.timed.at.started)).toEqual(["2026-11-22T06:01:00Z", "2026-11-22T06:02:00Z"]);
     expect(jobs.map((each) => each.records.map((record) => record.case.id))).toEqual([[BASE.case.id], [BASE.case.id]]);
+    expect(jobs.map((each) => each.starts?.map((record) => record.format))).toEqual([["capacity-start-record/1"], ["capacity-start-record/1"]]);
   });
 
   it("gives no job for a folder with no manifest, and throws for a manifest of another format", () => {

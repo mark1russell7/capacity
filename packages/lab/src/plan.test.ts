@@ -10,6 +10,7 @@ import { CONTROL_CASES } from "./control.ts";
 import { FLOOR_IDS, FLOOR_PAIRS, floorPair } from "./floor.ts";
 import { expectedOf } from "./gate.ts";
 import { MAX_JOB_MINUTES, MAX_JOBS, PLAN_FORMAT, SETUP_MINUTES, gatePlanProblems, matrixOf, planMinutes, planProblems, readPlans, selectPlans, type Plan } from "./plan.ts";
+import type { StartLawSet } from "./start-laws.ts";
 import { isStartCase, startWindowOf, type StartCase } from "./start.ts";
 
 const PLANS = fileURLToPath(new URL("../plans/", import.meta.url));
@@ -27,6 +28,12 @@ const CASE: Case = {
 };
 
 const PLAN: Plan = { format: PLAN_FORMAT, id: "idle", title: "An idle subject", check: null, triggers: ["schedule"], cases: [CASE] };
+
+/** A start law set of the time to ready over the size of the log. */
+const START_SET: StartLawSet = {
+  variable: { id: "log", unit: "MiB", scale: "log" },
+  measures: [{ id: "ready", law: "ready", title: "The time to ready", residual: "absolute" }],
+};
 
 const plan = (more: Partial<Plan>): Plan => ({ ...PLAN, ...more });
 const paths = (value: unknown): readonly string[] => planProblems(value as Plan).map((each) => `${each.code} ${each.path}`);
@@ -196,6 +203,16 @@ describe("the problems of a plan", () => {
     expect(paths({ ...gate, jobs: undefined })).toEqual(["gate jobs"]);
     const rate = readPlans(PLANS).plans.find((each) => each.id === "rate")!;
     expect(paths({ ...gate, laws: rate.laws })).toContain("gate laws");
+    expect(paths({ ...gate, startLaws: START_SET })).toContain("gate startLaws");
+  });
+
+  it("examines a start law set: only start cases, and no law set with it", () => {
+    const start = readPlans(PLANS).plans.find((each) => each.id === "alerts-start")!.cases[0] as StartCase;
+    expect(paths(plan({ cases: [start], startLaws: START_SET }))).toEqual([]);
+    expect(paths(plan({ cases: [CASE, start], startLaws: START_SET }))).toEqual(["laws cases[0]"]);
+    expect(paths(plan({ cases: [start], startLaws: { ...START_SET, measures: [] } }))).toEqual(["laws startLaws.measures"]);
+    const rate = readPlans(PLANS).plans.find((each) => each.id === "rate")!;
+    expect(paths(plan({ cases: [start], laws: rate.laws, startLaws: START_SET }))).toEqual(["laws startLaws"]);
   });
 
   it("refuses a plan whose job needs more than the time of one job", () => {
