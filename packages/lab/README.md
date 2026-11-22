@@ -372,7 +372,7 @@ A start case measures the start of an application, not its load. It gives the ti
 | `subject` | The name of a subject of `START_SUBJECTS`, or the id of the contract of an app. A subject is data: its repository, its install command, its type check, its variables and its two programs. |
 | `app` | The HTTPS URL of the repository of an app with a contract file. The default is no app. Refer to the app cases. |
 | `seeder` | The commit of the tree that writes the stores. Each arm opens the same stores. |
-| `arms` | 2 trees or more of the subject, each at a commit. The first arm is the base. A `graft` puts a file of another commit into a tree. An arm can also have `ballast` and `snapshot`. |
+| `arms` | 1 tree or more of the subject, each at a commit. The first arm is the base, and each other arm is compared with it. A ladder of one variable needs only one arm. A `graft` puts a file of another commit into a tree. An arm can also have `ballast` and `snapshot`. |
 | `points` | The stores of the case. A point gives an amount of each variable of the subject, for example the byte size of the log. A point with `after` is a second start. |
 | `seed` | The seed of each store. One seed gives the same files. |
 | `rounds` | The rounds of one job, from 1 to 10. |
@@ -425,6 +425,23 @@ A contract can have outside services, for example a feed or a channel of message
 - The child joins the network of the sidecar. The lab gives `{service.<id>}` the URL of the fake on `127.0.0.1`, and the child has no other network.
 - The child starts when each fake gives its ready signal. A fake that ends before the end of the child makes the run fail.
 - A start case gives the fakes a workload with no load: the rate of each class is 0. The load of an app comes with CAP-66.
+
+#### The ladders of the levels
+
+The plans `alerts-feeds`, `alerts-persons` and `alerts-incidents` start alerts from its contract at 9 rungs of one level (CAP-35). Each plan has one app case with one arm, and a start law set of its level.
+
+| Part | The value | Why |
+| --- | --- | --- |
+| The rungs | `feeds` and `persons`: 1, 3, 10, 30, 100, 300, 1000, 3000 and 10000. `incidents`: 0, 10, 100, 200, 300, 400, 600, 800 and 1000. | The rungs cover the range of the contract, on the scale of the variable. 9 rungs in each of 5 jobs give 45 points, and a law needs 40. |
+| The base point | 16 MiB of log, 10 feeds, 10 persons and 10 incidents | Each ladder holds the other levels at the base point. The three ladders meet at it, thus their readings there must agree. |
+| The arm | One arm: alerts at the commit of its levels, with its A/A copy | A ladder gives a law, not a comparison. The A/A copy gives the noise floor of each measure. |
+| The limit | 240 s for each start | A start at the base is ready in approximately 6 s. A start that passes the limit has no reading, and the result tells it. |
+| The measures | `ready`, `peak`, `heap` and `watchPeak` | The time to ready and the memory of a start are inputs of the scale rule. |
+
+- The target is the target of the plan `alerts-start-app`.
+- A start law set refuses a case with points that move a second variable. Otherwise a law of one variable also holds the effect of another variable.
+- The routes of alerts are the persons times the incidents and the system incidents. The ladders move one level at a time. Thus their laws do not give the interaction of the two levels (CAP-67).
+- The plans have no trigger: a person starts them. The time limit of each plan is 151 minutes.
 
 ### The machine model
 

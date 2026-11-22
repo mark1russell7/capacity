@@ -295,7 +295,7 @@ const isRepositoryPath = (path: unknown): path is string =>
 
 /** This function gives the problems of the arms of a start case. */
 const armProblems = (arms: unknown, app: boolean): readonly StartProblem[] => {
-  if (!Array.isArray(arms) || arms.length < 2) return [problem("arm", "arms", "The case has fewer than 2 arms. The first arm is the base, and each other arm is compared with it.")];
+  if (!Array.isArray(arms) || arms.length === 0) return [problem("arm", "arms", "The case has no arm. The first arm is the base, and each other arm is compared with it.")];
   const problems: StartProblem[] = [];
   const ids = new Set<string>();
   arms.forEach((arm: unknown, index) => {
