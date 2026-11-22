@@ -23,6 +23,7 @@ type CompositionValue: build/instance.chunk.d.ts#CompositionValue
 type ConditionValue: build/instance.chunk.d.ts#ConditionValue
 type Constant: build/instance.chunk.d.ts#Constant
 type ConstantInterval: build/instance.chunk.d.ts#ConstantInterval
+type CountReach: build/index.d.ts#CountReach
 type Crossing: build/index.d.ts#Crossing
 DEFAULT_LEVEL: build/instance.chunk.d.ts#DEFAULT_LEVEL
 type Demand: build/instance.chunk.d.ts#Demand
@@ -65,8 +66,10 @@ type LawTerm: build/instance.chunk.d.ts#LawTerm
 type LawValue: build/instance.chunk.d.ts#LawValue
 type LevelOptions: build/instance.chunk.d.ts#LevelOptions
 type Limit: build/instance.chunk.d.ts#Limit
+type LimitCount: build/index.d.ts#LimitCount
 type LimitProblem: build/instance.chunk.d.ts#LimitProblem
 type LimitProblemCode: build/instance.chunk.d.ts#LimitProblemCode
+type LimitReach: build/index.d.ts#LimitReach
 type LimitSet: build/instance.chunk.d.ts#LimitSet
 type LimitUse: build/index.d.ts#LimitUse
 type Load: build/instance.chunk.d.ts#Load
@@ -84,6 +87,7 @@ type Noise: build/instance.chunk.d.ts#Noise
 type Observation: build/index.d.ts#Observation
 type ObservedClass: build/index.d.ts#ObservedClass
 type OpenRange: build/index.d.ts#OpenRange
+type OpenValue: build/index.d.ts#OpenValue
 type Over: build/instance.chunk.d.ts#Over
 type PartValue: build/instance.chunk.d.ts#PartValue
 type PlanSource: build/instance.chunk.d.ts#PlanSource
@@ -100,8 +104,15 @@ type ReadSide: build/index.d.ts#ReadSide
 type ResidualKind: build/instance.chunk.d.ts#ResidualKind
 type ResourceCeiling: build/instance.chunk.d.ts#ResourceCeiling
 type Run: build/instance.chunk.d.ts#Run
+SCALE_MOST: build/index.d.ts#SCALE_MOST
+SCALE_STEPS: build/index.d.ts#SCALE_STEPS
 SLUG: build/index.d.ts#SLUG
 type Scale: build/instance.chunk.d.ts#Scale
+type ScaleModel: build/index.d.ts#ScaleModel
+type ScaleOptions: build/index.d.ts#ScaleOptions
+type ScaleProblem: build/index.d.ts#ScaleProblem
+type ScaleProblemCode: build/index.d.ts#ScaleProblemCode
+type ScaleRule: build/index.d.ts#ScaleRule
 type Shape: build/index.d.ts#Shape
 type ShareOptions: build/instance.chunk.d.ts#ShareOptions
 type SideTest: build/index.d.ts#SideTest
@@ -125,6 +136,7 @@ checkWorkload: build/index.d.ts#checkWorkload
 compositionValue: build/instance.chunk.d.ts#compositionValue
 constantIdsOf: build/index.d.ts#constantIdsOf
 constantIntervals: build/instance.chunk.d.ts#constantIntervals
+countReach: build/index.d.ts#countReach
 demandProblems: build/index.d.ts#demandProblems
 fitLaw: build/index.d.ts#fitLaw
 formOf: build/index.d.ts#formOf
@@ -151,6 +163,7 @@ mergeDemands: build/instance.chunk.d.ts#mergeDemands
 observedWorkload: build/index.d.ts#observedWorkload
 programOf: build/index.d.ts#programOf
 scaleDemand: build/instance.chunk.d.ts#scaleDemand
+scaleRule: build/index.d.ts#scaleRule
 separableOf: build/index.d.ts#separableOf
 shareOf: build/instance.chunk.d.ts#shareOf
 slopeOf: build/index.d.ts#slopeOf
@@ -195,6 +208,17 @@ interface CatalogForm {
   readonly title: string;
   readonly terms: readonly Term[];
   readonly shapes: readonly Shape[];
+}
+
+### build/index.d.ts#CountReach
+interface CountReach {
+  readonly count: number;
+  readonly level: number;
+  readonly search: Range;
+  readonly factor: OpenValue;
+  readonly binding: string | null;
+  readonly extrapolated: boolean;
+  readonly limits: readonly LimitReach[];
 }
 
 ### build/index.d.ts#Crossing
@@ -355,6 +379,26 @@ interface LawRead {
   readonly side: ReadSide;
 }
 
+### build/index.d.ts#LimitCount
+interface LimitCount {
+  readonly limit: string;
+  readonly measure: string;
+  readonly count: OpenValue;
+  readonly binds: number;
+  readonly edge: boolean;
+  readonly extrapolated: boolean;
+}
+
+### build/index.d.ts#LimitReach
+interface LimitReach {
+  readonly limit: string;
+  readonly measure: string;
+  readonly factor: OpenValue;
+  readonly binds: number;
+  readonly edge: boolean;
+  readonly extrapolated: boolean;
+}
+
 ### build/index.d.ts#LimitUse
 interface LimitUse {
   readonly limit: string;
@@ -396,6 +440,12 @@ interface OpenRange {
   readonly high: number | null;
 }
 
+### build/index.d.ts#OpenValue
+interface OpenValue {
+  readonly value: number | null;
+  readonly interval: OpenRange;
+}
+
 ### build/index.d.ts#Points
 interface Points {
   readonly x: readonly number[];
@@ -417,8 +467,47 @@ interface Reach {
 ### build/index.d.ts#ReadSide
 type ReadSide = "within" | "high" | "low";
 
+### build/index.d.ts#SCALE_MOST
+export declare const SCALE_MOST: number;
+
+### build/index.d.ts#SCALE_STEPS
+export declare const SCALE_STEPS: number;
+
 ### build/index.d.ts#SLUG
 export declare const SLUG: RegExp;
+
+### build/index.d.ts#ScaleModel
+interface ScaleModel {
+  readonly instance: Instance;
+  readonly limits: readonly Limit[];
+  readonly compositions: readonly Composition[];
+  readonly catalog: Catalog;
+}
+
+### build/index.d.ts#ScaleOptions
+interface ScaleOptions extends LevelOptions {
+  readonly given?: Amounts;
+  readonly whole?: readonly string[];
+  readonly most?: number;
+  readonly steps?: number;
+}
+
+### build/index.d.ts#ScaleProblem
+type ScaleProblem = Problem<ScaleProblemCode>;
+
+### build/index.d.ts#ScaleProblemCode
+type ScaleProblemCode = CompositionProblemCode | LimitProblemCode;
+
+### build/index.d.ts#ScaleRule
+interface ScaleRule {
+  readonly level: number;
+  readonly most: number;
+  readonly count: OpenValue;
+  readonly binding: string | null;
+  readonly extrapolated: boolean;
+  readonly limits: readonly LimitCount[];
+  readonly next: CountReach | null;
+}
 
 ### build/index.d.ts#Shape
 interface Shape {
@@ -471,6 +560,9 @@ export declare const checkWorkload: (workload: Workload) => readonly WorkloadPro
 
 ### build/index.d.ts#constantIdsOf
 export declare const constantIdsOf: (form: CatalogForm) => readonly string[];
+
+### build/index.d.ts#countReach
+export declare const countReach: (model: ScaleModel, count: number, demand: Demand, options?: ScaleOptions) => Result<CountReach, ScaleProblem>;
 
 ### build/index.d.ts#demandProblems
 export declare const demandProblems: (demand: Demand) => readonly WorkloadProblem[];
@@ -525,6 +617,9 @@ export declare const observedWorkload: (observation: Observation, name: Workload
 
 ### build/index.d.ts#programOf
 export declare const programOf: (form: CatalogForm, binding: Binding) => Expr;
+
+### build/index.d.ts#scaleRule
+export declare const scaleRule: (model: ScaleModel, demand: Demand, options?: ScaleOptions) => Result<ScaleRule, ScaleProblem>;
 
 ### build/index.d.ts#separableOf
 export declare const separableOf: (form: CatalogForm, xs: readonly number[]) => SeparableModel<number>;
