@@ -130,6 +130,20 @@ export const FORMS: readonly CatalogForm[] = [
     shapes: [{ id: "exponent", grid: scaled([-1, -0.5, 0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3], 0) }],
   },
   {
+    id: "fall-power",
+    title: "A fall at a low load, then a power of the variable",
+    terms: [
+      base,
+      { constant: "excess", basis: over(one, x), slope: app("negate", over(one, square(x))) },
+      {
+        constant: "scale",
+        basis: app("pow", x, v("exponent")),
+        slope: times(v("exponent"), app("pow", x, less(v("exponent"), one))),
+      },
+    ],
+    shapes: [{ id: "exponent", grid: scaled([0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3], 0) }],
+  },
+  {
     id: "logarithm",
     title: "A logarithm of the variable",
     terms: [base, { constant: "scale", basis: app("ln", x), slope: over(one, x) }],
