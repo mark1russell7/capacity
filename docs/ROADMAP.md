@@ -87,6 +87,7 @@ The other laws of layer 1 and the laws of layer 2 follow. They tell where the co
 | CAP-17 | From records to law files | later | P1 | S | CAP-2, CAP-14, CAP-16 | A command reads the records of a named run and writes each law file, with the run as its evidence. It keeps each form that lost, with its error. A pull request changes a law, and the gate measures it again. |
 | CAP-47 | The connections of the open-loop driver | done | P0 | M |  | The driver of `@mark1russell7/harness` keeps one connection for each stream and pipelines its requests. A real client sends one request at a time on each connection of a pool, or opens a new connection. A stream gets a pool of n connections, or a new connection for each request. The change is a pull request to the harness. |
 | CAP-50 | The gate Lab OK as a necessary check | later | P2 | XS | CAP-16 | The ruleset of the repository names the job `Lab OK` as a necessary check. The owner of the repository gives the word after the first version of alerts. |
+| CAP-55 | Compiled bases of the catalog forms | later | P2 | S | CAP-14 | The bases of the catalog forms use the Vex interpreter, approximately 0.1 ms for each design call. A fit of the `scalability` form takes approximately 1700 calls. Thus 1000 bootstrap runs take approximately 3 minutes. The package moves to `@mark1russell7/vex` 0.20, and `tiered` of `@mark1russell7/vex-compiler` compiles each basis. A bench run of `@mark1russell7/rigor-bench` in CI gives the gain. |
 
 ## Layer 1: Node
 
