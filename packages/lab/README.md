@@ -229,9 +229,28 @@ The check `overhead` (`overheadCheck`) gives each value and each problem of the 
 - The measures are the measures of `OVERHEAD_MEASURES`: `cpu.request`, `memory`, `memory.high`, `network.rx.request`, `network.tx.request`, `latency.p50`, `latency.p90` and `latency.p99`.
 - A pair has the cases `<pair>/bare` and `<pair>/service`, with the subjects of `OVERHEAD_SIDES` and one load. A case with no partner, another subject or another load is a problem.
 - The reply of the service subject has one more header, `content-type`. Thus `network.tx.request` has an overhead of approximately the size of that header.
-- The subjects have no measure of their event-loop lag. The latency overhead includes the lag that the runner adds.
-- The values of one job are not a law. The law of the overhead, with an interval over 5 jobs or more, is the next part of CAP-29.
+- The subjects have no measure of their event-loop lag. The latency overhead includes the lag that the runner adds. The lag of a subject is CAP-68.
 - The plan has no trigger: a person starts it. Its time limit is 55 minutes.
+
+#### The laws of the overhead
+
+The values of one job are not a law. The law set of the plan has the field `base` with the value `bare`. Thus `lawsOf` gives laws of the overhead, with an interval over the jobs.
+
+| Part | The rule |
+| --- | --- |
+| The point | The value of the case `<pair>/service` less the value of the case `<pair>/bare` in the same job, at the rate of the pair |
+| The id | `node-http-service/overhead/<cpu>/<measure>.overhead`. The id of the measure has the suffix `.overhead` (`OVERHEAD_SUFFIX`). |
+| The conditions | The conditions of the service side, and the condition `base`: the subject of the bare side, `node-http` |
+| The residual | Absolute. An overhead can be 0, and a relative residual divides by the value. |
+| The cuts | A cut of the record of either side removes the point. The served share and the tail count apply to the two sides. |
+
+- In a set with a base, the id of each case is `<pair>/<side>`. Each pair has a case of the base side and a case of another side. `lawSetProblems` gives a problem for each other case.
+- A record with no record of the base side in its job is a problem. The two sides of a pair with different loads are a problem too.
+- The set has the measures `cpu.request`, `memory`, `memory.high`, `latency.p50`, `latency.p90` and `latency.p99`. The network overhead is exact: 8 B more received and 40 B more sent for each request. Thus it has no law.
+- The summary tells for each overhead law, at the two ends of its range, if its interval shows an overhead, a saving or 0.
+- The gate of the laws does not read an overhead law. The gate of the runner laws is CAP-33.
+- A law needs 5 jobs on one CPU model. A runner gets a random CPU model. Thus the laws pool the jobs of more than one run of the plan.
+- The conditions of a law do not identify the files of the subjects (CAP-69). Pool only the runs of one commit of the subjects.
 
 ## The timed runs
 
@@ -298,6 +317,7 @@ A plan with the field `laws` gives laws from its records. The law set tells the 
 - **The served share.** A measure with the field `served` keeps only the points where the subject keeps up with the offered rate. The range of the law is the range of these points, and the law has the condition `served`.
 - **The tail count.** A quantile measure with the field `tail` keeps only the points with enough arrivals for its quantile. The law has the condition `tail`.
 - **The knee.** A measure with the field `knee` gives the knee of each law in its range, with `lawKnee` of `@mark1russell7/capacity`. A search that cannot apply gives a problem, and the law stays.
+- **The overhead.** A set with the field `base` gives the laws of the difference of two sides in each pair. Refer to [The laws of the overhead](#the-laws-of-the-overhead).
 
 ### The served share
 
@@ -673,3 +693,9 @@ The service subject starts as an app of this repository starts. Node starts its 
 - The lab makes the modules one time in a process, in approximately 0.1 to 0.3 s.
 
 The first run of the plan `overhead` started the service subject as one bundle. That bundle started with no TypeScript loader. Thus the bare side had approximately 7 MiB more memory at 100 requests each second. The loader of Node holds approximately 3.5 MiB of heap and 3.6 MiB of external memory.
+
+The second run (45061643369) started the two sides through the loader. Its 5 jobs are values of one run, not laws:
+
+- The memory overhead was 1.0 to 1.4 MiB at 100 requests each second, and 7.8 to 15.5 MiB at the other rates.
+- The median CPU overhead was 109 to 174 µs for each request. The bare side used 37 to 418 µs for each request.
+- On 3 of the 5 machines, the median latency overhead stayed below 2.2 ms up to 8000 requests each second. On the 2 slower machines, it was more than 10 ms from 3000 or 4000 requests each second.
