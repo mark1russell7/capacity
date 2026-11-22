@@ -1,8 +1,8 @@
 # The fit of the laws, on a GitHub runner. The fit of the laws of a plan takes minutes, thus only CI starts it.
 #
 # A person starts it with the ids of Lab runs (lab.yml). The job downloads the artifacts lab-* of each run: the records,
-# the raw results and the manifest timed.json of each job. The command laws.main.ts fits the laws of each plan with a law
-# set. The jobs of the check floor give the noise of each law. The job uploads the law files as the artifact laws-<run>.
+# the raw results and the manifest timed.json of each job. It keeps the records and the manifests only. The command
+# laws.main.ts fits the laws of each plan with a law set. The jobs of the check floor give the noise of each law. The job uploads the law files as the artifact laws-<run>.
 # Then a person puts the files in a pull request. For example:
 #     gh workflow run laws.yml -R mark1russell7/capacity -f runs='<lab run> <lab run of the plan floor>'
 #     gh run download <laws run> -R mark1russell7/capacity -n laws-<laws run> -D packages/capacity/laws
@@ -48,7 +48,9 @@ jobs:
           node-version: 26
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      # Each artifact goes into its own folder: records/<run>/<artifact>/timed.json
+      # Each artifact goes into its own folder: records/<run>/<artifact>/timed.json. The fit reads only the manifests and
+      # the records. A job of the plan rate has approximately 3 GB of raw results. Thus the step deletes the results of
+      # each artifact before it downloads the next, and the disk holds the results of one job at most.
       - name: The records of the Lab runs
         env:
           GH_TOKEN: ${{ github.token }}
@@ -60,8 +62,19 @@ jobs:
               echo "The run id \"$run\" is not a number." >&2
               exit 1
             fi
-            gh run download "$run" -R "$GITHUB_REPOSITORY" -p 'lab-*' -D "$RECORDS/$run"
+            names=$(gh api --paginate "repos/$GITHUB_REPOSITORY/actions/runs/$run/artifacts" \
+              --jq '.artifacts[] | select((.name | startswith("lab-")) and (.expired | not)) | .name')
+            if [ -z "$names" ]; then
+              echo "The Lab run $run has no artifact lab-* that is not expired." >&2
+              exit 1
+            fi
+            for name in $names; do
+              gh run download "$run" -R "$GITHUB_REPOSITORY" -n "$name" -D "$RECORDS/$run/$name"
+              find "$RECORDS/$run/$name" -name '*.result.json' -type f -delete
+            done
+            echo "The Lab run $run: $(echo "$names" | wc -l) artifacts, $(du -sh "$RECORDS/$run" | cut -f1) of records."
           done
+          df -h "$RUNNER_TEMP"
       # A law that the records do not give, or no law, fails the step. The summary tells each problem.
       - name: The fit of the laws
         env:
