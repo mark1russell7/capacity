@@ -34,12 +34,18 @@ type FitError: build/instance.chunk.d.ts#FitError
 type Floor: build/index.d.ts#Floor
 type Form: build/instance.chunk.d.ts#Form
 type FormRank: build/index.d.ts#FormRank
+GATE_ALPHA: build/index.d.ts#GATE_ALPHA
+GATE_JOBS: build/index.d.ts#GATE_JOBS
+type GateCase: build/index.d.ts#GateCase
+type GateJob: build/index.d.ts#GateJob
+type GateRead: build/index.d.ts#GateRead
 type Grid: build/index.d.ts#Grid
 INSTANCE_FORMAT: build/instance.chunk.d.ts#INSTANCE_FORMAT
 type Instance: build/instance.chunk.d.ts#Instance
 type InstanceProblem: build/instance.chunk.d.ts#InstanceProblem
 type InstanceProblemCode: build/instance.chunk.d.ts#InstanceProblemCode
 type InstanceType: build/instance.chunk.d.ts#InstanceType
+type JobCount: build/index.d.ts#JobCount
 KNEE_STEPS: build/index.d.ts#KNEE_STEPS
 type Knee: build/index.d.ts#Knee
 type KneeOptions: build/index.d.ts#KneeOptions
@@ -49,8 +55,12 @@ LIMITS_FORMAT: build/instance.chunk.d.ts#LIMITS_FORMAT
 type Law: build/instance.chunk.d.ts#Law
 type LawFit: build/index.d.ts#LawFit
 type LawFitOptions: build/index.d.ts#LawFitOptions
+type LawGate: build/index.d.ts#LawGate
+type LawGateCase: build/index.d.ts#LawGateCase
+type LawGateOptions: build/index.d.ts#LawGateOptions
 type LawPart: build/instance.chunk.d.ts#LawPart
 type LawProblem: build/instance.chunk.d.ts#LawProblem
+type LawRead: build/index.d.ts#LawRead
 type LawTerm: build/instance.chunk.d.ts#LawTerm
 type LawValue: build/instance.chunk.d.ts#LawValue
 type LevelOptions: build/instance.chunk.d.ts#LevelOptions
@@ -69,6 +79,7 @@ NAME: build/index.d.ts#NAME
 NO_DEMAND: build/instance.chunk.d.ts#NO_DEMAND
 type NestedPart: build/instance.chunk.d.ts#NestedPart
 type NestedTerm: build/instance.chunk.d.ts#NestedTerm
+type NoReadJob: build/index.d.ts#NoReadJob
 type Noise: build/instance.chunk.d.ts#Noise
 type Observation: build/index.d.ts#Observation
 type ObservedClass: build/index.d.ts#ObservedClass
@@ -85,6 +96,7 @@ RATE: build/instance.chunk.d.ts#RATE
 RESOURCE_UNITS: build/instance.chunk.d.ts#RESOURCE_UNITS
 type Range: build/instance.chunk.d.ts#Range
 type Reach: build/index.d.ts#Reach
+type ReadSide: build/index.d.ts#ReadSide
 type ResidualKind: build/instance.chunk.d.ts#ResidualKind
 type ResourceCeiling: build/instance.chunk.d.ts#ResourceCeiling
 type Run: build/instance.chunk.d.ts#Run
@@ -92,6 +104,7 @@ SLUG: build/index.d.ts#SLUG
 type Scale: build/instance.chunk.d.ts#Scale
 type Shape: build/index.d.ts#Shape
 type ShareOptions: build/instance.chunk.d.ts#ShareOptions
+type SideTest: build/index.d.ts#SideTest
 type Start: build/index.d.ts#Start
 type Term: build/index.d.ts#Term
 type Variable: build/instance.chunk.d.ts#Variable
@@ -122,8 +135,10 @@ instancePointOf: build/instance.chunk.d.ts#instancePointOf
 instanceProblems: build/index.d.ts#instanceProblems
 isLawTerm: build/instance.chunk.d.ts#isLawTerm
 kneeRuleProblem: build/index.d.ts#kneeRuleProblem
+lawGate: build/index.d.ts#lawGate
 lawKnee: build/index.d.ts#lawKnee
 lawReach: build/index.d.ts#lawReach
+lawRead: build/index.d.ts#lawRead
 lawValue: build/instance.chunk.d.ts#lawValue
 leastCount: build/instance.chunk.d.ts#leastCount
 leastGroups: build/instance.chunk.d.ts#leastGroups
@@ -209,6 +224,32 @@ interface FormRank {
   readonly reason?: string;
 }
 
+### build/index.d.ts#GATE_ALPHA
+export declare const GATE_ALPHA = .01;
+
+### build/index.d.ts#GATE_JOBS
+export declare const GATE_JOBS = 2;
+
+### build/index.d.ts#GateCase
+interface GateCase {
+  readonly law: Law;
+  readonly jobs: readonly GateJob[];
+}
+
+### build/index.d.ts#GateJob
+interface GateJob {
+  readonly job: string;
+  readonly reads: readonly GateRead[];
+  readonly noRead?: string;
+  readonly unread?: readonly string[];
+}
+
+### build/index.d.ts#GateRead
+interface GateRead {
+  readonly point: LoadPoint;
+  readonly value: number;
+}
+
 ### build/index.d.ts#Grid
 type Grid = {
   readonly kind: "inside";
@@ -217,6 +258,17 @@ type Grid = {
   readonly factors: readonly number[];
   readonly power: number;
 };
+
+### build/index.d.ts#JobCount
+interface JobCount {
+  readonly job: string;
+  readonly reads: number;
+  readonly high: number;
+  readonly low: number;
+  readonly pHigh: number;
+  readonly pLow: number;
+  readonly unread: readonly string[];
+}
 
 ### build/index.d.ts#KNEE_STEPS
 export declare const KNEE_STEPS = 64;
@@ -271,6 +323,38 @@ interface LawFitOptions {
   readonly seed?: number;
 }
 
+### build/index.d.ts#LawGate
+interface LawGate extends Gate {
+  readonly level: number;
+  readonly alpha: number;
+  readonly need: number;
+  readonly share: number;
+  readonly cases: readonly LawGateCase[];
+}
+
+### build/index.d.ts#LawGateCase
+interface LawGateCase extends GateCaseOutcome {
+  readonly case: string;
+  readonly outcome: LimitOutcome;
+  readonly reason: string;
+  readonly jobs: readonly JobCount[];
+  readonly noRead: readonly NoReadJob[];
+  readonly sides: readonly SideTest[];
+}
+
+### build/index.d.ts#LawGateOptions
+interface LawGateOptions extends LevelOptions {
+  readonly alpha?: number;
+  readonly jobs?: number;
+}
+
+### build/index.d.ts#LawRead
+interface LawRead {
+  readonly value: number;
+  readonly run: Range;
+  readonly side: ReadSide;
+}
+
 ### build/index.d.ts#LimitUse
 interface LimitUse {
   readonly limit: string;
@@ -283,6 +367,12 @@ interface LimitUse {
 
 ### build/index.d.ts#NAME
 export declare const NAME: RegExp;
+
+### build/index.d.ts#NoReadJob
+interface NoReadJob {
+  readonly job: string;
+  readonly reason: string;
+}
 
 ### build/index.d.ts#Observation
 interface Observation {
@@ -324,6 +414,9 @@ interface Reach {
   readonly outside: readonly string[];
 }
 
+### build/index.d.ts#ReadSide
+type ReadSide = "within" | "high" | "low";
+
 ### build/index.d.ts#SLUG
 export declare const SLUG: RegExp;
 
@@ -332,6 +425,14 @@ interface Shape {
   readonly id: string;
   readonly grid: Grid;
   readonly bounds?: Bounds;
+}
+
+### build/index.d.ts#SideTest
+interface SideTest {
+  readonly side: "high" | "low";
+  readonly p: number;
+  readonly adjusted: number;
+  readonly reject: boolean;
 }
 
 ### build/index.d.ts#Start
@@ -395,11 +496,17 @@ export declare const instanceProblems: (instance: Instance) => readonly Instance
 ### build/index.d.ts#kneeRuleProblem
 export declare const kneeRuleProblem: (rule: unknown, path?: string) => LawProblem | undefined;
 
+### build/index.d.ts#lawGate
+export declare const lawGate: (cases: readonly GateCase[], options?: LawGateOptions) => LawGate;
+
 ### build/index.d.ts#lawKnee
 export declare const lawKnee: (law: Law, variable: string, rule: KneeRule, options?: KneeOptions) => Result<Knee, LawProblem>;
 
 ### build/index.d.ts#lawReach
 export declare const lawReach: (law: Law, variable: string, amount: Quantity, options?: KneeOptions) => Result<Reach, LawProblem>;
+
+### build/index.d.ts#lawRead
+export declare const lawRead: (law: Law, point: LoadPoint, value: number, options?: LevelOptions) => Result<LawRead, LawProblem>;
 
 ### build/index.d.ts#limitAmount
 export declare const limitAmount: (limit: Limit, instance: Instance) => Result<Quantity, LimitProblem>;

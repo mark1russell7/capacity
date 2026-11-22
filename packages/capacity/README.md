@@ -301,6 +301,35 @@ The Laws run 44987398580 gives the laws of the plan `rate` on the Intel Xeon 697
 
 A test of the lab reads these files with the plan `rate`. Each measure of the plan has a law on each CPU model of the folder, except a measure with a known mark. Each law has the served share and the tail count of its measure. Each law also has a finite value at each end of its range and a held-out error below 1. Each knee and its interval are in the range.
 
+## The gate of the laws
+
+The gate tells if new measured values stay in the run ranges of their laws. A pull request that makes a subject slower or larger moves its values out of the ranges. `lawGate` gives the gate, and `lawRead` gives one read.
+
+```ts
+import { lawGate } from "@mark1russell7/capacity";
+
+const reads = [{ point: { rate: 1000 }, value: 0.061 }];
+const gate = lawGate([{ law, jobs: [{ job: "job 1", reads }, { job: "job 2", reads }] }]);
+if (gate.outcome === "block") console.log(gate.reason);
+```
+
+- **A read.** A measured value at a load point falls `within`, `high` or `low` against the range `run` of `lawValue`. A point outside the range of a variable gives no read.
+- **A job.** A read of a job that agrees with its law falls on one side with a chance of `(1 - level) / 2` or less. The binomial test of the count of each side gives the p of the job.
+- **A side.** `partialConjunction` joins the p of the jobs for the claim "two jobs or more show this side" (`GATE_JOBS`). One job on an odd runner cannot block alone.
+- **The family.** `holm` corrects the tests of the two sides of each law at the level 0.01 (`GATE_ALPHA`). A rejected side is a block.
+- **A low side is a block too.** The subject is faster or smaller than its law, thus the law is out of date. A new fit must replace it.
+- **No read.** The function `gateOf` of `@mark1russell7/rigor-bench` joins the laws. A law with fewer than two jobs gives no read. So does a law with too few reads to reject a side. A gate with no law gives no read, never a pass.
+
+The caller gives the jobs of each law. Each job measured the subject in the conditions of the law. A job with `noRead` gives no read, for example a job with a noise floor over its limit. The lab gives the jobs, the noise rule and the workflow (CAP-26).
+
+A study used the 8 jobs of the laws of the request rate on the Intel Xeon 6975P-C, at eight rates from 1000 to 30000:
+
+- With no change, no job had more than one read out of a range on one side.
+- With 0.01 ms more CPU time for each request, each job had 6 of 8 reads of `cpu.request` above the range.
+- With 0.005 ms more, each job had 1 or 2 such reads. That is below a block.
+
+These jobs are the evidence of the laws, thus the study is in sample. The Lab runs of CAP-26 test the gate on new jobs.
+
 ## A workload
 
 A workload is the load on an app: the classes of its requests, each with a rate. It is plain data, thus a workload file is JSON. Its format is `capacity-workload/1`.
@@ -645,7 +674,8 @@ A limit set with no limit is correct. `instanceProblems(instance)` and `limitPro
 | Part | Home |
 | --- | --- |
 | Units and amounts | `@mark1russell7/quantity` |
-| Quantiles, least squares, and the fit of a separable model with its bootstrap and held-out ranks | `@mark1russell7/rigor-statistics` |
+| Quantiles, least squares, the fit of a separable model with its bootstrap and held-out ranks, and the tests of the gate (`binomialTest`, `holm`, `partialConjunction`) | `@mark1russell7/rigor-statistics` |
+| The outcomes of a gate: pass, block and no read (`gateOf`) | `@mark1russell7/rigor-bench` |
 | Programs and their evaluation | `@mark1russell7/vex` and `@mark1russell7/vex-domains` |
 | A value or an error | `@mark1russell7/optional` |
 | The property tests of the algebra | `@mark1russell7/rigor-testkit` on `fast-check` |

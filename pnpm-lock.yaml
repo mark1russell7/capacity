@@ -229,6 +229,9 @@ importers:
       '@mark1russell7/quantity':
         specifier: ^0.4.3
         version: 0.4.3(zod@4.6.7)
+      '@mark1russell7/rigor-bench':
+        specifier: ^0.3.2
+        version: 0.3.2(esbuild@0.28.2)
       '@mark1russell7/rigor-statistics':
         specifier: ^0.2.18
         version: 0.2.18
@@ -2671,7 +2674,7 @@ snapshots:
   '@mark1russell7/rigor-bench@0.3.2(esbuild@0.28.2)':
     dependencies:
       '@mark1russell7/rigor-generators': 0.2.0
-      '@mark1russell7/rigor-statistics': 0.2.17
+      '@mark1russell7/rigor-statistics': 0.2.18
       '@mark1russell7/text': 0.0.17
     optionalDependencies:
       esbuild: 0.28.2

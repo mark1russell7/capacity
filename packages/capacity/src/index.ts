@@ -4,7 +4,8 @@
  * requests with their rates. The package examines a law and a workload, and it gives the value of
  * a law at a load point, with an interval. The catalog of forms gives the math of a law as data,
  * with its slope and the start values of its fit. The knee of a law is the first load where its
- * cost starts to grow fast. Its edge is the first load with no value.
+ * cost starts to grow fast. Its edge is the first load with no value. The gate of some laws tells if new
+ * measured values stay in the run ranges of their laws.
  *
  * An instance type gives the resources of one copy of a service. A limit is a ceiling on one
  * measure, with headroom. The package gives the share of each limit that a value takes.
@@ -54,6 +55,8 @@ export type { ConstantInterval, LawValue, LevelOptions, LoadPoint, Range } from 
 export { constantIntervals, lawValue } from "./value.ts";
 export type { Crossing, Floor, Knee, KneeOptions, KneeRule, OpenRange, Reach } from "./knee.ts";
 export { KNEE_STEPS, kneeRuleProblem, lawKnee, lawReach } from "./knee.ts";
+export type { GateCase, GateJob, GateRead, JobCount, LawGate, LawGateCase, LawGateOptions, LawRead, NoReadJob, ReadSide, SideTest } from "./gate.ts";
+export { GATE_ALPHA, GATE_JOBS, lawGate, lawRead } from "./gate.ts";
 export type {
   Amounts,
   Demand,
