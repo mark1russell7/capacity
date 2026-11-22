@@ -1,6 +1,6 @@
 /**
- * The laws of the start cases: a law of a start measure over the size of a store, for each arm, each kind of start
- * and each CPU model. The fit, the knee and the examination of each law are the fit of the laws of load (`fitLawFrom`).
+ * This module gives the laws of the start cases. Each law gives a start measure over the size of a store, for one arm,
+ * one kind of start and one CPU model. The fit, the knee and the examination of each law are the fit of the laws of load (`fitLawFrom`).
  */
 import { DEFAULT_LEVEL, SLUG, leastCount, leastGroups, type ConditionValue, type KneeRule, type Noise, type ResidualKind, type Run } from "@mark1russell7/capacity";
 import { isRecord } from "@mark1russell7/optional/read";
@@ -19,6 +19,7 @@ import {
   isProblems,
   jobName,
   jobProblem,
+  kneeFieldProblems,
   kneeOf,
   uniqueRuns,
   variableProblems,
@@ -80,7 +81,7 @@ const startMeasureProblems = (value: unknown, path: string, seen: Set<string>, l
   if (typeof law !== "string" || !SLUG.test(law)) add(".law", 'The law slug is not lower-case words joined by ".", "-" or "/".');
   else if (laws.has(law)) add(".law", `The law slug "${law}" is in the set two times.`);
   else laws.add(law);
-  problems.push(...fitFieldProblems(value, path));
+  problems.push(...fitFieldProblems(value, path), ...kneeFieldProblems(value["knee"], path));
   return problems;
 };
 
@@ -141,7 +142,7 @@ interface StartLawPoint {
   readonly timed: Timed;
 }
 
-/** The points of one arm and one kind of start on one CPU model, with the facts that they share and the A/A pairs of the base. */
+/** A start group holds the points of one arm and one kind of start on one CPU model, and the facts that they share. */
 interface StartGroup {
   readonly arm: string;
   readonly start: StartKind;
@@ -158,8 +159,8 @@ interface AaPair {
 }
 
 /**
- * The start groups of one CPU model are the groups of each arm and kind of start, the A/A pairs of each kind of start, each
- * failure and each problem of the records.
+ * The start groups of one CPU model hold the group of each arm and kind of start, and the A/A pairs of each kind of start.
+ * They also hold each failure and each problem of the records.
  */
 interface StartGroups {
   readonly groups: readonly StartGroup[];
@@ -175,8 +176,8 @@ const readingValue = (reading: StartReading, measure: StartMeasure): number | nu
 };
 
 /**
- * This function gives the noise of a start measure from the A/A pairs of a group: `noiseFloor` of `@mark1russell7/rigor-statistics`
- * over the differences of the A/A copy and the base, with `FLOOR_K` and at least `FLOOR_PAIRS` pairs.
+ * This function gives the noise of a start measure from the A/A pairs of a group. It applies `noiseFloor` of
+ * `@mark1russell7/rigor-statistics` to the differences of the A/A copy and the base. It uses `FLOOR_K` and `FLOOR_PAIRS` pairs or more.
  */
 const startNoiseOf = (measure: StartMeasure, cpu: string, pairs: readonly AaPair[]): Noise | string => {
   const differences: number[] = [];

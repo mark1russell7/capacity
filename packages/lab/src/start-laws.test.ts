@@ -9,8 +9,10 @@ import { START_RECORD_FORMAT, type StartReading, type StartRecord } from "./star
 import type { StartCase } from "./start.ts";
 
 // The start records of the tests. Each job starts each arm of the case of the log at each of its 6
-// points, in 2 rounds. The time to ready is 100 ms + 3 ms for each MiB of the log. The A/A copy of the
-// base has the same law, with a different small noise. Thus the laws are linear, and the noise floor is small.
+// points, in 2 rounds. The time to ready is 100 ms + about 3 ms for each MiB of the log. The slope of each
+// arm changes a little from job to job, thus the bootstrap of whole jobs gives an interval of the slope.
+// The A/A copy of the base has the slope of the base, with a different small noise. Thus the laws are
+// linear, and the noise floor is small.
 
 const PLANS = fileURLToPath(new URL("../plans/", import.meta.url));
 const CASE = { ...(readPlans(PLANS).plans.find((each) => each.id === "alerts-start")!.cases[0] as StartCase), rounds: 2 };
@@ -22,8 +24,9 @@ const PLAN = { id: "alerts-start", startLaws: SET };
 const OPTIONS = { runs: 40, seed: 1 };
 const ARMS = ["cloud", "new", "cloud~aa"] as const;
 
-/** This function gives the time to ready of a start, in ms, on a log of `mib` MiB. */
-const readyOf = (mib: number, job: number, arm: number, round: number): number => 100 + 3 * mib + 2 * wave(job, arm * 7 + round, Math.round(mib));
+/** This function gives the time to ready of a start, in ms, on a log of `mib` MiB. The arm 2 is the A/A copy of the arm 0. */
+const readyOf = (mib: number, job: number, arm: number, round: number): number =>
+  100 + (3 + 0.5 * wave(job, arm === 2 ? 0 : arm, 1)) * mib + 2 * wave(job, arm * 7 + round, Math.round(mib));
 
 /**
  * This function gives the start record of one job. The record has only the fields that the fit of the laws reads, thus the

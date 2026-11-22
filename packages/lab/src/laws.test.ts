@@ -456,7 +456,7 @@ describe("the command of the laws", () => {
       writeJob(folder, "lab-floor-1-1", FLOORS[0]!, []);
       const result = spawnSync(process.execPath, [COMMAND, "fit", "--records", folder, "--out", join(folder, "out")], { encoding: "utf8" });
       expect(result.status).toBe(1);
-      expect(result.stdout).toBe("No job of the 1 jobs of the records is a job of a plan with a law set.\n");
+      expect(result.stdout).toBe("No job of the 1 jobs of the records is a job of a plan with a law set or a start law set.\n");
       const usage = spawnSync(process.execPath, [COMMAND, "fit", "--out", folder], { encoding: "utf8" });
       expect(usage.status).toBe(1);
       expect(usage.stderr).toContain("The command needs --records and --out.");

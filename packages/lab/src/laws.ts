@@ -162,13 +162,13 @@ const isQuantile = (id: string): id is QuantileMeasure => Object.hasOwn(QUANTILE
 export const tailNeed = (tail: number, level: number): number => Math.ceil(tail / (1 - level) - 1e-9);
 
 /**
- * This function gives the problems of the fields of a measure that each kind of law set has: the title, the residual, the
- * forms and the knee rule. `path` is the path of the measure.
+ * This function gives the problems of the fields that the measures of each kind of law set have. The fields are the
+ * title, the residual and the forms. `path` is the path of the measure.
  */
 export const fitFieldProblems = (measure: Readonly<Record<string, unknown>>, path: string): readonly LawSetProblem[] => {
   const problems: LawSetProblem[] = [];
   const add = (at: string, message: string): void => void problems.push({ code: "laws", path: `${path}${at}`, message });
-  const { title, residual, forms, knee } = measure;
+  const { title, residual, forms } = measure;
   if (typeof title !== "string" || title.trim() === "") add(".title", "The measure has no title.");
   if (!(RESIDUALS as readonly unknown[]).includes(residual)) add(".residual", `The residual is not one of ${RESIDUALS.join(", ")}.`);
   if (forms !== undefined) {
@@ -180,11 +180,14 @@ export const fitFieldProblems = (measure: Readonly<Record<string, unknown>>, pat
       });
     }
   }
-  if (knee !== undefined) {
-    const bad = kneeRuleProblem(knee, `${path}.knee`);
-    if (bad !== undefined) problems.push({ code: "laws", path: bad.path, message: bad.message });
-  }
   return problems;
+};
+
+/** This function gives the problem of the knee rule of a measure, or no problem for a measure with no knee rule. `path` is the path of the measure. */
+export const kneeFieldProblems = (knee: unknown, path: string): readonly LawSetProblem[] => {
+  if (knee === undefined) return [];
+  const bad = kneeRuleProblem(knee, `${path}.knee`);
+  return bad === undefined ? [] : [{ code: "laws", path: bad.path, message: bad.message }];
 };
 
 /** This function gives the problems of the variable of a law set: its id, its unit and its scale. `path` is the path of the variable. */
@@ -230,6 +233,7 @@ const measureProblems = (value: unknown, path: string, seen: Set<string>): reado
     if (!(typeof tail === "number" && Number.isInteger(tail) && tail > 0)) add(".tail", "The tail count is not a whole number above 0.");
     else if (typeof id === "string" && !isQuantile(id)) add(".tail", `The measure "${id}" is not a quantile. Only ${Object.keys(QUANTILE_MEASURES).join(", ")} have a tail.`);
   }
+  problems.push(...kneeFieldProblems(value["knee"], path));
   if (known !== undefined) {
     if (!isRecord(known)) add(".known", "The known mark is not a record.");
     else {
@@ -273,7 +277,7 @@ export const lawSetProblems = (laws: unknown, cases: readonly (Case | StartCase)
   return problems;
 };
 
-/** A law job is one job of a timed run: its manifest, the records of its cases of load and the records of its start cases. */
+/** A law job is one job of a timed run. It has its manifest, the records of its cases of load and the records of its start cases. */
 export interface LawJob {
   readonly timed: Timed;
   readonly records: readonly CaseRecord[];

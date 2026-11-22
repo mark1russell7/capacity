@@ -212,7 +212,7 @@ describe("the problems of a plan", () => {
     expect(paths(plan({ cases: [CASE, start], startLaws: START_SET }))).toEqual(["laws cases[0]"]);
     expect(paths(plan({ cases: [start], startLaws: { ...START_SET, measures: [] } }))).toEqual(["laws startLaws.measures"]);
     const rate = readPlans(PLANS).plans.find((each) => each.id === "rate")!;
-    expect(paths(plan({ cases: [start], laws: rate.laws, startLaws: START_SET }))).toEqual(["laws startLaws"]);
+    expect(paths(plan({ cases: [start], laws: rate.laws!, startLaws: START_SET }))).toEqual(["laws startLaws"]);
   });
 
   it("refuses a plan whose job needs more than the time of one job", () => {
