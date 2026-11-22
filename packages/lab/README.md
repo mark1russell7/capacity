@@ -198,6 +198,14 @@ The check `rate` (`rateCheck`) gives these values for each case:
   - Below the limit of the subject, a latency near the lag of its run can be a latency of the driver. The values give `lag.max` and the latencies of each case.
 - The plan has no trigger: a person starts it. Its time limit is 74 minutes.
 
+The Lab run 44964347304 gives the use of the CPUs at each rate. Four of its five jobs were on an Intel Xeon 6975P-C. The values are the medians of these four jobs:
+
+- **The knee.** The median latency stays near 0.13 ms up to 12000 requests each second. It is 0.26 ms at 14000, and 36.7 ms at 36000.
+- **The window.** At 1000 requests each second, the window of a run is 1.29 s for a schedule of 1 s. At 36000, it is 1.43 s. This calculation assumes that the 0.29 s outside the schedule is the same at each rate. Then the subject serves approximately 31600 requests each second at 36000.
+- **The core of the subject is the limit.** At 36000, CPU 0 is 0.78 busy in the window, thus approximately 0.97 busy in the 1.14 s of load. The subject has approximately 0.64 cores of it.
+- **The work outside the subject.** Approximately a third of CPU 0 is work outside the control group of the subject (`cpuset.busy` less `cores`). Its softirq is approximately 0.1 cores.
+- **The driver is not the limit.** Its CPUs are 2.37 busy of 3 at 36000. Its user time stays at approximately 1.6 cores from 20000 requests each second. Thus its CPU time for each request falls under load.
+
 ## The timed runs
 
 A timed run is one job of the workflow `lab.yml`: it measures one plan on one runner of GitHub. Only CI starts a timed run, because the lab needs Docker and a machine with no other load.
