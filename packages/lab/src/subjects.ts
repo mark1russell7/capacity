@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildSync } from "esbuild";
 
@@ -21,10 +22,10 @@ export interface LabSubject {
   /** This text is in the line that tells that the subject serves. */
   readonly ready: string;
   /**
-   * This name is a program in the folder `src/subject` that imports packages. The stock image has no packages.
-   * Thus `esbuild` bundles the program with its packages, and the bundle goes into the container as `program`.
+   * These names are the packages that the files import, each with its export, for example `@mark1russell7/service/http`.
+   * The stock image has no packages. Thus `packageFiles` puts each one into `node_modules` as JavaScript, as npm installs it.
    */
-  readonly bundle?: string;
+  readonly packages?: readonly string[];
 }
 
 /** This image is the stock image of Node of each subject: the Node image of the lab clients of `@mark1russell7/harness`, by the same digest. */
@@ -42,50 +43,79 @@ export const NODE_HTTP: LabSubject = {
 /**
  * This subject is the service subject of layer 2: the work of the bare subject through the service runner of
  * `@mark1russell7/service`. It has the flags and the lines of the bare subject. Thus a case can name either subject.
+ * Its files start from TypeScript, as the files of the bare subject and of an app do. Its package is JavaScript in `node_modules`.
  */
 export const NODE_HTTP_SERVICE: LabSubject = {
   name: "node-http-service",
   image: NODE_IMAGE,
-  files: [],
-  program: "node-http-service.mjs",
+  files: ["class.ts", "lines.ts", "node-http-service.main.ts", "node-http-service.ts", "perform.ts"],
+  program: "node-http-service.main.ts",
   ready: '"ev":"listening"',
-  bundle: "node-http-service.main.ts",
+  packages: ["@mark1russell7/service", "@mark1russell7/service/http"],
 };
 
-const bundles = new Map<string, string>();
+/** This function gives the package and the export of an import: `@a/b/c` gives `@a/b` and `./c`, and `a` gives `a` and `.`. */
+const exportOf = (entry: string): { readonly name: string; readonly path: string; readonly file: string } => {
+  const parts = entry.split("/");
+  const size = entry.startsWith("@") ? 2 : 1;
+  const rest = parts.slice(size).join("/");
+  return { name: parts.slice(0, size).join("/"), path: rest === "" ? "." : `./${rest}`, file: rest === "" ? "index" : rest };
+};
+
+const installs = new Map<string, Readonly<Record<string, string>>>();
 
 /**
- * This function gives the bundle of a program of the folder `src/subject`, with each package that it imports.
- * The bundle keeps each module of the imports, as Node loads them without a bundle (`treeShaking: false`).
- * Thus the code in memory is the code of the program and its packages. The function makes each bundle one time.
+ * This function gives the files of the packages that a subject imports, in its folder `node_modules`. It gives the
+ * path of each file in the container, and its content.
+ *
+ * - `esbuild` bundles each export with the packages that it imports, as JavaScript modules. Node strips no types in `node_modules`.
+ * - The exports share their common modules, as Node loads one copy of each module.
+ * - The modules keep each module of the imports (`treeShaking: false`). Thus the code in memory is the code of the packages.
+ * - Each package gets a `package.json` with its exports.
+ *
+ * The function makes the files of one list of exports one time.
  */
-export const bundleOf = (program: string): string => {
-  const known = bundles.get(program);
+export const packageFiles = (entries: readonly string[]): Readonly<Record<string, string>> => {
+  const key = entries.join(" ");
+  const known = installs.get(key);
   if (known !== undefined) return known;
+  const folder = fileURLToPath(new URL("./subject/", import.meta.url));
+  // esbuild writes no file (`write: false`). This folder only gives the relative path of each output.
+  const out = join(folder, "node_modules");
+  const exports = entries.map(exportOf);
   const result = buildSync({
-    entryPoints: [fileURLToPath(new URL(`./subject/${program}`, import.meta.url))],
+    entryPoints: exports.map((each, index) => ({ in: entries[index] as string, out: `${each.name}/${each.file}` })),
+    absWorkingDir: folder,
     bundle: true,
+    splitting: true,
     platform: "node",
     format: "esm",
     target: "node24",
     treeShaking: false,
+    outdir: out,
+    outExtension: { ".js": ".mjs" },
+    chunkNames: ".chunks/[name]-[hash]",
     write: false,
     logLevel: "silent",
   });
-  const text = result.outputFiles[0]?.text;
-  if (text === undefined) throw new Error(`esbuild gave no bundle of ${program}.`);
-  bundles.set(program, text);
-  return text;
+  const files: Record<string, string> = {};
+  for (const file of result.outputFiles) files[`${SUBJECT_FOLDER}/node_modules/${relative(out, file.path).split(sep).join("/")}`] = file.text;
+  for (const name of new Set(exports.map((each) => each.name))) {
+    const map = Object.fromEntries(exports.filter((each) => each.name === name).map((each) => [each.path, `./${each.file}.mjs`]));
+    files[`${SUBJECT_FOLDER}/node_modules/${name}/package.json`] = `${JSON.stringify({ name, type: "module", exports: map }, null, 2)}\n`;
+  }
+  installs.set(key, files);
+  return files;
 };
 
 /**
  * This function gives the files of a subject for its container: the path of each file in the
  * container, and its content. Node starts the program of the subject from this folder. A subject
- * with a bundle also gets its bundle as its program.
+ * with packages also gets the files of its packages (`packageFiles`).
  */
 export const subjectFiles = (subject: LabSubject): Readonly<Record<string, string>> => ({
   ...Object.fromEntries(
     subject.files.map((name) => [`${SUBJECT_FOLDER}/${name}`, readFileSync(new URL(`./subject/${name}`, import.meta.url), "utf8")]),
   ),
-  ...(subject.bundle === undefined ? {} : { [`${SUBJECT_FOLDER}/${subject.program}`]: bundleOf(subject.bundle) }),
+  ...(subject.packages === undefined ? {} : packageFiles(subject.packages)),
 });

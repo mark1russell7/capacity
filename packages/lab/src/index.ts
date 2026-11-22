@@ -7,7 +7,7 @@
  * @packageDocumentation
  */
 export { EMPTY, FIELDS, LIMITS, UNITS, classOf, classProblems, pathOf, requestOf, type Field, type RequestClass } from "./subject/class.ts";
-export { NODE_HTTP, NODE_HTTP_SERVICE, SUBJECT_FOLDER, bundleOf, subjectFiles, type LabSubject } from "./subjects.ts";
+export { NODE_HTTP, NODE_HTTP_SERVICE, SUBJECT_FOLDER, packageFiles, subjectFiles, type LabSubject } from "./subjects.ts";
 export {
   CASE_FORMAT,
   CASE_LEVELS,

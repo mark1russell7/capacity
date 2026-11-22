@@ -662,10 +662,14 @@ The subject `node-http-service` (`NODE_HTTP_SERVICE`) is layer 2: the work of th
 - **The signals.** The service owns SIGTERM and SIGINT. The program writes `stopping`, and the service drains and closes in the phases of its declaration.
 - **Other answers.** A path that is not a class gets 404, and a body of a different size gets 500. The driver counts each as a failure, as it does for the 400 of the bare subject.
 
-### The bundle
+### The packages
 
-The stock image of Node has no packages. Thus `esbuild` bundles the program with its packages (`bundleOf`), and the bundle goes into the container as `node-http-service.mjs`.
+The service subject starts as an app of this repository starts. Node starts its own files from TypeScript, and its packages are JavaScript in `node_modules`.
 
-- The bundle keeps each module of the imports (`treeShaking: false`), as Node loads them without a bundle. Thus the code in memory is the code of the program and its packages.
+- The stock image of Node has no packages. Thus `esbuild` bundles each export of `packages` with the packages that it imports (`packageFiles`). The modules go into `node_modules`, with a `package.json` for each package.
+- The two subjects start their own files through the TypeScript loader of Node. Thus the cost of the loader is the same on the two sides of a pair, and the difference is the cost of the runner.
+- The modules keep each module of the imports (`treeShaking: false`), as Node loads an installed package. Thus the code in memory is the code of the program and its packages.
 - The version of each package comes from the lockfile of this repository. Thus a change of the runner is a change of the lockfile, and the lab runs again.
-- The lab makes each bundle one time in a process, in approximately 0.1 to 0.3 s.
+- The lab makes the modules one time in a process, in approximately 0.1 to 0.3 s.
+
+The first run of the plan `overhead` started the service subject as one bundle. That bundle started with no TypeScript loader. Thus the bare side had approximately 7 MiB more memory at 100 requests each second. The loader of Node holds approximately 3.5 MiB of heap and 3.6 MiB of external memory.

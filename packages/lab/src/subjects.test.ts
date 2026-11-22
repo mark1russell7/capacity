@@ -1,13 +1,13 @@
 import { spawn, type ChildProcess } from "node:child_process";
-import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { basename, join } from "node:path";
+import { dirname, join } from "node:path";
 import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
 import { afterAll, describe, expect, it } from "vitest";
 import { APP_START_PROGRAM, FAKES_PROGRAM } from "./start-app.ts";
 import { ALERTS } from "./subject/alerts.ts";
-import { NODE_HTTP, NODE_HTTP_SERVICE, SUBJECT_FOLDER, subjectFiles, type LabSubject } from "./subjects.ts";
+import { NODE_HTTP, NODE_HTTP_SERVICE, SUBJECT_FOLDER, packageFiles, subjectFiles, type LabSubject } from "./subjects.ts";
 
 type Line = { readonly ev: string; readonly t: number } & Readonly<Record<string, unknown>>;
 
@@ -23,7 +23,11 @@ afterAll(() => {
 const copyOf = (subject: LabSubject): string => {
   const folder = mkdtempSync(join(tmpdir(), "capacity-subject-"));
   folders.push(folder);
-  for (const [path, content] of Object.entries(subjectFiles(subject))) writeFileSync(join(folder, basename(path)), content);
+  for (const [path, content] of Object.entries(subjectFiles(subject))) {
+    const file = join(folder, path.slice(SUBJECT_FOLDER.length + 1));
+    mkdirSync(dirname(file), { recursive: true });
+    writeFileSync(file, content);
+  }
   return folder;
 };
 
@@ -48,9 +52,10 @@ describe("NODE_HTTP", () => {
     const folder = fileURLToPath(new URL("./subject/", import.meta.url));
     const programs = readdirSync(folder).filter((name) => name.endsWith(".ts") && !name.endsWith(".test.ts"));
     // The folder holds three subjects and the programs of the app cases. The service subject has its program and its
-    // server, in one bundle. The subject of alerts has its declaration and its two programs. The app cases have the
-    // start program, the program of the sidecar of the fakes, and their ready checks.
-    const service = [NODE_HTTP_SERVICE.bundle as string, "node-http-service.ts"];
+    // server, and the files of the bare subject that it uses. The subject of alerts has its declaration and its two
+    // programs. The app cases have the start program, the program of the sidecar of the fakes, and their ready checks.
+    const service = NODE_HTTP_SERVICE.files.filter((name) => !NODE_HTTP.files.includes(name));
+    expect(service).toEqual(["node-http-service.main.ts", "node-http-service.ts"]);
     const alerts = ["alerts.ts", ALERTS.seed, ALERTS.start];
     expect([...NODE_HTTP.files, ...service, ...alerts, APP_START_PROGRAM, FAKES_PROGRAM, "ready.ts"].sort()).toEqual(programs.sort());
     expect(NODE_HTTP.files).toContain(NODE_HTTP.program);
@@ -108,22 +113,38 @@ describe("NODE_HTTP", () => {
 });
 
 describe("NODE_HTTP_SERVICE", () => {
-  it("goes into its container as one bundle, on the image of the bare subject, and its sources import only Node, the service and each other", () => {
-    expect(Object.keys(subjectFiles(NODE_HTTP_SERVICE))).toEqual([`${SUBJECT_FOLDER}/${NODE_HTTP_SERVICE.program}`]);
+  it("goes into its container as its own TypeScript files and its packages as JavaScript, on the image of the bare subject", () => {
+    const files = subjectFiles(NODE_HTTP_SERVICE);
+    const modules = `${SUBJECT_FOLDER}/node_modules/`;
+    expect(Object.keys(files).filter((path) => !path.startsWith(modules))).toEqual(NODE_HTTP_SERVICE.files.map((name) => `${SUBJECT_FOLDER}/${name}`));
+    expect(NODE_HTTP_SERVICE.files).toContain(NODE_HTTP_SERVICE.program);
+    // Node strips no types in node_modules, thus each module of a package is JavaScript
+    const packed = Object.keys(files).filter((path) => path.startsWith(modules) && !path.endsWith("/package.json"));
+    expect(packed.length).toBeGreaterThan(1);
+    expect(packed.every((path) => path.endsWith(".mjs"))).toBe(true);
+    expect(JSON.parse(files[`${modules}@mark1russell7/service/package.json`] as string)).toEqual({
+      name: "@mark1russell7/service",
+      type: "module",
+      exports: { ".": "./index.mjs", "./http": "./http.mjs" },
+    });
+    // the lab makes the files of one list of exports one time
+    expect(packageFiles([...(NODE_HTTP_SERVICE.packages ?? [])])).toBe(packageFiles(NODE_HTTP_SERVICE.packages ?? []));
     expect(NODE_HTTP_SERVICE.image).toBe(NODE_HTTP.image);
     expect(NODE_HTTP_SERVICE.ready).toBe(NODE_HTTP.ready);
+  });
+
+  it("has files that import only Node, its packages and each other", () => {
     const folder = fileURLToPath(new URL("./subject/", import.meta.url));
-    const own = new Set([...NODE_HTTP.files, "node-http-service.ts", NODE_HTTP_SERVICE.bundle as string]);
-    for (const name of [NODE_HTTP_SERVICE.bundle as string, "node-http-service.ts"]) {
+    const own = new Set(NODE_HTTP_SERVICE.files);
+    const packages = new Set(NODE_HTTP_SERVICE.packages);
+    for (const name of NODE_HTTP_SERVICE.files) {
       const content = readFileSync(join(folder, name), "utf8");
       const imports = [...content.matchAll(/^import .* from "([^"]+)";$/gm)].map((match) => match[1] as string);
-      for (const each of imports) {
-        expect(each.startsWith("node:") || each.startsWith("@mark1russell7/service") || own.has(each.replace(/^\.\//, ""))).toBe(true);
-      }
+      for (const each of imports) expect(each.startsWith("node:") || packages.has(each) || own.has(each.replace(/^\.\//, ""))).toBe(true);
     }
   });
 
-  it("starts from its bundle, gives the reply of the bare subject to each class, answers its probes and stops at a signal", async () => {
+  it("starts from its files and its packages, gives the reply of the bare subject to each class, answers its probes and stops at a signal", async () => {
     const { child, next, ended } = start(["--port", "0", "--ballast", "1048576", "--keep-alive-timeout", "0"], NODE_HTTP_SERVICE);
     const listening = await next();
     expect(JSON.stringify(listening)).toContain(NODE_HTTP_SERVICE.ready);
