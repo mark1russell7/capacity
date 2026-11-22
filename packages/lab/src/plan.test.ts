@@ -127,6 +127,27 @@ describe("the plan files of the lab", () => {
     }
   });
 
+  it("have the plan of the two starts of alerts: the contract and the start subject on one commit, one seed and the sizes of one store", () => {
+    const plan = readPlans(PLANS).plans.find((each) => each.id === "alerts-start-app");
+    expect(plan?.check).toBeNull();
+    expect(plan?.triggers).toEqual([]);
+    const [contract, subject, ...more] = (plan?.cases ?? []).filter(isStartCase);
+    expect(more).toEqual([]);
+    expect([contract?.id, contract?.app, subject?.id, subject?.subject]).toEqual(["alerts-start-app/contract", "https://github.com/metrograph-labs/alerts.git", "alerts-start-app/subject", "alerts"]);
+    // The seed script of the contract gives seedStore the seed al124, the log and the sizes of the cache files of one live copy.
+    // The start subject gives it the same, thus the two cases open the same store, and only the start differs.
+    const shared = (value: StartCase) => [value.format, value.seeder, value.seed, value.rounds, value.watch, value.probe, value.target, value.limit, value.windows, value.observed];
+    expect(shared(contract!)).toEqual(shared(subject!));
+    expect(contract!.seed).toBe("al124");
+    const [armsA, armsB, pointsA, pointsB] = [contract!.arms, subject!.arms, contract!.points, subject!.points];
+    expect(armsA.map(({ id, commit, ballast }) => ({ id, commit, ballast }))).toEqual(armsB.map(({ id, commit, ballast }) => ({ id, commit, ballast })));
+    expect(new Set([...armsA, ...armsB].map((arm) => arm.commit))).toEqual(new Set([contract!.seeder]));
+    expect(armsB.every((arm) => arm.snapshot === true)).toBe(true);
+    expect(pointsA.map((point) => [point.id, point.at["log"]])).toEqual(pointsB.map((point) => [point.id, point.at["log"]]));
+    expect(pointsB.map((point) => [point.at["shapes"], point.at["transit"]])).toEqual(pointsB.map(() => [{ value: 30466048, unit: "B" }, { value: 3122485, unit: "B" }]));
+    expect(planMinutes(plan!)).toBeLessThanOrEqual(MAX_JOB_MINUTES);
+  });
+
   it("bracket the knee of the cloud log with one ready fact and one late fact of the cloud arm", () => {
     const knee = readPlans(PLANS).plans.find((each) => each.id === "alerts-start-files")?.cases.find((each) => each.id === "alerts-start/knee");
     if (!isStartCase(knee)) throw new Error("The plan alerts-start-files has no knee case.");
