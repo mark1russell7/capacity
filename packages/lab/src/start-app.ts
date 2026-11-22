@@ -106,7 +106,7 @@ export const readTreeApp = (tree: string, dir: string): TreeApp => {
     throw new Error(`The contract file of the tree "${tree}" is not JSON: ${errorMessage(error)}`);
   }
   const read = readApp(data);
-  if (!read.ok) throw new Error(`The contract of the tree "${tree}" has problems: ${read.error.map((each) => `${each.path}: ${each.message}`).join(" ")}`);
+  if (read.tag === "err") throw new Error(`The contract of the tree "${tree}" has problems: ${read.error.map((each) => `${each.path}: ${each.message}`).join(" ")}`);
   const manifest = join(dir, "package.json");
   const json: unknown = existsSync(manifest) ? JSON.parse(readFileSync(manifest, "utf8")) : undefined;
   const engines = isRecord(json) && isRecord(json["engines"]) && typeof json["engines"]["node"] === "string" ? json["engines"]["node"] : undefined;
