@@ -171,6 +171,7 @@ formValues: build/index.d.ts#formValues
 gridOf: build/index.d.ts#gridOf
 instancePointOf: build/instance.chunk.d.ts#instancePointOf
 instanceProblems: build/index.d.ts#instanceProblems
+isHttps: build/index.d.ts#isHttps
 isLawTerm: build/instance.chunk.d.ts#isLawTerm
 kneeRuleProblem: build/index.d.ts#kneeRuleProblem
 lawGate: build/index.d.ts#lawGate
@@ -642,6 +643,9 @@ export declare const gridOf: (grid: Grid, xs: readonly number[]) => readonly num
 
 ### build/index.d.ts#instanceProblems
 export declare const instanceProblems: (instance: Instance) => readonly InstanceProblem[];
+
+### build/index.d.ts#isHttps
+export declare const isHttps: (text: string) => boolean;
 
 ### build/index.d.ts#kneeRuleProblem
 export declare const kneeRuleProblem: (rule: unknown, path?: string) => LawProblem | undefined;

@@ -20,10 +20,12 @@ import {
   pointBytes,
   startCaseProblems,
   startSubjectOf,
+  startVariablesOf,
   startWindowOf,
   treesOf,
   type StartCase,
 } from "./start.ts";
+import { APP_CASE } from "./app-fixtures.ts";
 import { ALERTS } from "./subject/alerts.ts";
 
 const MIB = 1024 * 1024;
@@ -249,5 +251,39 @@ describe("the amounts and the time of a start case", () => {
     expect(isStartCase(CASE)).toBe(true);
     expect(isStartCase({ format: "capacity-case/1" })).toBe(false);
     expect(isStartCase(null)).toBe(false);
+  });
+});
+
+describe("an app case", () => {
+  const app = (more: Partial<StartCase> | Record<string, unknown>): StartCase => ({ ...APP_CASE, ...more }) as StartCase;
+  const appPaths = (value: StartCase): readonly string[] => startCaseProblems(value).map((each) => `${each.code} ${each.path}`);
+
+  it("names its app by the HTTPS URL of its repository, and its subject is the id of the contract, not a subject of the lab", () => {
+    expect(appPaths(APP_CASE)).toEqual([]);
+    expect(appPaths(app({ app: "git@github.com:example/fixture-app.git" }))).toEqual(["subject app"]);
+    expect(appPaths(app({ app: 7 }))).toEqual(["subject app"]);
+    expect(appPaths(app({ subject: "Fixture App" }))).toEqual(["subject subject"]);
+    expect(appPaths(app({ subject: "alerts" }))).toEqual([]);
+  });
+
+  it("refuses the field snapshot on an arm, because the run of the contract tells it", () => {
+    const arms = [{ ...APP_CASE.arms[0]!, snapshot: false }, APP_CASE.arms[1]!];
+    expect(appPaths(app({ arms }))).toEqual(["arm arms[0].snapshot"]);
+  });
+
+  it("needs each point to name the variables of the first point, in a unit of the same kind, with no range of a subject of the lab", () => {
+    const big = { id: "big", at: { log: { value: 64, unit: "GiB" } } };
+    expect(appPaths(app({ points: [...APP_CASE.points, big] }))).toEqual([]);
+    expect(appPaths(app({ points: [...APP_CASE.points, { id: "none", at: {} }] }))).toEqual(["point points[2].at"]);
+    expect(appPaths(app({ points: [...APP_CASE.points, { id: "more", at: { ...big.at, shapes: { value: 1, unit: "KiB" } } }] }))).toEqual(["point points[2].at.shapes"]);
+    expect(appPaths(app({ points: [...APP_CASE.points, { id: "time", at: { log: { value: 1, unit: "s" } } }] }))).toEqual(["point points[2].at.log"]);
+  });
+
+  it("gives the variables of its first point to the amounts and to the time of the case", () => {
+    expect(startVariablesOf(APP_CASE)).toEqual({ variables: { log: { unit: "KiB", min: 0, max: Infinity } } });
+    expect(startVariablesOf(CASE)).toBe(START_SUBJECTS["alerts"]);
+    expect(pointBytes(startVariablesOf(APP_CASE), APP_CASE.points[1]!)).toBe(512 * 1024);
+    // The seeder has the commit of the arm base, with no graft: the case has 2 trees, and no type check.
+    expect(startWindowOf(APP_CASE).value).toBeGreaterThan(2 * TREE_MARGIN.value);
   });
 });

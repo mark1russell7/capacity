@@ -111,6 +111,8 @@ export interface AppProcess extends AppCommand {
  * - `install` installs the dependencies of the tree. An app with no dependencies has no install.
  * - `check` examines the tree after the install, for example with a typecheck.
  * - `seed` writes the store of a start case at the amounts of the store variables. An app with no store variable has no seed.
+ *   The last line of the output of the seed is a JSON record. Its field `amounts` gives the amount of each store variable
+ *   that the seed wrote, by its id, in the unit of the variable.
  * - `run` is the process of the app.
  */
 export interface AppStart {

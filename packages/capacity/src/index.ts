@@ -94,7 +94,7 @@ export type {
   VariableKind,
 } from "./app.ts";
 export { APP_FILE, APP_FORMAT } from "./app.ts";
-export { appWorkloadProblems, checkApp, fillPlaceholders, metricsGaps, placeholdersOf, requestPath } from "./app-check.ts";
+export { appWorkloadProblems, checkApp, fillPlaceholders, isHttps, metricsGaps, placeholdersOf, requestPath } from "./app-check.ts";
 export type { MetricsWindow, SeriesReading } from "./app-metrics.ts";
 export { counterIncrease, observationOf } from "./app-metrics.ts";
 export type { Load, PointLaw, PointOptions, ShareOptions } from "./demand.ts";
