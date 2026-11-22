@@ -428,7 +428,7 @@ A contract can have outside services, for example a feed or a channel of message
 
 #### The ladders of the levels
 
-The plans `alerts-feeds`, `alerts-persons` and `alerts-incidents` start alerts from its contract at 9 rungs of one level (CAP-35). Each plan has one app case with one arm, and a start law set of its level.
+The plans `alerts-start-feeds`, `alerts-start-persons` and `alerts-start-incidents` start alerts from its contract at 9 rungs of one level (CAP-35). Each plan has one app case with one arm, and a start law set of its level.
 
 | Part | The value | Why |
 | --- | --- | --- |

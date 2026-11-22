@@ -1,15 +1,15 @@
 {
   "format": "capacity-plan/1",
-  "id": "alerts-persons",
-  "title": "The start of alerts from its contract at 9 rungs of the persons that watch the place, with the other levels at the base point",
+  "id": "alerts-start-incidents",
+  "title": "The start of alerts from its contract at 9 rungs of the incidents that are open at the start, with the other levels at the base point",
   "check": null,
   "triggers": [],
   "jobs": 5,
   "cases": [
     {
       "format": "capacity-start/1",
-      "id": "alerts-persons/ladder",
-      "title": "The start of alerts at each rung of the persons that watch the place. Each person has a route for each incident and for each system incident.",
+      "id": "alerts-start-incidents/ladder",
+      "title": "The start of alerts at each rung of the incidents that are open at the start. Each open incident has a route for each person.",
       "subject": "alerts-runtime",
       "app": "https://github.com/metrograph-labs/alerts.git",
       "arms": [
@@ -59,7 +59,7 @@
       "observed": [],
       "points": [
         {
-          "id": "persons-1",
+          "id": "incidents-0",
           "at": {
             "log": {
               "value": 16777216,
@@ -70,38 +70,17 @@
               "unit": "{feed}"
             },
             "persons": {
-              "value": 1,
+              "value": 10,
               "unit": "{person}"
             },
             "incidents": {
-              "value": 10,
+              "value": 0,
               "unit": "{incident}"
             }
           }
         },
         {
-          "id": "persons-3",
-          "at": {
-            "log": {
-              "value": 16777216,
-              "unit": "B"
-            },
-            "feeds": {
-              "value": 10,
-              "unit": "{feed}"
-            },
-            "persons": {
-              "value": 3,
-              "unit": "{person}"
-            },
-            "incidents": {
-              "value": 10,
-              "unit": "{incident}"
-            }
-          }
-        },
-        {
-          "id": "persons-10",
+          "id": "incidents-10",
           "at": {
             "log": {
               "value": 16777216,
@@ -122,7 +101,7 @@
           }
         },
         {
-          "id": "persons-30",
+          "id": "incidents-100",
           "at": {
             "log": {
               "value": 16777216,
@@ -133,38 +112,17 @@
               "unit": "{feed}"
             },
             "persons": {
-              "value": 30,
+              "value": 10,
               "unit": "{person}"
             },
             "incidents": {
-              "value": 10,
-              "unit": "{incident}"
-            }
-          }
-        },
-        {
-          "id": "persons-100",
-          "at": {
-            "log": {
-              "value": 16777216,
-              "unit": "B"
-            },
-            "feeds": {
-              "value": 10,
-              "unit": "{feed}"
-            },
-            "persons": {
               "value": 100,
-              "unit": "{person}"
-            },
-            "incidents": {
-              "value": 10,
               "unit": "{incident}"
             }
           }
         },
         {
-          "id": "persons-300",
+          "id": "incidents-200",
           "at": {
             "log": {
               "value": 16777216,
@@ -175,17 +133,38 @@
               "unit": "{feed}"
             },
             "persons": {
+              "value": 10,
+              "unit": "{person}"
+            },
+            "incidents": {
+              "value": 200,
+              "unit": "{incident}"
+            }
+          }
+        },
+        {
+          "id": "incidents-300",
+          "at": {
+            "log": {
+              "value": 16777216,
+              "unit": "B"
+            },
+            "feeds": {
+              "value": 10,
+              "unit": "{feed}"
+            },
+            "persons": {
+              "value": 10,
+              "unit": "{person}"
+            },
+            "incidents": {
               "value": 300,
-              "unit": "{person}"
-            },
-            "incidents": {
-              "value": 10,
               "unit": "{incident}"
             }
           }
         },
         {
-          "id": "persons-1000",
+          "id": "incidents-400",
           "at": {
             "log": {
               "value": 16777216,
@@ -196,53 +175,74 @@
               "unit": "{feed}"
             },
             "persons": {
+              "value": 10,
+              "unit": "{person}"
+            },
+            "incidents": {
+              "value": 400,
+              "unit": "{incident}"
+            }
+          }
+        },
+        {
+          "id": "incidents-600",
+          "at": {
+            "log": {
+              "value": 16777216,
+              "unit": "B"
+            },
+            "feeds": {
+              "value": 10,
+              "unit": "{feed}"
+            },
+            "persons": {
+              "value": 10,
+              "unit": "{person}"
+            },
+            "incidents": {
+              "value": 600,
+              "unit": "{incident}"
+            }
+          }
+        },
+        {
+          "id": "incidents-800",
+          "at": {
+            "log": {
+              "value": 16777216,
+              "unit": "B"
+            },
+            "feeds": {
+              "value": 10,
+              "unit": "{feed}"
+            },
+            "persons": {
+              "value": 10,
+              "unit": "{person}"
+            },
+            "incidents": {
+              "value": 800,
+              "unit": "{incident}"
+            }
+          }
+        },
+        {
+          "id": "incidents-1000",
+          "at": {
+            "log": {
+              "value": 16777216,
+              "unit": "B"
+            },
+            "feeds": {
+              "value": 10,
+              "unit": "{feed}"
+            },
+            "persons": {
+              "value": 10,
+              "unit": "{person}"
+            },
+            "incidents": {
               "value": 1000,
-              "unit": "{person}"
-            },
-            "incidents": {
-              "value": 10,
-              "unit": "{incident}"
-            }
-          }
-        },
-        {
-          "id": "persons-3000",
-          "at": {
-            "log": {
-              "value": 16777216,
-              "unit": "B"
-            },
-            "feeds": {
-              "value": 10,
-              "unit": "{feed}"
-            },
-            "persons": {
-              "value": 3000,
-              "unit": "{person}"
-            },
-            "incidents": {
-              "value": 10,
-              "unit": "{incident}"
-            }
-          }
-        },
-        {
-          "id": "persons-10000",
-          "at": {
-            "log": {
-              "value": 16777216,
-              "unit": "B"
-            },
-            "feeds": {
-              "value": 10,
-              "unit": "{feed}"
-            },
-            "persons": {
-              "value": 10000,
-              "unit": "{person}"
-            },
-            "incidents": {
-              "value": 10,
               "unit": "{incident}"
             }
           }
@@ -252,9 +252,9 @@
   ],
   "startLaws": {
     "variable": {
-      "id": "persons",
-      "unit": "{person}",
-      "scale": "log"
+      "id": "incidents",
+      "unit": "{incident}",
+      "scale": "linear"
     },
     "measures": [
       {

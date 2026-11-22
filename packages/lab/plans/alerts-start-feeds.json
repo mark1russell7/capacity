@@ -1,6 +1,6 @@
 {
   "format": "capacity-plan/1",
-  "id": "alerts-feeds",
+  "id": "alerts-start-feeds",
   "title": "The start of alerts from its contract at 9 rungs of the transit feeds near the place, with the other levels at the base point",
   "check": null,
   "triggers": [],
@@ -8,7 +8,7 @@
   "cases": [
     {
       "format": "capacity-start/1",
-      "id": "alerts-feeds/ladder",
+      "id": "alerts-start-feeds/ladder",
       "title": "The start of alerts at each rung of the transit feeds near the place. Each feed is a polled source of the start.",
       "subject": "alerts-runtime",
       "app": "https://github.com/metrograph-labs/alerts.git",

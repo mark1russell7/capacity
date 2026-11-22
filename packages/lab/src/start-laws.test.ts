@@ -140,7 +140,7 @@ describe("the problems of a start law set", () => {
     expect(problems.map((each) => each.path)).toEqual(["cases[0].points"]);
     expect(problems[0]?.message).toContain('"feeds"');
     // a variable that only some points name is a variable that moves
-    const some = held.map((each, index) => (index === 0 ? { ...each, at: { log: each.at["log"]! } } : each));
+    const some = held.map((each, index) => (index === 0 ? { ...each, at: Object.fromEntries(Object.entries(each.at).filter(([name]) => name !== "feeds")) } : each));
     expect(startLawSetProblems(SET, [{ ...CASE, points: some }]).map((each) => each.path)).toEqual(["cases[0].points"]);
   });
 });
@@ -152,7 +152,7 @@ describe("the plans of the levels of alerts", () => {
   it("give one ladder of 9 rungs for each level, with each other variable at the base point, and no problem", () => {
     expect(plans.problems).toEqual([]);
     const bases = LEVELS.map((level) => {
-      const plan = plans.plans.find((each) => each.id === `alerts-${level}`);
+      const plan = plans.plans.find((each) => each.id === `alerts-start-${level}`);
       expect(plan?.startLaws?.variable.id).toBe(level);
       expect(plan?.cases).toHaveLength(1);
       const value = plan?.cases[0] as StartCase;
