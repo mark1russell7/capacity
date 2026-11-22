@@ -186,8 +186,8 @@ const placeholderProblems = (app: AppContract, command: AppCommand, path: string
         continue;
       }
       if (head === "variable" && place === "seed" && id !== "") {
-        if (!app.variables.some((each) => each.id === id && each.kind === "store")) {
-          problems.push(appProblem("placeholder", at, `The placeholder "{${name}}" names "${id}", and the app has no store variable with that id.`));
+        if (!app.variables.some((each) => each.id === id && each.kind !== "request")) {
+          problems.push(appProblem("placeholder", at, `The placeholder "{${name}}" names "${id}", and the app has no store or level variable with that id.`));
         }
         continue;
       }

@@ -100,6 +100,16 @@ describe("the contract of an app", () => {
     expect(problemsOf((app) => void (app.start.run.env = {}))).toEqual(["service services[0]"]);
   });
 
+  it("gives the amount of a store or a level variable to the seed, and refuses it to the run and a request variable to the seed", () => {
+    expect(problemsOf((app) => void app.start.seed!.argv.push("--connections={variable.connections}"))).toEqual([]);
+    expect(problemsOf((app) => void app.start.run.argv.push("--catalog={variable.catalog}"))).toEqual(["placeholder start.run.argv[6]"]);
+    expect(problemsOf((app) => void (app.start.seed!.env["CONNECTIONS"] = "{variable.connections}"))).toEqual([]);
+    expect(problemsOf((app) => void app.start.seed!.argv.push("--body={variable.body}"))).toEqual(["placeholder start.seed.argv[6]"]);
+    expect(problemsOf((app) => void (app.start.seed!.env["QUEUE"] = "{variable.queue}"))).toEqual(["placeholder start.seed.env.QUEUE"]);
+    expect(problemsOf((app) => void app.start.install!.argv.push("{variable.connections}"))).toEqual(["placeholder start.install.argv[3]"]);
+    expect(problemsOf((app) => void app.services[0]!.fake.argv.push("{variable.connections}"))).toEqual(["placeholder services[0].fake.argv[6]"]);
+  });
+
   it("examines each series: its kind, its unit and its target", () => {
     expect(problemsOf((app) => void (app.metrics[0]!.kind = "gauge"))).toEqual(["series metrics[0].kind"]);
     expect(problemsOf((app) => void (app.metrics[0]!.unit = "B"))).toEqual(["unit metrics[0].unit"]);

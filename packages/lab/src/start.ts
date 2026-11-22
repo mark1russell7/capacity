@@ -103,7 +103,7 @@ export interface StartSubject {
   readonly start: string;
 }
 
-/** The variables of a store, by their names: the variables of a subject, or the store variables of the contract of an app. */
+/** The variables of a point by their names: the variables of a subject, or the variables of the points of an app case (`appVariables`). */
 export type StartVariables = Pick<StartSubject, "variables">;
 
 /** These subjects are the start subjects that a start case can name, by their names. */
@@ -373,7 +373,7 @@ const pointProblems = (points: unknown, subject: PointScope | undefined): readon
     }
     if (subject === undefined) return;
     if (!subject.ranged) {
-      // Each point of an app case names the same variables: the store variables of the app.
+      // Each point of an app case names the same variables: the store variables of the app and the level variables of its seed.
       for (const name of Object.keys(subject.variables).filter((each) => !Object.hasOwn(at, each))) {
         problems.push(problem("point", `${path}.at`, `The point does not name "${name}". Each point of an app case names the variables of its first point.`));
       }

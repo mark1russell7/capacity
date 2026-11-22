@@ -82,11 +82,11 @@ export interface AppClass {
  * - `{store}`: the folder of the store of the app.
  * - `{workload}`: the path of the workload file of the run.
  * - `{service.<id>}`: the base URL of the fake of the service `<id>`.
- * - `{variable.<id>}`: the amount of the store variable `<id>`, in the unit of the variable.
+ * - `{variable.<id>}`: the amount of the store or level variable `<id>` at the point, in the unit of the variable.
  *
  * The run holds `{port}` when a class comes from HTTP or the ready signal is `http`. The seed and the run hold
- * `{store}` when the app has a store variable. The fake of each service holds `{port}`, and `{workload}` when a
- * class comes from the service.
+ * `{store}` when the app has a store variable. The seed can hold `{variable.<id>}` of a store or a level variable,
+ * for example the routes of a configuration. The fake of each service holds `{port}`, and `{workload}` when a class comes from the service.
  */
 export interface AppCommand {
   readonly argv: readonly string[];

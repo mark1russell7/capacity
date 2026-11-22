@@ -398,6 +398,7 @@ An app case has the field `app`: the HTTPS URL of the repository of an app with 
 
 - The commands `install` and `check` of the contract replace the install and the type check of a subject. They start on the host, in the tree.
 - The command `seed` writes the store of each point. The lab gives it `{store}` and the amount of each store variable, in the unit of the variable.
+- The seed can also get the amount of a level variable, for example the routes of a configuration. The point sets this amount, and the record of the point has it.
 - The last line of the output of the seed is a JSON record. Its field `amounts` gives the amount of each store variable that the seed wrote.
 - The command `run` starts `node`. The lab writes a run file for each arm. The child is the program `app-start`, with the options of Node of the command `run`.
 - `app-start` sets the arguments, the folder and the environment of the command `run`. Then it imports the script in its own process. Thus the container holds only the process of the app, as on the target.
@@ -408,7 +409,7 @@ An app has no pass of the lab. Thus `limit` is the longest start to the ready si
 
 The lab examines the contract of each tree before the seed, with `appCaseProblems`:
 
-- Each point names each store variable of the contract, in the range of the contract.
+- Each point names each store variable of the contract and each level variable of its seed, in the range of the contract.
 - The Node of the target is in the range `engines.node` of the `package.json` of the tree.
 - The options of Node of the command `run` hold no placeholder. An option with a value has the form `--name=value`.
 - The command `run` does not set `NODE_OPTIONS`, because the process of the app has started when it sets the environment.

@@ -48,7 +48,7 @@ import {
   type StartTarget,
   type StartVariables,
 } from "./start.ts";
-import { APP_START_PROGRAM, appCaseProblems, appRunOf, fillCommand, hostCommand, readTreeApp, seedAmountsOf, variableValues, type TreeApp } from "./start-app.ts";
+import { APP_START_PROGRAM, appCaseProblems, appRunOf, fillCommand, hostCommand, levelsOf, readTreeApp, seedAmountsOf, variableValues, type TreeApp } from "./start-app.ts";
 
 /** This text is the format of the record of a start case. */
 export const START_RECORD_FORMAT = "capacity-start-record/1";
@@ -738,10 +738,11 @@ export const measureStart = async (value: StartCase, options: StartMeasureOption
       continue;
     }
     // The seed of the contract of the seeder writes the store. Its last line gives the amounts that it wrote.
+    // The point sets the level variables of the seed, thus the sizes of the point have them too.
     const tree = appOf(seederId);
     const { seed } = tree.app.start;
     const host = seed === undefined ? undefined : hostCommand(fillCommand(seed, { store: storeOf(point.id), ...variableValues(tree.app, point) }), seeder);
-    const sizes = host === undefined ? {} : seedAmountsOf(await command(start, host.argv, host.cwd, limit), tree.app);
+    const sizes = { ...levelsOf(tree.app, point), ...(host === undefined ? {} : seedAmountsOf(await command(start, host.argv, host.cwd, limit), tree.app)) };
     points.push({ id: point.id, sizes, time: since(begun), args: [] });
   }
 

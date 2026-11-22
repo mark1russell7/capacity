@@ -487,6 +487,7 @@ The lab puts a value into each placeholder of a command before the start: `{port
 - A request of HTTP sets each request variable of its class, in its path or in its body. The body is in bytes.
 - Each command has a program and a folder in the repository. It holds only the placeholders of its place.
 - The run gets its port, the store and the URL of each service. The seed gets the store and sets each store variable. Each fake gets its port.
+- The seed can get the amount of a store or a level variable. It writes the state of the app at the point, and the run opens it.
 - Each series has the kind and the unit of what it measures. Two series do not measure the same thing.
 
 ### The live metrics of an app
