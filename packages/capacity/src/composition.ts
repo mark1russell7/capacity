@@ -14,7 +14,8 @@ import {
 import { instancePointOf, loadPointOf, totalRate, type Load } from "./demand.ts";
 import { DEFAULT_LEVEL, type Law, type Measure, type Problem, type ProblemCode } from "./law.ts";
 import { SLUG, finite, repeated } from "./names.ts";
-import { intervalOf, levelProblem, pointValuesOf, runOf, type LevelOptions, type Range } from "./value.ts";
+import { recordOf, valuesAt } from "./program.ts";
+import { intervalOf, levelProblem, pointValuesOf, runOf, type LevelOptions, type LoadPoint, type Range } from "./value.ts";
 import { demandProblems } from "./workload-check.ts";
 import type { Amounts, Demand, WorkloadClass, WorkloadProblemCode } from "./workload.ts";
 
@@ -280,35 +281,23 @@ const byId = <T extends { readonly id: string }>(records: readonly T[], what: st
   return ok(map);
 };
 
+/** A prepared composition holds each law and each nested composition that a composition reads, and the count of its rows. */
+export interface Prepared {
+  readonly composition: Composition;
+  readonly reads: ReadonlyMap<string, Law>;
+  readonly nested: ReadonlyMap<string, Composition>;
+  /** This count is the count of replicates of the composition: the least count of the laws that it reads. */
+  readonly rows: number;
+  readonly level: number;
+}
+
 /**
- * This function gives the value of a composition over a demand, with its interval. The catalog
- * gives each law and each nested composition that a term names. It can hold more.
- *
- * Each part pairs its replicates by row. Row `i` of each law is one draw of the doubt of that law.
- * Laws from separate fits have independent rows. Two laws that share points share their doubt
- * only when their fits use the same resample for row `i`. The count of rows is the least count of
- * the laws that the composition reads.
- *
- * The range `run` adds the change from the interval to the run of each part. That sum is exact
- * when the noise of each part moves with the noise of each other part. For independent noise, the
- * sum is wider than the true range. Thus the range is on the safe side for a limit.
- *
- * The function gives a problem for a composition that is not correct, for a missing law or
- * composition, and for a cycle of compositions. It gives the problems of `loadPointOf` and of
- * `lawValue` for each part, with the path of the term in front.
+ * This function examines a composition and its catalog one time, for the queries over many demands.
+ * It gives each problem of `compositionValue` that does not come from a demand.
  */
-export const compositionValue = (
-  composition: Composition,
-  catalog: Catalog,
-  demand: Demand,
-  options: CompositionOptions = {},
-): Result<CompositionValue, CompositionProblem> => {
-  const level = options.level ?? DEFAULT_LEVEL;
-  const given = options.given ?? {};
+export const preparedOf = (composition: Composition, catalog: Catalog, level: number): Result<Prepared, CompositionProblem> => {
   const own = checkComposition(composition)[0];
   if (own !== undefined) return err(own);
-  const badDemand = demandProblems(demand)[0];
-  if (badDemand !== undefined) return err(under(badDemand, "demand"));
   const laws = byId(catalog.laws, "laws");
   if (laws.tag === "err") return laws;
   const nested = byId(catalog.compositions ?? [], "compositions");
@@ -349,63 +338,62 @@ export const compositionValue = (
     if (noLevel !== undefined) return err(under(noLevel, `laws.${law.id}`));
   }
   const rows = Math.min(...[...reads.values()].map((law) => law.replicates.length));
+  return ok({ composition, reads, nested: nested.value, rows, level });
+};
 
-  const sums = new Map<string, Sum>();
-  const sumOf = (at: Composition, prefix: string): Result<Sum, CompositionProblem> => {
+/** A leaf is the law of one part at its load point, times its weight. The path names the part in a problem. */
+interface Leaf {
+  readonly kind: "law";
+  readonly term: number;
+  readonly law: Law;
+  readonly class: string | null;
+  readonly weight: number;
+  readonly point: LoadPoint;
+  readonly path: string;
+}
+
+/** A branch is the tree of a nested composition, times its weight. */
+interface Branch {
+  readonly kind: "composition";
+  readonly term: number;
+  readonly composition: string;
+  readonly weight: number;
+  readonly tree: Tree;
+}
+
+/** A tree is the parts of one composition over one demand, before the laws give their values. */
+interface Tree {
+  readonly unit: string;
+  readonly nodes: readonly (Leaf | Branch)[];
+}
+
+/** This function gives the tree of a prepared composition over a demand, or the problem that stops it. It does not examine the demand. */
+const treeOf = (prepared: Prepared, demand: Demand, given: Amounts): Result<Tree, CompositionProblem> => {
+  const trees = new Map<string, Tree>();
+  const build = (at: Composition, prefix: string): Result<Tree, CompositionProblem> => {
     const unit = at.measure.unit;
-    const replicates = new Array<number>(rows).fill(0);
-    const widen = { low: 0, high: 0 };
-    const parts: PartValue[] = [];
-    let value = 0;
-    let extrapolated = false;
-    const keep = (part: PartValue, spread: readonly number[], change: Range): void => {
-      parts.push(part);
-      value += part.value;
-      for (const [row, draw] of spread.entries()) replicates[row] = (replicates[row] as number) + part.weight * draw;
-      const scaled = times(change, part.weight);
-      widen.low += scaled.low;
-      widen.high += scaled.high;
-    };
-
+    const nodes: (Leaf | Branch)[] = [];
     for (const [index, term] of at.terms.entries()) {
       const path = `${prefix}terms[${index}]`;
       const factor = term.factor ?? 1;
       if (!isLawTerm(term)) {
-        const inner = nested.value.get(term.composition) as Composition;
-        let sum = sums.get(inner.id);
-        if (sum === undefined) {
-          const found = sumOf(inner, `compositions.${inner.id}.`);
+        const inner = prepared.nested.get(term.composition) as Composition;
+        let tree = trees.get(inner.id);
+        if (tree === undefined) {
+          const found = build(inner, `compositions.${inner.id}.`);
           if (found.tag === "err") return found;
-          sum = found.value;
-          sums.set(inner.id, sum);
+          tree = found.value;
+          trees.set(inner.id, tree);
         }
-        if (!convertible(sum.unit, unit)) {
-          const why = whyNotConvertible(sum.unit, unit) ?? "the units are different";
-          return err(problem("unit", `${path}.composition`, `The composition "${inner.id}" gives "${sum.unit}", not "${unit}": ${why}.`));
+        if (!convertible(tree.unit, unit)) {
+          const why = whyNotConvertible(tree.unit, unit) ?? "the units are different";
+          return err(problem("unit", `${path}.composition`, `The composition "${inner.id}" gives "${tree.unit}", not "${unit}": ${why}.`));
         }
-        const weight = factor * valueIn(quantity(1, sum.unit), unit);
-        const interval = intervalOf(sum.value, sum.replicates, level);
-        const scaled = times(interval, weight);
-        const change = times(sum.widen, weight);
-        keep(
-          {
-            kind: "composition",
-            term: index,
-            composition: inner.id,
-            weight,
-            value: weight * sum.value,
-            interval: scaled,
-            run: { low: scaled.low + change.low, high: scaled.high + change.high },
-            parts: sum.parts,
-          },
-          sum.replicates,
-          sum.widen,
-        );
-        extrapolated ||= sum.extrapolated;
+        nodes.push({ kind: "composition", term: index, composition: inner.id, weight: factor * valueIn(quantity(1, tree.unit), unit), tree });
         continue;
       }
 
-      const law = reads.get(term.law) as Law;
+      const law = prepared.reads.get(term.law) as Law;
       const weight = weightOf(law.measure.unit, unit, factor, `${path}.law`);
       if (weight.tag === "err") return weight;
       const targets: readonly (string | null)[] =
@@ -421,37 +409,124 @@ export const compositionValue = (
           if (rate.tag === "err") return rate;
           by *= rate.value;
         }
-        const evaluated = pointValuesOf(law, point.value);
-        if (evaluated.tag === "err") return err(under(evaluated.error, where));
-        const [estimate, ...all] = evaluated.value.values;
-        const spread = all.slice(0, rows);
-        const interval = intervalOf(estimate, spread, level);
-        const run = runOf(law, interval, level);
-        const change = { low: run.low - interval.low, high: run.high - interval.high };
-        const scaled = times(interval, by);
-        const scaledChange = times(change, by);
-        keep(
-          {
-            kind: "law",
-            term: index,
-            law: law.id,
-            class: id,
-            weight: by,
-            value: by * estimate,
-            interval: scaled,
-            run: { low: scaled.low + scaledChange.low, high: scaled.high + scaledChange.high },
-            outside: evaluated.value.outside,
-          },
-          spread,
-          change,
-        );
-        extrapolated ||= evaluated.value.outside.length > 0;
+        nodes.push({ kind: "law", term: index, law, class: id, weight: by, point: point.value, path: where });
       }
     }
-    return ok({ unit, value, replicates, widen, parts, extrapolated });
+    return ok({ unit, nodes });
+  };
+  return build(prepared.composition, "");
+};
+
+/** This function gives the sum of the parts of a tree, with the values of its laws. The map `sums` keeps the sum of each nested tree. */
+const sumOf = (tree: Tree, rows: number, level: number, sums: Map<Tree, Sum>): Result<Sum, CompositionProblem> => {
+  const known = sums.get(tree);
+  if (known !== undefined) return ok(known);
+  const replicates = new Array<number>(rows).fill(0);
+  const widen = { low: 0, high: 0 };
+  const parts: PartValue[] = [];
+  let value = 0;
+  let extrapolated = false;
+  const keep = (part: PartValue, spread: readonly number[], change: Range): void => {
+    parts.push(part);
+    value += part.value;
+    for (const [row, draw] of spread.entries()) replicates[row] = (replicates[row] as number) + part.weight * draw;
+    const scaled = times(change, part.weight);
+    widen.low += scaled.low;
+    widen.high += scaled.high;
   };
 
-  const sum = sumOf(composition, "");
+  for (const node of tree.nodes) {
+    if (node.kind === "composition") {
+      const found = sumOf(node.tree, rows, level, sums);
+      if (found.tag === "err") return found;
+      const sum = found.value;
+      const { weight } = node;
+      const interval = intervalOf(sum.value, sum.replicates, level);
+      const scaled = times(interval, weight);
+      const change = times(sum.widen, weight);
+      keep(
+        {
+          kind: "composition",
+          term: node.term,
+          composition: node.composition,
+          weight,
+          value: weight * sum.value,
+          interval: scaled,
+          run: { low: scaled.low + change.low, high: scaled.high + change.high },
+          parts: sum.parts,
+        },
+        sum.replicates,
+        sum.widen,
+      );
+      extrapolated ||= sum.extrapolated;
+      continue;
+    }
+
+    const evaluated = pointValuesOf(node.law, node.point);
+    if (evaluated.tag === "err") return err(under(evaluated.error, node.path));
+    const by = node.weight;
+    const [estimate, ...all] = evaluated.value.values;
+    const spread = all.slice(0, rows);
+    const interval = intervalOf(estimate, spread, level);
+    const run = runOf(node.law, interval, level);
+    const change = { low: run.low - interval.low, high: run.high - interval.high };
+    const scaled = times(interval, by);
+    const scaledChange = times(change, by);
+    keep(
+      {
+        kind: "law",
+        term: node.term,
+        law: node.law.id,
+        class: node.class,
+        weight: by,
+        value: by * estimate,
+        interval: scaled,
+        run: { low: scaled.low + scaledChange.low, high: scaled.high + scaledChange.high },
+        outside: evaluated.value.outside,
+      },
+      spread,
+      change,
+    );
+    extrapolated ||= evaluated.value.outside.length > 0;
+  }
+  const sum: Sum = { unit: tree.unit, value, replicates, widen, parts, extrapolated };
+  sums.set(tree, sum);
+  return ok(sum);
+};
+
+/**
+ * This function gives the value of a composition over a demand, with its interval. The catalog
+ * gives each law and each nested composition that a term names. It can hold more.
+ *
+ * Each part pairs its replicates by row. Row `i` of each law is one draw of the doubt of that law.
+ * Laws from separate fits have independent rows. Two laws that share points share their doubt
+ * only when their fits use the same resample for row `i`. The count of rows is the least count of
+ * the laws that the composition reads.
+ *
+ * The range `run` adds the change from the interval to the run of each part. That sum is exact
+ * when the noise of each part moves with the noise of each other part. For independent noise, the
+ * sum is wider than the true range. Thus the range is on the safe side for a limit.
+ *
+ * The function gives a problem for a composition that is not correct, for a missing law or
+ * composition, and for a cycle of compositions. It gives the problems of `loadPointOf` and of
+ * `lawValue` for each part, with the path of the term in front.
+ */
+export const compositionValue = (
+  composition: Composition,
+  catalog: Catalog,
+  demand: Demand,
+  options: CompositionOptions = {},
+): Result<CompositionValue, CompositionProblem> => {
+  const level = options.level ?? DEFAULT_LEVEL;
+  const own = checkComposition(composition)[0];
+  if (own !== undefined) return err(own);
+  const badDemand = demandProblems(demand)[0];
+  if (badDemand !== undefined) return err(under(badDemand, "demand"));
+  const prepared = preparedOf(composition, catalog, level);
+  if (prepared.tag === "err") return prepared;
+  const tree = treeOf(prepared.value, demand, options.given ?? {});
+  if (tree.tag === "err") return tree;
+  const sum = sumOf(tree.value, prepared.value.rows, level, new Map());
   if (sum.tag === "err") return sum;
   const { value, replicates, widen, parts, extrapolated } = sum.value;
   const interval = intervalOf(value, replicates, level);
@@ -466,3 +541,53 @@ export const compositionValue = (
     extrapolated,
   });
 };
+
+/** A flat part is the law of one part at its load point, times the product of the weights down to it. */
+export interface FlatPart {
+  readonly law: Law;
+  readonly point: LoadPoint;
+  readonly weight: number;
+}
+
+/** This function adds the leaves of a tree to `into`, each times `weight`. */
+const flatten = (tree: Tree, weight: number, into: FlatPart[]): void => {
+  for (const node of tree.nodes) {
+    if (node.kind === "composition") flatten(node.tree, weight * node.weight, into);
+    else into.push({ law: node.law, point: node.point, weight: weight * node.weight });
+  }
+};
+
+/**
+ * This function gives the flat parts of a prepared composition over a demand, or the problem that
+ * stops them. The value of a row is the sum of the law of each part at its point, times its weight.
+ * The function does not examine the demand.
+ */
+export const flatPartsOf = (prepared: Prepared, demand: Demand, given: Amounts = {}): Result<readonly FlatPart[], CompositionProblem> => {
+  const tree = treeOf(prepared, demand, given);
+  if (tree.tag === "err") return tree;
+  const parts: FlatPart[] = [];
+  flatten(tree.value, 1, parts);
+  return ok(parts);
+};
+
+/**
+ * This function gives the value of one row of some flat parts. Row 0 is the estimate, and row `i`
+ * is replicate `i - 1` of each law. A part with no finite value gives undefined.
+ */
+export const rowValueOf = (parts: readonly FlatPart[], row: number): number | undefined => {
+  let value = 0;
+  for (const { law, point, weight } of parts) {
+    const values = row === 0 ? law.constants.map((constant) => constant.value) : law.replicates[row - 1];
+    if (values === undefined) return undefined;
+    const [found] = valuesAt(law.form.program, [recordOf(law.constants.map((constant) => constant.id), values, point)]);
+    if (found === undefined) return undefined;
+    value += weight * found;
+  }
+  return Number.isFinite(value) ? value : undefined;
+};
+
+/** This function tells if a flat part reads a variable of its law outside the range of that variable. */
+export const partsOutside = (parts: readonly FlatPart[]): boolean =>
+  parts.some(({ law, point }) =>
+    law.variables.some((variable) => (point[variable.id] as number) < variable.min || (point[variable.id] as number) > variable.max),
+  );

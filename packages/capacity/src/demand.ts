@@ -97,6 +97,19 @@ export const shareOf = (demand: Demand, instances: number, options: ShareOptions
   );
 };
 
+/**
+ * This function gives a portion of a demand for a search. Each rate and each level is times
+ * `shared`, and each level in `whole` is times `kept`. It does not examine the demand or the names.
+ *
+ * The demand on one of `n` instances at `s` times the load is the portion with `shared` equal to
+ * `s / n` and `kept` equal to `s`.
+ */
+export const portionOf = (demand: Demand, shared: number, kept: number, whole: readonly string[]): Result<Demand, WorkloadProblem> =>
+  changed(demand, (amount, level) => {
+    const product = scale(amount, level !== undefined && whole.includes(level) ? kept : shared);
+    return finite(product.value) ? product : undefined;
+  });
+
 /** This function gives the sum of two amounts, or the problem that stops it. */
 const plus = (a: Quantity, b: Quantity, path: string, what: string): Result<Quantity, WorkloadProblem> => {
   if (!convertible(a.unit, b.unit)) {
