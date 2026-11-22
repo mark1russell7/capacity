@@ -17,9 +17,9 @@
   "classes": [],
   "start": {
     "install": { "argv": ["node", "--version"], "cwd": ".", "env": {} },
-    "seed": { "argv": ["node", "seed.mjs", "--out", "{store}", "--log", "{variable.log}"], "cwd": ".", "env": { "FIXTURE_SEED": "1" } },
+    "seed": { "argv": ["node", "seed.ts", "--out", "{store}", "--log", "{variable.log}"], "cwd": ".", "env": { "FIXTURE_SEED": "1" } },
     "run": {
-      "argv": ["node", "--max-semi-space-size=1", "app.mjs", "--store", "{store}"],
+      "argv": ["node", "--max-semi-space-size=1", "app.ts", "--store", "{store}"],
       "cwd": ".",
       "env": { "FIXTURE_STORE": "{store}" },
       "ready": { "kind": "line", "text": "fixture ready" }

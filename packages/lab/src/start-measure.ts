@@ -45,7 +45,6 @@ import {
   type StartCase,
   type StartObservation,
   type StartPoint,
-  type StartSubject,
   type StartTarget,
   type StartVariables,
 } from "./start.ts";

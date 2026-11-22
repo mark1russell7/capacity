@@ -374,7 +374,7 @@ const fakeAppStart = (calls: Call[], contract: (text: string) => string = (text)
       cpSync(FIXTURE, tree, { recursive: true });
       writeFileSync(join(tree, "capacity-app.json"), contract(readFileSync(join(tree, "capacity-app.json"), "utf8")));
     }
-    if (argv.includes("seed.mjs")) return ok(`The seed wrote the log.\n${JSON.stringify({ amounts: { log: Number(flagOf(argv, "log")) } })}\n`);
+    if (argv.includes("seed.ts")) return ok(`The seed wrote the log.\n${JSON.stringify({ amounts: { log: Number(flagOf(argv, "log")) } })}\n`);
     return ok("");
   };
 
@@ -402,10 +402,10 @@ describe("measureStart of an app case", () => {
     // The seeder has the commit of the plain arm base, thus the case has no tree of the seeder.
     expect(record.trees.map((each) => each.id)).toEqual(["base", "new"]);
     expect(calls.filter((call) => call.argv.join(" ") === "node --version").map((call) => call.cwd)).toEqual([tree("base"), tree("new")]);
-    const seeds = calls.filter((call) => call.argv.includes("seed.mjs"));
+    const seeds = calls.filter((call) => call.argv.includes("seed.ts"));
     expect(seeds.map((call) => [call.argv, call.cwd])).toEqual([
-      [["env", "FIXTURE_SEED=1", "node", "seed.mjs", "--out", store("small"), "--log", "1024"], tree("base")],
-      [["env", "FIXTURE_SEED=1", "node", "seed.mjs", "--out", store("large"), "--log", String(512 * 1024)], tree("base")],
+      [["env", "FIXTURE_SEED=1", "node", "seed.ts", "--out", store("small"), "--log", "1024"], tree("base")],
+      [["env", "FIXTURE_SEED=1", "node", "seed.ts", "--out", store("large"), "--log", String(512 * 1024)], tree("base")],
     ]);
     expect(record.points.map((point) => [point.id, point.sizes, point.events, point.args])).toEqual([
       ["small", { log: { value: 1024, unit: "B" } }, undefined, []],
@@ -413,7 +413,7 @@ describe("measureStart of an app case", () => {
     ]);
 
     const run = JSON.parse(readFileSync(join(folder, "runs", "new.json"), "utf8")) as AppRunFile;
-    expect(run).toMatchObject({ app: "fixture-app", script: join(tree("new"), "app.mjs"), args: ["--store", RUN_SLOTS.store], slots: { store: RUN_SLOTS.store } });
+    expect(run).toMatchObject({ app: "fixture-app", script: join(tree("new"), "app.ts"), args: ["--store", RUN_SLOTS.store], slots: { store: RUN_SLOTS.store } });
     const children = inside.filter((call) => call.argv.includes(APP_START));
     expect(children).toHaveLength(2 * 3);
     const first = children.find((call) => call.cwd === tree("new"))!;
@@ -429,7 +429,7 @@ describe("measureStart of an app case", () => {
     const calls: Call[] = [];
     const other = (text: string): string => text.replace('"id": "fixture-app"', '"id": "other-app"');
     await expect(measureStart(APP, { work: work(), start: fakeAppStart(calls, other), container: fakeAppContainer([]), host: HOST })).rejects.toThrow(/has the id "other-app"/);
-    expect(calls.some((call) => call.argv.includes("seed.mjs"))).toBe(false);
+    expect(calls.some((call) => call.argv.includes("seed.ts"))).toBe(false);
   });
 });
 

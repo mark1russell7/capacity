@@ -72,7 +72,7 @@ describe("the program app-start", () => {
   it.skipIf(process.platform === "win32")("waits for the ready path of an app on a free port, and it measures the close of the listener of SIGTERM", () => {
     const end = launch(
       treeWith({
-        argv: ["node", "app.mjs", "--store", "{store}", "--port", "{port}"],
+        argv: ["node", "app.ts", "--store", "{store}", "--port", "{port}"],
         env: { FIXTURE_STORE: "{store}", FIXTURE_MODE: "server" },
         ready: { kind: "http", path: "/ready" },
       }),

@@ -79,15 +79,15 @@ describe("appCaseProblems", () => {
     const service = { id: "feed", title: "A feed", fake: { argv: ["node", "feed.mjs", "--port", "{port}"], cwd: ".", env: {}, ready: { kind: "line" as const, text: "up" } } };
     expect(codes(appCaseProblems(APP_CASE, [changed({ id: "other" })]))).toEqual(["subject subject"]);
     expect(codes(appCaseProblems(APP_CASE, [changed({ repository: "https://github.com/example/other.git" })]))).toEqual(["subject app"]);
-    expect(codes(appCaseProblems(APP_CASE, [withRun({ argv: ["bun", "app.mjs"] })]))).toEqual(["subject subject"]);
+    expect(codes(appCaseProblems(APP_CASE, [withRun({ argv: ["bun", "app.ts"] })]))).toEqual(["subject subject"]);
     expect(appCaseProblems(APP_CASE, [changed({ services: [service] })]).map((each) => each.message)).toEqual([expect.stringContaining("CAP-64")]);
   });
 
   it("refuses a run with no script, a placeholder in an option of Node or in the script, and NODE_OPTIONS in its environment", () => {
     const messages = (run: Partial<AppProcess>): readonly string[] => appCaseProblems(APP_CASE, [withRun(run)]).map((each) => each.message);
     expect(messages({ argv: ["node", "--max-semi-space-size=1"] })).toEqual([expect.stringContaining("no script")]);
-    expect(messages({ argv: ["node", "--title={store}", "app.mjs"] })).toEqual([expect.stringContaining("placeholder in the script")]);
-    expect(messages({ argv: ["node", "{store}/app.mjs"] })).toEqual([expect.stringContaining("placeholder in the script")]);
+    expect(messages({ argv: ["node", "--title={store}", "app.ts"] })).toEqual([expect.stringContaining("placeholder in the script")]);
+    expect(messages({ argv: ["node", "{store}/app.ts"] })).toEqual([expect.stringContaining("placeholder in the script")]);
     expect(messages({ env: { NODE_OPTIONS: "--max-old-space-size=100" } })).toEqual([expect.stringContaining("NODE_OPTIONS")]);
   });
 
@@ -113,9 +113,9 @@ describe("appCaseProblems", () => {
 
 describe("the commands of a contract", () => {
   it("split a run into the options of Node, the script and its arguments", () => {
-    expect(runParts(["node", "--expose-gc", "--max-semi-space-size=1", "app.mjs", "--store", "x"])).toEqual({
+    expect(runParts(["node", "--expose-gc", "--max-semi-space-size=1", "app.ts", "--store", "x"])).toEqual({
       options: ["--expose-gc", "--max-semi-space-size=1"],
-      script: "app.mjs",
+      script: "app.ts",
       args: ["--store", "x"],
     });
     expect(runParts(["node", "--expose-gc"])).toEqual({ options: ["--expose-gc"], script: undefined, args: [] });
@@ -125,13 +125,13 @@ describe("the commands of a contract", () => {
     const { seed } = tree().app.start;
     const values = { store: "/work/stores/small", ...variableValues(tree().app, APP_CASE.points[0]!) };
     expect(values).toEqual({ store: "/work/stores/small", "variable.log": "1024" });
-    expect(fillCommand(seed!, values)).toEqual({ argv: ["node", "seed.mjs", "--out", "/work/stores/small", "--log", "1024"], cwd: ".", env: { FIXTURE_SEED: "1" } });
+    expect(fillCommand(seed!, values)).toEqual({ argv: ["node", "seed.ts", "--out", "/work/stores/small", "--log", "1024"], cwd: ".", env: { FIXTURE_SEED: "1" } });
     expect(() => fillCommand(seed!, { store: "/work" })).toThrow(RangeError);
   });
 
   it("start a command with an environment through env, in its folder of the tree", () => {
-    expect(hostCommand({ argv: ["node", "seed.mjs"], cwd: "tools", env: { A: "1", B: "x y" } }, "/work/trees/base")).toEqual({
-      argv: ["env", "A=1", "B=x y", "node", "seed.mjs"],
+    expect(hostCommand({ argv: ["node", "seed.ts"], cwd: "tools", env: { A: "1", B: "x y" } }, "/work/trees/base")).toEqual({
+      argv: ["env", "A=1", "B=x y", "node", "seed.ts"],
       cwd: join("/work/trees/base", "tools"),
     });
     expect(hostCommand({ argv: ["pnpm", "install"], cwd: ".", env: {} }, "/work/trees/base").argv).toEqual(["pnpm", "install"]);
@@ -154,7 +154,7 @@ describe("appRunOf", () => {
     expect(options).toEqual(["--max-semi-space-size=1"]);
     expect(file).toEqual({
       app: "fixture-app",
-      script: join(dir, "app.mjs"),
+      script: join(dir, "app.ts"),
       cwd: join(dir, "."),
       args: ["--store", RUN_SLOTS.store],
       env: { FIXTURE_STORE: RUN_SLOTS.store },
@@ -164,8 +164,8 @@ describe("appRunOf", () => {
   });
 
   it("gives a slot of the port to a run with {port} or with a ready signal http, and throws for a run with no script", () => {
-    expect(appRunOf(withRun({ argv: ["node", "app.mjs", "--port", "{port}"] }), FIXTURE).file.args).toEqual(["--port", RUN_SLOTS.port]);
-    expect(appRunOf(withRun({ ready: { kind: "http", path: "/ready" }, argv: ["node", "app.mjs", "--port={port}"] }), FIXTURE).file.slots).toEqual(RUN_SLOTS);
+    expect(appRunOf(withRun({ argv: ["node", "app.ts", "--port", "{port}"] }), FIXTURE).file.args).toEqual(["--port", RUN_SLOTS.port]);
+    expect(appRunOf(withRun({ ready: { kind: "http", path: "/ready" }, argv: ["node", "app.ts", "--port={port}"] }), FIXTURE).file.slots).toEqual(RUN_SLOTS);
     expect(() => appRunOf(withRun({ argv: ["node"] }), FIXTURE)).toThrow(RangeError);
   });
 });

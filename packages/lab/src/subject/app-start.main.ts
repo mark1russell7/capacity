@@ -43,6 +43,7 @@ import { pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
 import { getHeapStatistics } from "node:v8";
 import { heapAfterGc, processIo, processMemory, startBallast, watchHeap, watchIo, watchMemory, type Ballast, type IoWatch } from "@mark1russell7/rigor-bench/fresh";
+import { errorMessage } from "@mark1russell7/text";
 import type { AppRunFile } from "../start-app.ts";
 
 /** This time is the interval of the probes of a ready signal `http`, in milliseconds. */
@@ -172,7 +173,7 @@ for (const [name, text] of Object.entries(run.env)) process.env[name] = filled(t
 const startHeap = watchHeap();
 const started = performance.now();
 void import(pathToFileURL(run.script).href).catch((error: unknown) => {
-  fail(`The import of the app "${run.app}" failed: ${error instanceof Error ? (error.stack ?? error.message) : String(error)}`);
+  fail(`The import of the app "${run.app}" failed: ${error instanceof Error && error.stack !== undefined ? error.stack : errorMessage(error)}`);
   process.exit(1);
 });
 

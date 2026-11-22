@@ -1,8 +1,10 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { APP_FILE, fillPlaceholders, placeholdersOf, readApp, type AppCommand, type AppContract, type AppReady } from "@mark1russell7/capacity";
+import { APP_FILE, fillPlaceholders, placeholdersOf, type AppCommand, type AppContract, type AppReady } from "@mark1russell7/capacity";
+import { readApp } from "@mark1russell7/capacity/schema";
 import { isRecord } from "@mark1russell7/optional/read";
 import { convertible, isQuantity, quantity, valueIn, type Quantity } from "@mark1russell7/quantity";
+import { errorMessage } from "@mark1russell7/text";
 import { satisfies, validRange } from "semver";
 import type { StartCase, StartPoint, StartProblem, StartVariable, StartVariables } from "./start.ts";
 
@@ -101,7 +103,7 @@ export const readTreeApp = (tree: string, dir: string): TreeApp => {
   try {
     data = JSON.parse(readFileSync(file, "utf8"));
   } catch (error) {
-    throw new Error(`The contract file of the tree "${tree}" is not JSON: ${error instanceof Error ? error.message : String(error)}`);
+    throw new Error(`The contract file of the tree "${tree}" is not JSON: ${errorMessage(error)}`);
   }
   const read = readApp(data);
   if (!read.ok) throw new Error(`The contract of the tree "${tree}" has problems: ${read.error.map((each) => `${each.path}: ${each.message}`).join(" ")}`);
