@@ -66,6 +66,10 @@ export const START_RECORD_FORMAT = "capacity-start-record/1";
  * - `gc` is the GC time of the start, and `fullGc` is the count of its full GC events.
  * - The measures `watch...` are the peaks over the watch after ready, and `passes` is the count of passes in the watch.
  * - `limit` is the heap size limit of V8 in the child.
+ * - `writes` is the count of the writes of the snapshot of the start, in the start and the watch.
+ * - `writeLongest` is the longest block of the event loop in one write: the longest time between two pauses of the write.
+ * - `writeStore`, `writeRows`, `writeWall` and `writeCpu` are the longest times of one write. They are the time of the store, the build of the rows, the wall time and the CPU time.
+ * - A tree with no record of the writes gives null for each measure of the writes.
  */
 export const START_MEASURES = {
   ready: "ms",
@@ -97,6 +101,12 @@ export const START_MEASURES = {
   watchGc: "ms",
   passes: "{pass}",
   limit: "B",
+  writes: "{write}",
+  writeLongest: "ms",
+  writeStore: "ms",
+  writeRows: "ms",
+  writeWall: "ms",
+  writeCpu: "ms",
 } as const;
 
 /** A start measure is the name of a measure of a start. */
@@ -204,6 +214,10 @@ export interface FirstStart {
   readonly time: Quantity;
   /** This count is the passes of the watch of the first start. An arm with a snapshot writes it at the first pass of the watch. */
   readonly passes: number;
+  /** This count is the writes of the snapshot in the first start. It is null for a tree with no record of the writes. */
+  readonly writes: Quantity | null;
+  /** This time is the longest block of the event loop in one write of the snapshot of the first start, or null. */
+  readonly writeLongest: Quantity | null;
   /** These sizes are the byte size of each file of the home after the first start, by its name. */
   readonly files: Readonly<Record<string, Quantity>>;
 }
@@ -480,6 +494,34 @@ const numberIn = (value: unknown, key: string): number | null => {
 /** This function gives an amount in the unit of a start measure, or null for a value that the child did not give. */
 const amount = (name: StartMeasure, value: number | null): Quantity | null => (value === null ? null : quantity(value, START_MEASURES[name]));
 
+/** The measures of the writes of the snapshot of the start. */
+type WriteMeasure = "writes" | "writeLongest" | "writeStore" | "writeRows" | "writeWall" | "writeCpu";
+
+/**
+ * This function gives the measures of the writes of the snapshot from the fields of a child. The measures are the count of
+ * the writes and the longest value of each time. A field `writes` that is not a list gives null for each measure. A time that
+ * no write has is null.
+ */
+export const writeMeasures = (fields: ChildFields): Record<WriteMeasure, Quantity | null> => {
+  const list = fields.extra?.["writes"];
+  const writes = Array.isArray(list) ? (list as readonly unknown[]) : null;
+  const longest = (key: string): number | null => {
+    const values = (writes ?? []).flatMap((each) => {
+      const value = numberIn(each, key);
+      return value === null ? [] : [value];
+    });
+    return values.length === 0 ? null : Math.max(...values);
+  };
+  return {
+    writes: amount("writes", writes === null ? null : writes.length),
+    writeLongest: amount("writeLongest", longest("longestMs")),
+    writeStore: amount("writeStore", longest("writeMs")),
+    writeRows: amount("writeRows", longest("rowsMs")),
+    writeWall: amount("writeWall", longest("wallMs")),
+    writeCpu: amount("writeCpu", longest("cpuMs")),
+  };
+};
+
 /** This function gives the measures of one child from its time to ready and its fields. */
 export const startMeasures = (ms: number, fields: ChildFields): Measures<StartMeasure> => {
   const extra = fields.extra ?? {};
@@ -517,6 +559,7 @@ export const startMeasures = (ms: number, fields: ChildFields): Measures<StartMe
     watchGc: amount("watchGc", numberIn(watchHeap, "gcMs")),
     passes: amount("passes", numberIn(extra, "passes")),
     limit: amount("limit", numberIn(extra, "limit")),
+    ...writeMeasures(fields),
   };
 };
 
@@ -684,7 +727,8 @@ export const measureStart = async (value: StartCase, options: StartMeasureOption
       const passes = numberIn(line.extra, "passes") ?? 0;
       // The snapshot of the start is written at the first pass of the watch. With no pass, the second start reads no snapshot.
       if (arm.snapshot === true && passes < 1) throw new Error(`The first start of the arm "${arm.id}" on "${earlier.id}" did no pass in its watch. It wrote no snapshot.`);
-      firsts.push({ point: point.id, after: earlier.id, arm: arm.id, time: since(begun), passes, files: filesOf(home) });
+      const { writes, writeLongest } = writeMeasures(line);
+      firsts.push({ point: point.id, after: earlier.id, arm: arm.id, time: since(begun), passes, writes, writeLongest, files: filesOf(home) });
     }
   }
 
@@ -911,9 +955,16 @@ const machineLines = (record: StartRecord): readonly string[] => {
   for (const arm of record.case.arms) if ((arm.ballast ?? []).length > 0) lines.push(`- The ballasts of the arm \`${arm.id}\`: ${ballasts(arm.ballast)}.`);
   for (const first of record.firsts) {
     const bytes = Object.values(first.files).reduce((sum, each) => sum + valueIn(each, "B"), 0);
-    lines.push(`- The first start of \`${first.arm}\` on \`${first.after}\` for \`${first.point}\`: ${shown(first.time)}, ${first.passes} passes, ${Object.keys(first.files).length} files of ${shown(quantity(bytes, "B"))}.`);
+    lines.push(`- The first start of \`${first.arm}\` on \`${first.after}\` for \`${first.point}\`: ${shown(first.time)}, ${first.passes} passes, ${writesOf(first.writes, first.writeLongest)}, ${Object.keys(first.files).length} files of ${shown(quantity(bytes, "B"))}.`);
   }
   return lines;
+};
+
+/** This function gives the text of the writes of the snapshot of a child: the count and the longest block, or no read. */
+const writesOf = (writes: Quantity | null | undefined, longest: Quantity | null | undefined): string => {
+  if (writes === null || writes === undefined) return "no read of the writes";
+  if (writes.value === 0) return "no write";
+  return `${writes.value} ${writes.value === 1 ? "write" : "writes"}, the longest block ${shown(longest)}`;
 };
 
 /**
@@ -938,8 +989,8 @@ export const startSummaryOf = (record: StartRecord): string => {
     `- The trees: ${record.trees.map((tree) => `\`${tree.id}\` ${tree.commit.slice(0, 7)}${tree.graft.length > 0 ? ` with ${tree.graft.length} graft` : ""} in ${shown(tree.time)}`).join(", ")}`,
     ...machineLines(record),
     "",
-    `| Point | ${names.map((name) => `\`${name}\``).join(" | ")} | Arm | Readiness | ${windows.map((window) => `In ${shown(window)}`).join(" | ")} | Ready | Read to ready | Major faults | VmHWM at ready | Heap peak | Live heap | GC | VmHWM of the watch | Passes |`,
-    `|${" --- |".repeat(names.length + windows.length + 12)}`,
+    `| Point | ${names.map((name) => `\`${name}\``).join(" | ")} | Arm | Readiness | ${windows.map((window) => `In ${shown(window)}`).join(" | ")} | Ready | Read to ready | Major faults | VmHWM at ready | Heap peak | Live heap | GC | VmHWM of the watch | Passes | Writes of the snapshot |`,
+    `|${" --- |".repeat(names.length + windows.length + 13)}`,
   ];
   // A point with the field after has the sizes of its seed point.
   for (const point of record.case.points) {
@@ -949,10 +1000,11 @@ export const startSummaryOf = (record: StartRecord): string => {
       const m = reading.measures;
       const cells = [`\`${point.id}\``, ...sizes, `\`${reading.arm}\``, shown(m.readiness), readOf(point.id, reading.arm, reading.round), shown(m.ready), shown(m.read), shown(m.faults), shown(m.peak), shown(m.heapPeak), shown(m.live), shown(m.gc), shown(m.watchPeak)];
       cells.push(m.passes === null ? "no read" : String(m.passes.value));
+      cells.push(writesOf(m.writes, m.writeLongest));
       lines.push(`| ${cells.join(" | ")} |`);
     }
     for (const failure of record.failures.filter((each) => each.case === point.id)) {
-      const cells = [`\`${point.id}\``, ...sizes, `\`${failure.arm}\``, `does not fit: ${failure.kind}`, readOf(point.id, failure.arm, failure.round), ...Array<string>(9).fill("")];
+      const cells = [`\`${point.id}\``, ...sizes, `\`${failure.arm}\``, `does not fit: ${failure.kind}`, readOf(point.id, failure.arm, failure.round), ...Array<string>(10).fill("")];
       lines.push(`| ${cells.join(" | ")} |`);
     }
   }

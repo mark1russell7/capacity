@@ -8,7 +8,8 @@
 // is ready at the end of its first pass, as a live start is.
 //
 // With --snapshot, the start reads and writes the snapshot of the start in the home, as a live start of the
-// tree does. Each --ballast starts a process that holds BYTES of resident memory, at the MOMENT `start` (before
+// tree does. It also times each write of the snapshot (the option `timeSnapshot` of AL-115). An older tree
+// ignores that option. Each --ballast starts a process that holds BYTES of resident memory, at the MOMENT `start` (before
 // the import of the runtime) or `ready` (at the end of the first pass). With --samples, a worker samples the
 // reads, the major faults and the resident set of the process, and the memory and the reads of its container.
 //
@@ -32,6 +33,8 @@
 //   of the moment `start`, before the start. `closeMs` is the time of the close.
 // - `ballasts` is each ballast: its bytes, its moment, its resident set and its time to fill.
 // - `samples` is each sample of the worker, with `ms`, the time from the start of the process.
+// - `writes` is the record of each write of the snapshot in the start and the watch (`snapshotWrites`). A tree
+//   with no such record gives null.
 // - `endMs` is the time from the start of the process to the line.
 // - `open` names the resources after the close.
 
@@ -87,6 +90,8 @@ interface Pass {
 interface Measured {
   readonly opened: number;
   readonly first: Pass;
+  // A tree before AL-115 has no record of the writes of the snapshot.
+  readonly snapshotWrites?: readonly unknown[];
   pass(): Promise<Pass>;
   close(): Promise<void>;
 }
@@ -123,9 +128,9 @@ const wall = clock.wallClock({ start: end });
 const startHeap = watchHeap();
 const started = performance.now();
 const runtime = (await import(pathToFileURL(join(values.tree, "packages/runtime/src/measured-start.ts")).href)) as {
-  readonly openMeasuredRuntime: (home: string, options: { readonly wall: Clock; readonly startSnapshot?: boolean }) => Promise<Measured>;
+  readonly openMeasuredRuntime: (home: string, options: { readonly wall: Clock; readonly startSnapshot?: boolean; readonly timeSnapshot?: boolean }) => Promise<Measured>;
 };
-const measured = await runtime.openMeasuredRuntime(home, { wall, ...(values.snapshot === true ? { startSnapshot: true } : {}) });
+const measured = await runtime.openMeasuredRuntime(home, { wall, ...(values.snapshot === true ? { startSnapshot: true, timeSnapshot: true } : {}) });
 const ms = performance.now() - started;
 const heapOfStart = startHeap.stop();
 const { opened } = measured;
@@ -165,6 +170,7 @@ const watchedHeap = heapOfWatch.stop();
 const closing = performance.now();
 await measured.close();
 const closeMs = performance.now() - closing;
+const writes = Array.isArray(measured.snapshotWrites) ? measured.snapshotWrites : null;
 // The home of --home stays: the lab keeps it as the store of a later point, or it removes it.
 if (values.home === undefined) rmSync(home, { recursive: true, force: true });
 
@@ -196,6 +202,7 @@ const line = {
   closeMs,
   ballasts: held,
   samples,
+  writes,
   open: process.getActiveResourcesInfo(),
   endMs: performance.now(),
 };
