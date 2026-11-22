@@ -15,14 +15,11 @@ import {
 import { NAME, SLUG, finite } from "./names.ts";
 import { RATE, type Workload } from "./workload.ts";
 
-/** This function tells if a text is an HTTPS URL. */
-const isHttps = (text: string): boolean => {
-  try {
-    return new URL(text).protocol === "https:";
-  } catch {
-    return false;
-  }
-};
+/** An HTTPS URL: the scheme `https`, a host, and then a path, a query or a fragment with no space. */
+const HTTPS = /^https:\/\/[^\s/?#@]+(?:[/?#]\S*)?$/i;
+
+/** This function tells if a text is an HTTPS URL. The package uses no global of a browser or of Node.js. */
+const isHttps = (text: string): boolean => HTTPS.test(text);
 
 /** This function makes a problem of a contract or of a workload against a contract. */
 const appProblem = (code: AppProblem["code"], path: string, message: string): AppProblem => ({ code, path, message });

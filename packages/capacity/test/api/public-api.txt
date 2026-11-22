@@ -6,8 +6,23 @@
 
 ## . (build/index.d.ts): names
 
+APP_FILE: build/instance.chunk.d.ts#APP_FILE
+APP_FORMAT: build/instance.chunk.d.ts#APP_FORMAT
 type AmountCeiling: build/instance.chunk.d.ts#AmountCeiling
 type Amounts: build/instance.chunk.d.ts#Amounts
+type AppClass: build/instance.chunk.d.ts#AppClass
+type AppCommand: build/instance.chunk.d.ts#AppCommand
+type AppContract: build/instance.chunk.d.ts#AppContract
+type AppEntry: build/instance.chunk.d.ts#AppEntry
+type AppProblem: build/instance.chunk.d.ts#AppProblem
+type AppProblemCode: build/instance.chunk.d.ts#AppProblemCode
+type AppProcess: build/instance.chunk.d.ts#AppProcess
+type AppRange: build/instance.chunk.d.ts#AppRange
+type AppReady: build/instance.chunk.d.ts#AppReady
+type AppSeries: build/instance.chunk.d.ts#AppSeries
+type AppService: build/instance.chunk.d.ts#AppService
+type AppStart: build/instance.chunk.d.ts#AppStart
+type AppVariable: build/instance.chunk.d.ts#AppVariable
 type Binding: build/index.d.ts#Binding
 type Bounds: build/index.d.ts#Bounds
 COMPOSITION_FORMAT: build/instance.chunk.d.ts#COMPOSITION_FORMAT
@@ -41,6 +56,7 @@ type GateCase: build/index.d.ts#GateCase
 type GateJob: build/index.d.ts#GateJob
 type GateRead: build/index.d.ts#GateRead
 type Grid: build/index.d.ts#Grid
+type HttpEntry: build/instance.chunk.d.ts#HttpEntry
 INSTANCE_FORMAT: build/instance.chunk.d.ts#INSTANCE_FORMAT
 type Instance: build/instance.chunk.d.ts#Instance
 type InstanceProblem: build/instance.chunk.d.ts#InstanceProblem
@@ -77,7 +93,9 @@ type LoadPoint: build/instance.chunk.d.ts#LoadPoint
 type Loser: build/instance.chunk.d.ts#Loser
 MAX_VARIABLES: build/instance.chunk.d.ts#MAX_VARIABLES
 type Measure: build/instance.chunk.d.ts#Measure
+type MetricsGap: build/instance.chunk.d.ts#MetricsGap
 type MetricsSource: build/instance.chunk.d.ts#MetricsSource
+type MetricsWindow: build/index.d.ts#MetricsWindow
 NAME: build/index.d.ts#NAME
 NO_DEMAND: build/instance.chunk.d.ts#NO_DEMAND
 type NestedPart: build/instance.chunk.d.ts#NestedPart
@@ -113,12 +131,16 @@ type ScaleOptions: build/index.d.ts#ScaleOptions
 type ScaleProblem: build/index.d.ts#ScaleProblem
 type ScaleProblemCode: build/index.d.ts#ScaleProblemCode
 type ScaleRule: build/index.d.ts#ScaleRule
+type SeriesReading: build/index.d.ts#SeriesReading
+type SeriesTarget: build/instance.chunk.d.ts#SeriesTarget
+type ServiceEntry: build/instance.chunk.d.ts#ServiceEntry
 type Shape: build/index.d.ts#Shape
 type ShareOptions: build/instance.chunk.d.ts#ShareOptions
 type SideTest: build/index.d.ts#SideTest
 type Start: build/index.d.ts#Start
 type Term: build/index.d.ts#Term
 type Variable: build/instance.chunk.d.ts#Variable
+type VariableKind: build/instance.chunk.d.ts#VariableKind
 WORKLOAD_FORMAT: build/instance.chunk.d.ts#WORKLOAD_FORMAT
 type Workload: build/instance.chunk.d.ts#Workload
 type WorkloadClass: build/instance.chunk.d.ts#WorkloadClass
@@ -126,8 +148,10 @@ type WorkloadName: build/index.d.ts#WorkloadName
 type WorkloadProblem: build/instance.chunk.d.ts#WorkloadProblem
 type WorkloadProblemCode: build/instance.chunk.d.ts#WorkloadProblemCode
 type WorkloadSource: build/instance.chunk.d.ts#WorkloadSource
+appWorkloadProblems: build/index.d.ts#appWorkloadProblems
 bootstrapDraws: build/instance.chunk.d.ts#bootstrapDraws
 catalogForm: build/index.d.ts#catalogForm
+checkApp: build/index.d.ts#checkApp
 checkComposition: build/instance.chunk.d.ts#checkComposition
 checkInstance: build/index.d.ts#checkInstance
 checkLaw: build/index.d.ts#checkLaw
@@ -137,7 +161,9 @@ compositionValue: build/instance.chunk.d.ts#compositionValue
 constantIdsOf: build/index.d.ts#constantIdsOf
 constantIntervals: build/instance.chunk.d.ts#constantIntervals
 countReach: build/index.d.ts#countReach
+counterIncrease: build/index.d.ts#counterIncrease
 demandProblems: build/index.d.ts#demandProblems
+fillPlaceholders: build/index.d.ts#fillPlaceholders
 fitLaw: build/index.d.ts#fitLaw
 formOf: build/index.d.ts#formOf
 formSlopes: build/index.d.ts#formSlopes
@@ -160,8 +186,12 @@ limitUse: build/index.d.ts#limitUse
 limitUses: build/index.d.ts#limitUses
 loadPointOf: build/instance.chunk.d.ts#loadPointOf
 mergeDemands: build/instance.chunk.d.ts#mergeDemands
+metricsGaps: build/index.d.ts#metricsGaps
+observationOf: build/index.d.ts#observationOf
 observedWorkload: build/index.d.ts#observedWorkload
+placeholdersOf: build/index.d.ts#placeholdersOf
 programOf: build/index.d.ts#programOf
+requestPath: build/index.d.ts#requestPath
 scaleDemand: build/instance.chunk.d.ts#scaleDemand
 scaleRule: build/index.d.ts#scaleRule
 separableOf: build/index.d.ts#separableOf
@@ -172,11 +202,13 @@ totalRate: build/instance.chunk.d.ts#totalRate
 
 ## ./schema (build/schema.d.ts): names
 
+appSchema: build/schema.d.ts#appSchema
 compositionSchema: build/schema.d.ts#compositionSchema
 instanceSchema: build/schema.d.ts#instanceSchema
 lawSchema: build/schema.d.ts#lawSchema
 limitSchema: build/schema.d.ts#limitSchema
 limitsSchema: build/schema.d.ts#limitsSchema
+readApp: build/schema.d.ts#readApp
 readComposition: build/schema.d.ts#readComposition
 readInstance: build/schema.d.ts#readInstance
 readLaw: build/schema.d.ts#readLaw
@@ -409,6 +441,13 @@ interface LimitUse {
   readonly holds: boolean;
 }
 
+### build/index.d.ts#MetricsWindow
+interface MetricsWindow {
+  readonly origin: string;
+  readonly from: string;
+  readonly to: string;
+}
+
 ### build/index.d.ts#NAME
 export declare const NAME: RegExp;
 
@@ -509,6 +548,13 @@ interface ScaleRule {
   readonly next: CountReach | null;
 }
 
+### build/index.d.ts#SeriesReading
+interface SeriesReading {
+  readonly series: string;
+  readonly at: string;
+  readonly value: number;
+}
+
 ### build/index.d.ts#Shape
 interface Shape {
   readonly id: string;
@@ -543,8 +589,14 @@ interface WorkloadName {
   readonly title: string;
 }
 
+### build/index.d.ts#appWorkloadProblems
+export declare const appWorkloadProblems: (app: AppContract, workload: Workload) => readonly AppProblem[];
+
 ### build/index.d.ts#catalogForm
 export declare const catalogForm: (id: string) => CatalogForm | undefined;
+
+### build/index.d.ts#checkApp
+export declare const checkApp: (app: AppContract) => readonly AppProblem[];
 
 ### build/index.d.ts#checkInstance
 export declare const checkInstance: (type: InstanceType) => readonly InstanceProblem[];
@@ -564,8 +616,14 @@ export declare const constantIdsOf: (form: CatalogForm) => readonly string[];
 ### build/index.d.ts#countReach
 export declare const countReach: (model: ScaleModel, count: number, demand: Demand, options?: ScaleOptions) => Result<CountReach, ScaleProblem>;
 
+### build/index.d.ts#counterIncrease
+export declare const counterIncrease: (values: readonly number[]) => number;
+
 ### build/index.d.ts#demandProblems
 export declare const demandProblems: (demand: Demand) => readonly WorkloadProblem[];
+
+### build/index.d.ts#fillPlaceholders
+export declare const fillPlaceholders: (text: string, values: Readonly<Record<string, string>>) => string | undefined;
 
 ### build/index.d.ts#fitLaw
 export declare const fitLaw: (points: Points, options?: LawFitOptions) => Result<LawFit, string>;
@@ -612,11 +670,23 @@ export declare const limitUse: (limit: Limit, instance: Instance, value: Quantit
 ### build/index.d.ts#limitUses
 export declare const limitUses: (limits: readonly Limit[], instance: Instance, values: Amounts) => Result<readonly LimitUse[], LimitProblem>;
 
+### build/index.d.ts#metricsGaps
+export declare const metricsGaps: (app: AppContract) => readonly MetricsGap[];
+
+### build/index.d.ts#observationOf
+export declare const observationOf: (app: AppContract, window: MetricsWindow, readings: readonly SeriesReading[]) => Result<Observation, readonly AppProblem[]>;
+
 ### build/index.d.ts#observedWorkload
 export declare const observedWorkload: (observation: Observation, name: WorkloadName) => Result<Workload, readonly WorkloadProblem[]>;
 
+### build/index.d.ts#placeholdersOf
+export declare const placeholdersOf: (text: string) => readonly string[];
+
 ### build/index.d.ts#programOf
 export declare const programOf: (form: CatalogForm, binding: Binding) => Expr;
+
+### build/index.d.ts#requestPath
+export declare const requestPath: (entry: HttpEntry, values: Readonly<Record<string, number>>) => string | undefined;
 
 ### build/index.d.ts#scaleRule
 export declare const scaleRule: (model: ScaleModel, demand: Demand, options?: ScaleOptions) => Result<ScaleRule, ScaleProblem>;
@@ -630,6 +700,12 @@ export declare const slopeOf: (form: CatalogForm, binding: Binding) => Expr;
 ### build/index.d.ts#startOf
 export declare const startOf: (form: CatalogForm, points: Points) => Result<Start, string>;
 
+### build/instance.chunk.d.ts#APP_FILE
+declare const APP_FILE = "capacity-app.json";
+
+### build/instance.chunk.d.ts#APP_FORMAT
+declare const APP_FORMAT = "capacity-app/1";
+
 ### build/instance.chunk.d.ts#AmountCeiling
 interface AmountCeiling {
   readonly kind: "amount";
@@ -638,6 +714,96 @@ interface AmountCeiling {
 
 ### build/instance.chunk.d.ts#Amounts
 type Amounts = Readonly<Record<string, Quantity>>;
+
+### build/instance.chunk.d.ts#AppClass
+interface AppClass {
+  readonly id: string;
+  readonly title: string;
+  readonly rate: AppRange;
+  readonly request: readonly string[];
+  readonly entry: AppEntry;
+}
+
+### build/instance.chunk.d.ts#AppCommand
+interface AppCommand {
+  readonly argv: readonly string[];
+  readonly cwd: string;
+  readonly env: Readonly<Record<string, string>>;
+}
+
+### build/instance.chunk.d.ts#AppContract
+interface AppContract {
+  readonly format: typeof APP_FORMAT;
+  readonly id: string;
+  readonly title: string;
+  readonly repository: string;
+  readonly variables: readonly AppVariable[];
+  readonly classes: readonly AppClass[];
+  readonly start: AppStart;
+  readonly services: readonly AppService[];
+  readonly metrics: readonly AppSeries[];
+}
+
+### build/instance.chunk.d.ts#AppEntry
+type AppEntry = HttpEntry | ServiceEntry;
+
+### build/instance.chunk.d.ts#AppProblem
+type AppProblem = Problem<AppProblemCode>;
+
+### build/instance.chunk.d.ts#AppProblemCode
+type AppProblemCode = "shape" | "format" | "id" | "range" | "unit" | "variable" | "class" | "entry" | "command" | "placeholder" | "service" | "series" | "workload";
+
+### build/instance.chunk.d.ts#AppProcess
+interface AppProcess extends AppCommand {
+  readonly ready: AppReady;
+}
+
+### build/instance.chunk.d.ts#AppRange
+interface AppRange {
+  readonly unit: string;
+  readonly min: number;
+  readonly max: number;
+  readonly scale: Scale;
+}
+
+### build/instance.chunk.d.ts#AppReady
+type AppReady = {
+  readonly kind: "line";
+  readonly text: string;
+} | {
+  readonly kind: "http";
+  readonly path: string;
+};
+
+### build/instance.chunk.d.ts#AppSeries
+interface AppSeries {
+  readonly id: string;
+  readonly kind: "counter" | "gauge";
+  readonly unit: string;
+  readonly of: SeriesTarget;
+}
+
+### build/instance.chunk.d.ts#AppService
+interface AppService {
+  readonly id: string;
+  readonly title: string;
+  readonly fake: AppProcess;
+}
+
+### build/instance.chunk.d.ts#AppStart
+interface AppStart {
+  readonly install?: AppCommand | undefined;
+  readonly check?: AppCommand | undefined;
+  readonly seed?: AppCommand | undefined;
+  readonly run: AppProcess;
+}
+
+### build/instance.chunk.d.ts#AppVariable
+interface AppVariable extends AppRange {
+  readonly id: string;
+  readonly title: string;
+  readonly kind: VariableKind;
+}
 
 ### build/instance.chunk.d.ts#COMPOSITION_FORMAT
 declare const COMPOSITION_FORMAT = "capacity-composition/1";
@@ -736,6 +902,14 @@ interface FitError {
 interface Form {
   readonly id: string;
   readonly program: Expr;
+}
+
+### build/instance.chunk.d.ts#HttpEntry
+interface HttpEntry {
+  readonly kind: "http";
+  readonly method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+  readonly path: string;
+  readonly body?: string | undefined;
 }
 
 ### build/instance.chunk.d.ts#INSTANCE_FORMAT
@@ -859,6 +1033,14 @@ interface Measure {
   readonly unit: string;
 }
 
+### build/instance.chunk.d.ts#MetricsGap
+interface MetricsGap {
+  readonly need: "rate" | "level" | "total";
+  readonly class?: string | undefined;
+  readonly variable?: string | undefined;
+  readonly message: string;
+}
+
 ### build/instance.chunk.d.ts#MetricsSource
 interface MetricsSource {
   readonly kind: "metrics";
@@ -953,6 +1135,24 @@ interface Run {
 ### build/instance.chunk.d.ts#Scale
 type Scale = "linear" | "log";
 
+### build/instance.chunk.d.ts#SeriesTarget
+type SeriesTarget = {
+  readonly rate: string;
+} | {
+  readonly level: string;
+} | {
+  readonly total: string;
+  readonly class: string;
+} | {
+  readonly measure: string;
+};
+
+### build/instance.chunk.d.ts#ServiceEntry
+interface ServiceEntry {
+  readonly kind: "service";
+  readonly service: string;
+}
+
 ### build/instance.chunk.d.ts#ShareOptions
 interface ShareOptions {
   readonly whole?: readonly string[];
@@ -966,6 +1166,9 @@ interface Variable {
   readonly max: number;
   readonly scale: Scale;
 }
+
+### build/instance.chunk.d.ts#VariableKind
+type VariableKind = "request" | "level" | "store";
 
 ### build/instance.chunk.d.ts#WORKLOAD_FORMAT
 declare const WORKLOAD_FORMAT = "capacity-workload/1";
@@ -981,6 +1184,7 @@ interface Workload extends Demand {
 ### build/instance.chunk.d.ts#WorkloadClass
 interface WorkloadClass {
   readonly id: string;
+  readonly of?: string | undefined;
   readonly rate: Quantity;
   readonly request: Amounts;
 }
@@ -1036,6 +1240,9 @@ declare const shareOf: (demand: Demand, instances: number, options?: ShareOption
 ### build/instance.chunk.d.ts#totalRate
 declare const totalRate: (demand: Demand, unit: string) => Result<Quantity, WorkloadProblem>;
 
+### build/schema.d.ts#appSchema
+export declare const appSchema: z.ZodType<AppContract>;
+
 ### build/schema.d.ts#compositionSchema
 export declare const compositionSchema: z.ZodType<Composition>;
 
@@ -1050,6 +1257,9 @@ export declare const limitSchema: z.ZodType<Limit>;
 
 ### build/schema.d.ts#limitsSchema
 export declare const limitsSchema: z.ZodType<LimitSet>;
+
+### build/schema.d.ts#readApp
+export declare const readApp: (data: unknown) => Result<AppContract, readonly AppProblem[]>;
 
 ### build/schema.d.ts#readComposition
 export declare const readComposition: (data: unknown) => Result<Composition, readonly CompositionProblem[]>;

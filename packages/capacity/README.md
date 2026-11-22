@@ -491,7 +491,7 @@ The lab puts a value into each placeholder of a command before the start: `{port
 
 ### The live metrics of an app
 
-`metricsGaps(app)` gives each part of the demand that the live metrics of the app cannot give: the rate of a class, the total of a request variable, or a level. A contract with no gap gives its whole demand from its metrics.
+`metricsGaps(app)` gives each part of the demand that the live metrics of the app cannot give. A gap is the rate of a class, the total of a request variable, or a level. A contract with no gap gives its whole demand from its metrics.
 
 `observationOf(app, window, readings)` gives the observation of a window from the readings of the series. Then `observedWorkload` gives the workload of the window.
 

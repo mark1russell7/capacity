@@ -194,7 +194,7 @@ export type AppProblem = Problem<AppProblemCode>;
 
 /**
  * A gap is one part of the demand of an app that its live metrics cannot give. `need` names the series that
- * is not there: the counter of a class, the gauge of a level, or the counter of the total of a request variable.
+ * is not there. It is the counter of a class, the gauge of a level, or the counter of a total.
  */
 export interface MetricsGap {
   readonly need: "rate" | "level" | "total";

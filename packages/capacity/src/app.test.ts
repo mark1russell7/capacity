@@ -48,6 +48,8 @@ describe("the contract of an app", () => {
   it("examines the format, the id, the repository and each variable", () => {
     expect(problemsOf((app) => void (app.format = "capacity-app/2" as never))).toEqual(["format format"]);
     expect(problemsOf((app) => void (app.repository = "http://example.org/shop.git"))).toEqual(["id repository"]);
+    expect(problemsOf((app) => void (app.repository = "https://"))).toEqual(["id repository"]);
+    expect(problemsOf((app) => void (app.repository = "https://example.org/my shop.git"))).toEqual(["id repository"]);
     expect(problemsOf((app) => void (app.variables[0]!.unit = "bytes"))).toEqual(["unit variables[0].unit"]);
     expect(problemsOf((app) => void (app.variables[4]!.min = 0))).toEqual(["range variables[4].min"]);
     expect(problemsOf((app) => void (app.variables[3]!.id = "rate"))).toContain("id variables[3].id");

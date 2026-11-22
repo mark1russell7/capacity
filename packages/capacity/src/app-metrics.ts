@@ -22,7 +22,7 @@ export interface MetricsWindow {
 
 /**
  * This function gives the increase of a counter from its values in the order of their times. A value below
- * the value before it is a new start of the process: the counter starts again at 0, thus the increase adds
+ * the value before it is a new start of the process. The counter starts again at 0, thus the increase adds
  * the whole value.
  */
 export const counterIncrease = (values: readonly number[]): number =>
@@ -36,15 +36,16 @@ export const counterIncrease = (values: readonly number[]): number =>
 const readingProblem = (path: string, message: string): AppProblem => ({ code: "series", path, message });
 
 /**
- * This function gives the observation of an app in a window: the count of the requests of each class, the
- * mean of each request variable, and each level. It reads only the readings in the window.
+ * This function gives the observation of an app in a window. The observation has the count of the requests of
+ * each class, the mean of each request variable and each level. It reads only the readings in the window.
  *
  * - The count of a class is the increase of its counter. A class with no request in the window is not in the observation.
  * - The mean of a request variable is the increase of the counter of its total, over the count of its class.
  * - A level is the mean of the readings of its gauge, with the same weight for each reading. Item CAP-63 adds a weight for the time of each reading.
  *
- * It gives a problem for each gap of the metrics of the app (`metricsGaps`), for a counter with fewer than
- * 2 readings, and for a gauge with no reading. `observedWorkload` gives the workload of the observation.
+ * It gives a problem for each gap of the metrics of the app (`metricsGaps`). It also gives a problem for a
+ * counter with fewer than 2 readings, and for a gauge with no reading. `observedWorkload` gives the workload
+ * of the observation.
  */
 export const observationOf = (app: AppContract, window: MetricsWindow, readings: readonly SeriesReading[]): Result<Observation, readonly AppProblem[]> => {
   const { origin, from, to } = window;
