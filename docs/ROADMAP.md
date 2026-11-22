@@ -117,7 +117,7 @@ The other laws of layer 1 and the laws of layer 2 follow. They tell where the co
 
 | ID | Item | Status | Priority | Size | Needs | Summary |
 | --- | --- | --- | --- | --- | --- | --- |
-| CAP-29 | The overhead of the service runner | later | P1 | M | CAP-3, CAP-26 | The same request classes through `@mark1russell7/service`. Paired runs in one job give the overhead as its own law: CPU time for each request, base memory and lag. An interval that holds zero means no overhead. |
+| CAP-29 | The overhead of the service runner | in progress | P1 | M | CAP-3, CAP-26 | The same request classes through `@mark1russell7/service`. Paired runs in one job give the overhead as its own law: CPU time for each request, base memory and lag. An interval that holds zero means no overhead. |
 | CAP-30 | Laws of the parts of the runner | later | P2 | L | CAP-29 | The cost of each loop, each decision of a limiter, each retry and each check, against their count and their period. Retries multiply the load, and the law gives the factor. |
 | CAP-31 | The constants of the stability border | later | P2 | M | CAP-30 | The runner has a stability border from weights of load and capacity (SYS-69 and SYS-70 of the systems roadmap). The measured weights go to that repository as data with intervals. |
 | CAP-32 | The overhead of the procedures host | later | P2 | M | CAP-29 | A typed call over HTTP, WebSocket and MCP against a bare handler. The reference service of the systems repository (SYS-93) is the subject, with its store. |

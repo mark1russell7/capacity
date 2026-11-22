@@ -4,13 +4,13 @@ import { isRecord } from "@mark1russell7/optional/read";
 import { convertible, isQuantity, kindOf, valueIn, type Quantity } from "@mark1russell7/quantity";
 import type { ScheduleOptions } from "@mark1russell7/rigor-chaos";
 import { FIELDS, LIMITS, UNITS, type Field, type RequestClass } from "./subject/class.ts";
-import { NODE_HTTP, type LabSubject } from "./subjects.ts";
+import { NODE_HTTP, NODE_HTTP_SERVICE, type LabSubject } from "./subjects.ts";
 
 /** This text is the format of a case file. */
 export const CASE_FORMAT = "capacity-case/1";
 
 /** These subjects are the subjects that a case can name, by their names. */
-export const SUBJECTS: Readonly<Record<string, LabSubject>> = { [NODE_HTTP.name]: NODE_HTTP };
+export const SUBJECTS: Readonly<Record<string, LabSubject>> = { [NODE_HTTP.name]: NODE_HTTP, [NODE_HTTP_SERVICE.name]: NODE_HTTP_SERVICE };
 
 /**
  * These resources are the resources of an instance that the lab limits, with the unit of each. A

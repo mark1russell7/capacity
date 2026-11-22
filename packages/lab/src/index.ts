@@ -7,7 +7,7 @@
  * @packageDocumentation
  */
 export { EMPTY, FIELDS, LIMITS, UNITS, classOf, classProblems, pathOf, requestOf, type Field, type RequestClass } from "./subject/class.ts";
-export { NODE_HTTP, SUBJECT_FOLDER, subjectFiles, type LabSubject } from "./subjects.ts";
+export { NODE_HTTP, NODE_HTTP_SERVICE, SUBJECT_FOLDER, bundleOf, subjectFiles, type LabSubject } from "./subjects.ts";
 export {
   CASE_FORMAT,
   CASE_LEVELS,
@@ -63,6 +63,7 @@ export { CHECKS, recordProblems, verdictOf, type Check, type CheckProblem, type 
 export { CONTROL_CASES, CONTROL_LIMITS, controlCheck, type ControlValue, type Limit } from "./control.ts";
 export { FLOOR_K, FLOOR_LIMITS, FLOOR_MEASURES, FLOOR_PAIRS, floorCheck, floorPair, type FloorMeasure, type FloorPair } from "./floor.ts";
 export { RATE_LAG_LIMIT, RATE_MEASURES, coresOf, rateCheck, type RateMeasure } from "./rate.ts";
+export { OVERHEAD_MEASURES, OVERHEAD_SIDES, overheadCheck, type OverheadMeasure } from "./overhead.ts";
 export { LAG_LIMIT, caseValue, countProblems, lagProblems, worstLag } from "./reads.ts";
 export {
   CPU_IDS,
