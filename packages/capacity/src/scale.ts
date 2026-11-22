@@ -22,10 +22,10 @@ import { demandProblems } from "./workload-check.ts";
 import type { Amounts, Demand } from "./workload.ts";
 
 /** This number is the largest count of instances of a scale search when the options give none: 2 to the power 20. */
-export const SCALE_MOST = 2 ** 20;
+export const SCALE_MOST: number = 2 ** 20;
 
 /** This number is the count of steps of the grid of a scale search when the options give none. */
-export const SCALE_STEPS = 128;
+export const SCALE_STEPS: number = 128;
 
 /**
  * A scale model holds what the scale queries of a service read: the resources of one instance, the
@@ -161,7 +161,10 @@ interface LimitBreaks {
   readonly edge: boolean;
 }
 
-/** The rows of all limits: the first load where each row breaks a limit, the index of the limit that breaks first in the estimate, and the share of each limit. */
+/**
+ * The summary holds the rows of all limits: the first load where each row breaks a limit. It also holds the limit that
+ * breaks first in the estimate, and the share of the rows where each limit is first.
+ */
 interface Summary {
   readonly rows: readonly number[];
   readonly binding: number | null;
@@ -184,7 +187,7 @@ const under = (found: Problem<string>, owner: string): ScaleProblem => ({
  * the catalog starts with `laws` or `compositions`, and each other path is in the composition.
  */
 const inComposition = (found: Problem<string>, at: number): ScaleProblem =>
-  under(found, /^(laws|compositions)/.test(found.path) ? "catalog" : `compositions[${at}]`);
+  under(found, /^(laws|compositions)\./.test(found.path) ? "catalog" : `compositions[${at}]`);
 
 /** This function gives the setup of a scale query, or the first problem of the model, the demand or the options. */
 const setupOf = (model: ScaleModel, demand: Demand, options: ScaleOptions): Result<Setup, ScaleProblem> => {
@@ -248,8 +251,8 @@ const partsAt = (setup: Setup, each: LimitSetup, demandAt: DemandAt, load: numbe
 };
 
 /**
- * This function searches each limit along a path of demands. For each row of each limit, it gives
- * the first load where the use of the limit is above 1, or where the composition has no value.
+ * This function searches each limit along a path of demands. For each row of each limit, it gives the first load
+ * where the use of the limit is above 1. A load where the composition has no value also breaks the row.
  * Infinity tells that the row holds the limit on all of the grid.
  *
  * A problem of the composition at the start of the search is a problem of the model, and not an edge.
