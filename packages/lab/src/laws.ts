@@ -35,6 +35,7 @@ import type { Case } from "./case.ts";
 import { FLOOR_MEASURES, type FloorMeasure } from "./floor.ts";
 import { caseValue, runValues } from "./reads.ts";
 import { CPUSET_MEASURES, LOAD_MEASURES, QUANTILE_MEASURES, RECORD_FORMAT, RUN_MEASURES, type CaseRecord, type QuantileMeasure } from "./record.ts";
+import type { StartRecord } from "./start-measure.ts";
 import { isStartCase, type StartCase } from "./start.ts";
 import type { Timed } from "./timed.ts";
 
@@ -160,15 +161,14 @@ const isQuantile = (id: string): id is QuantileMeasure => Object.hasOwn(QUANTILE
  */
 export const tailNeed = (tail: number, level: number): number => Math.ceil(tail / (1 - level) - 1e-9);
 
-/** This function gives the problems of one measure of a law set. */
-const measureProblems =(value: unknown, path: string, seen: Set<string>): readonly LawSetProblem[] => {
+/**
+ * This function gives the problems of the fields that the measures of each kind of law set have. The fields are the
+ * title, the residual and the forms. `path` is the path of the measure.
+ */
+export const fitFieldProblems = (measure: Readonly<Record<string, unknown>>, path: string): readonly LawSetProblem[] => {
   const problems: LawSetProblem[] = [];
   const add = (at: string, message: string): void => void problems.push({ code: "laws", path: `${path}${at}`, message });
-  if (!isRecord(value)) return [{ code: "laws", path, message: "The measure is not a record." }];
-  const { id, title, residual, forms, served, tail, knee, known } = value;
-  if (typeof id !== "string" || !(FLOOR_MEASURES as readonly string[]).includes(id)) add(".id", `The measure is not one of ${FLOOR_MEASURES.join(", ")}. A law needs the noise floor of its measure.`);
-  else if (seen.has(id)) add(".id", `The measure "${id}" is in the set two times.`);
-  else seen.add(id);
+  const { title, residual, forms } = measure;
   if (typeof title !== "string" || title.trim() === "") add(".title", "The measure has no title.");
   if (!(RESIDUALS as readonly unknown[]).includes(residual)) add(".residual", `The residual is not one of ${RESIDUALS.join(", ")}.`);
   if (forms !== undefined) {
@@ -180,15 +180,60 @@ const measureProblems =(value: unknown, path: string, seen: Set<string>): readon
       });
     }
   }
+  return problems;
+};
+
+/** This function gives the problem of the knee rule of a measure, or no problem for a measure with no knee rule. `path` is the path of the measure. */
+export const kneeFieldProblems = (knee: unknown, path: string): readonly LawSetProblem[] => {
+  if (knee === undefined) return [];
+  const bad = kneeRuleProblem(knee, `${path}.knee`);
+  return bad === undefined ? [] : [{ code: "laws", path: bad.path, message: bad.message }];
+};
+
+/** This function gives the problems of the variable of a law set: its id, its unit and its scale. `path` is the path of the variable. */
+export const variableProblems = (variable: unknown, path: string): readonly LawSetProblem[] => {
+  if (!isRecord(variable)) return [{ code: "laws", path, message: "The variable is not a record." }];
+  const problems: LawSetProblem[] = [];
+  const add = (at: string, message: string): void => void problems.push({ code: "laws", path: `${path}.${at}`, message });
+  if (typeof variable["id"] !== "string" || !NAME.test(variable["id"])) add("id", "The id of the variable is not a lower-case letter, then letters and digits.");
+  if (typeof variable["unit"] !== "string" || !isCanonicalUnit(variable["unit"])) add("unit", "The unit of the variable is not a canonical unit.");
+  if (!(SCALES as readonly unknown[]).includes(variable["scale"])) add("scale", `The scale is not one of ${SCALES.join(", ")}.`);
+  return problems;
+};
+
+/**
+ * This function gives the problems of the conditions of a law set. Each name is a slug, and each value is a condition value.
+ * A name for which `reserved` is true comes from the records, thus the set cannot give it. `path` is the path of the conditions.
+ */
+export const conditionProblems = (conditions: unknown, path: string, reserved: (name: string) => boolean): readonly LawSetProblem[] => {
+  if (conditions === undefined) return [];
+  if (!isRecord(conditions)) return [{ code: "laws", path, message: "The conditions are not a record." }];
+  const problems: LawSetProblem[] = [];
+  const add = (name: string, message: string): void => void problems.push({ code: "laws", path: `${path}.${name}`, message });
+  for (const [name, value] of Object.entries(conditions)) {
+    if (!SLUG.test(name)) add(name, `The name "${name}" is not lower-case words joined by ".", "-" or "/".`);
+    else if (reserved(name)) add(name, `The records give the condition "${name}". The set cannot give it.`);
+    if (!isCondition(value)) add(name, `The condition "${name}" is not a text, a finite number, a flag or an amount in a canonical unit.`);
+  }
+  return problems;
+};
+
+/** This function gives the problems of one measure of a law set. */
+const measureProblems = (value: unknown, path: string, seen: Set<string>): readonly LawSetProblem[] => {
+  const problems: LawSetProblem[] = [];
+  const add = (at: string, message: string): void => void problems.push({ code: "laws", path: `${path}${at}`, message });
+  if (!isRecord(value)) return [{ code: "laws", path, message: "The measure is not a record." }];
+  const { id, served, tail, known } = value;
+  if (typeof id !== "string" || !(FLOOR_MEASURES as readonly string[]).includes(id)) add(".id", `The measure is not one of ${FLOOR_MEASURES.join(", ")}. A law needs the noise floor of its measure.`);
+  else if (seen.has(id)) add(".id", `The measure "${id}" is in the set two times.`);
+  else seen.add(id);
+  problems.push(...fitFieldProblems(value, path));
   if (served !== undefined && !(typeof served === "number" && served > 0 && served < 1)) add(".served", "The served share is not a number above 0 and below 1.");
   if (tail !== undefined) {
     if (!(typeof tail === "number" && Number.isInteger(tail) && tail > 0)) add(".tail", "The tail count is not a whole number above 0.");
     else if (typeof id === "string" && !isQuantile(id)) add(".tail", `The measure "${id}" is not a quantile. Only ${Object.keys(QUANTILE_MEASURES).join(", ")} have a tail.`);
   }
-  if (knee !== undefined) {
-    const bad = kneeRuleProblem(knee, `${path}.knee`);
-    if (bad !== undefined) problems.push({ code: "laws", path: bad.path, message: bad.message });
-  }
+  problems.push(...kneeFieldProblems(value["knee"], path));
   if (known !== undefined) {
     if (!isRecord(known)) add(".known", "The known mark is not a record.");
     else {
@@ -210,27 +255,13 @@ export const lawSetProblems = (laws: unknown, cases: readonly (Case | StartCase)
   const add = (path: string, message: string): void => void problems.push({ code: "laws", path: `laws.${path}`, message });
   const { class: id, variable, measures, conditions } = laws;
   if (typeof id !== "string" || !SLUG.test(id)) add("class", 'The class is not lower-case words joined by ".", "-" or "/".');
-  if (!isRecord(variable)) add("variable", "The variable is not a record.");
-  else {
-    if (typeof variable["id"] !== "string" || !NAME.test(variable["id"])) add("variable.id", "The id of the variable is not a lower-case letter, then letters and digits.");
-    if (typeof variable["unit"] !== "string" || !isCanonicalUnit(variable["unit"])) add("variable.unit", "The unit of the variable is not a canonical unit.");
-    if (!(SCALES as readonly unknown[]).includes(variable["scale"])) add("variable.scale", `The scale is not one of ${SCALES.join(", ")}.`);
-  }
+  problems.push(...variableProblems(variable, "laws.variable"));
   if (!Array.isArray(measures) || measures.length === 0) add("measures", "The set has no measure. A law set gives a law for one measure or more.");
   else {
     const seen = new Set<string>();
     measures.forEach((value: unknown, index) => problems.push(...measureProblems(value, `laws.measures[${index}]`, seen)));
   }
-  if (conditions !== undefined) {
-    if (!isRecord(conditions)) add("conditions", "The conditions are not a record.");
-    else {
-      for (const [name, value] of Object.entries(conditions)) {
-        if (!SLUG.test(name)) add(`conditions.${name}`, `The name "${name}" is not lower-case words joined by ".", "-" or "/".`);
-        else if (isRecordCondition(name)) add(`conditions.${name}`, `The records give the condition "${name}". The set cannot give it.`);
-        if (!isCondition(value)) add(`conditions.${name}`, `The condition "${name}" is not a text, a finite number, a flag or an amount in a canonical unit.`);
-      }
-    }
-  }
+  problems.push(...conditionProblems(conditions, "laws.conditions", isRecordCondition));
   if (problems.length > 0) return problems;
   const set = laws as unknown as LawSet;
   cases.forEach((value, index) => {
@@ -246,10 +277,18 @@ export const lawSetProblems = (laws: unknown, cases: readonly (Case | StartCase)
   return problems;
 };
 
-/** A law job is one job of a timed run: its manifest and the records of its cases of load. */
+/** A law job is one job of a timed run. It has its manifest, the records of its cases of load and the records of its start cases. */
 export interface LawJob {
   readonly timed: Timed;
   readonly records: readonly CaseRecord[];
+  /** These records are the records of the start cases of the job. With no value, the job has no start record. */
+  readonly starts?: readonly StartRecord[];
+}
+
+/** A job record is the part of a record of a job that `jobProblem` reads: the CPU model and the id of the case. */
+export interface JobRecord {
+  readonly machine: { readonly cpu: string };
+  readonly case: { readonly id: string };
 }
 
 /** These options go to `fitLaw`: the count of the bootstrap runs and the seed of each fit. */
@@ -339,7 +378,7 @@ export interface Laws {
 }
 
 /** This function tells if a result is a list of problems. `Array.isArray` does not narrow a union with a readonly list. */
-const isProblems = <T extends object>(value: T | readonly LawsProblem[]): value is readonly LawsProblem[] => Array.isArray(value);
+export const isProblems = <T extends object>(value: T | readonly LawsProblem[]): value is readonly LawsProblem[] => Array.isArray(value);
 
 /** This function gives the name of a job: the address of its CI run and its start. */
 export const jobName = (timed: Timed): string => `${timed.run?.url ?? "a local run"} at ${timed.at.started}`;
@@ -348,12 +387,12 @@ export const jobName = (timed: Timed): string => `${timed.run?.url ?? "a local r
  * This function gives the reason that a job of a plan cannot give points, or null for a good job. A good job has a CI run, a
  * machine, a verdict with no problem and a record of a case of load. Each record has the CPU model of the machine.
  */
-export const jobProblem = (plan: string, timed: Timed, records: readonly CaseRecord[]): string | null => {
+export const jobProblem = (plan: string, timed: Timed, records: readonly JobRecord[], kind = "a case of load"): string | null => {
   if (timed.plan !== plan) return `The job measured the plan "${timed.plan}", not the plan "${plan}".`;
   if (timed.run === null) return "The job has no CI run. The evidence of a law is a CI run.";
   if (timed.machine === null) return "The manifest of the job has no machine.";
   if (timed.verdict.problems.length > 0) return `The verdict of the job has ${timed.verdict.problems.length} problems. A law uses only a job with no problem.`;
-  if (records.length === 0) return "The job has no record of a case of load.";
+  if (records.length === 0) return `The job has no record of ${kind}.`;
   const cpu = timed.machine.cpu;
   const other = records.find((record) => record.machine.cpu !== cpu);
   if (other !== undefined) return `The record of the case "${other.case.id}" has the CPU model "${other.machine.cpu}", not "${cpu}".`;
@@ -383,13 +422,13 @@ export const conditionsOf = (record: CaseRecord, set: LawSet): Readonly<Record<s
 };
 
 /** The facts of one record that each point of a law must share: the subject and the conditions. */
-interface Facts {
+export interface Facts {
   readonly subject: string;
   readonly conditions: Readonly<Record<string, ConditionValue>>;
 }
 
 /** This function gives the names of the facts that differ between two records. */
-const differences = (a: Facts, b: Facts): readonly string[] => {
+export const differences =(a: Facts, b: Facts): readonly string[] => {
   const names = new Set(["subject", ...Object.keys(a.conditions), ...Object.keys(b.conditions)]);
   const of = (facts: Facts, name: string): string => canonicalJson(name === "subject" ? facts.subject : (facts.conditions[name] ?? null));
   return [...names].filter((name) => of(a, name) !== of(b, name));
@@ -408,7 +447,7 @@ export const lawDifferences = (law: Law, record: CaseRecord, set: LawSet): reado
 };
 
 /** This function gives each run once, in the order of their addresses. */
-const uniqueRuns = (runs: readonly Run[]): readonly Run[] => {
+export const uniqueRuns = (runs: readonly Run[]): readonly Run[] => {
   const map = new Map<string, Run>();
   for (const run of runs) if (!map.has(run.url)) map.set(run.url, run);
   return [...map.values()].sort((a, b) => (a.url < b.url ? -1 : a.url > b.url ? 1 : 0));
@@ -579,6 +618,65 @@ const pointsOf = (set: LawSet, base: string, jobs: readonly LawJob[]): Points | 
 };
 
 /**
+ * A law input is the data of one law, for each kind of record: its id, its measure, its variable, its points and its
+ * facts. Each value of `groups` is the job of a point, because the bootstrap draws whole jobs.
+ */
+export interface LawInput {
+  readonly id: string;
+  readonly title: string;
+  readonly subject: string;
+  readonly measure: { readonly id: string; readonly unit: string };
+  readonly residual: ResidualKind;
+  /** These ids name the forms of `FORMS` that compete. With no value, each form of `FORMS` competes. */
+  readonly forms?: readonly string[];
+  readonly variable: LawVariable;
+  readonly x: readonly number[];
+  readonly y: readonly number[];
+  readonly groups: readonly string[];
+  readonly conditions: Readonly<Record<string, ConditionValue>>;
+  readonly runs: readonly Run[];
+  readonly noise: Noise;
+}
+
+/**
+ * This function gives the law of one input with `fitLaw` of `@mark1russell7/capacity`, and the rank of each form that competed.
+ * The law keeps each form that lost. `checkLaw` examines the law, and each problem that it finds is a problem with the code `law`.
+ */
+export const fitLawFrom = (input: LawInput, options: LawsOptions = {}): { readonly law: Law; readonly ranks: readonly FormRank[] } | readonly LawsProblem[] => {
+  const forms = input.forms === undefined ? undefined : FORMS.filter((form) => input.forms?.includes(form.id));
+  const fitted = fitLaw(
+    { x: input.x, y: input.y },
+    {
+      binding: { variable: input.variable.id },
+      residual: input.residual,
+      bootstrapGroups: input.groups,
+      ...(forms === undefined ? {} : { forms }),
+      ...(options.runs === undefined ? {} : { runs: options.runs }),
+      ...(options.seed === undefined ? {} : { seed: options.seed }),
+    },
+  );
+  if (fitted.tag === "err") return [{ code: "fit", path: input.id, message: fitted.error }];
+  const { form, constants, replicates, fit, ranks } = fitted.value;
+  const law: Law = {
+    format: LAW_FORMAT,
+    id: input.id,
+    title: input.title,
+    subject: input.subject,
+    measure: input.measure,
+    variables: [{ id: input.variable.id, unit: input.variable.unit, min: Math.min(...input.x), max: Math.max(...input.x), scale: input.variable.scale }],
+    conditions: input.conditions,
+    form,
+    constants,
+    replicates,
+    fit,
+    evidence: { runs: input.runs },
+    noise: input.noise,
+  };
+  const found = checkLaw(law);
+  return found.length > 0 ? found.map((each) => ({ code: "law" as const, check: each.code, path: input.id, message: `${each.path}: ${each.message}` })) : { law, ranks };
+};
+
+/**
  * This function gives the law of one measure from its points on one CPU model, or the problems of the
  * law. A measure with a served share gives the condition `served`, and a measure with a tail count gives the condition `tail`.
  */
@@ -592,48 +690,36 @@ const lawOf = (set: LawSet, measure: LawMeasure, id: string, range: RangePoints,
     else reads.push({ code: "read", path: id, message: `${value.path}: ${value.message}` });
   }
   if (reads.length > 0) return reads;
-  const forms = measure.forms === undefined ? undefined : FORMS.filter((form) => measure.forms?.includes(form.id));
-  const fitted = fitLaw(
-    { x: points.x, y },
-    {
-      binding: { variable: set.variable.id },
-      residual: measure.residual,
-      bootstrapGroups: points.jobs.map(jobName),
-      ...(forms === undefined ? {} : { forms }),
-      ...(options.runs === undefined ? {} : { runs: options.runs }),
-      ...(options.seed === undefined ? {} : { seed: options.seed }),
-    },
-  );
-  if (fitted.tag === "err") return [{ code: "fit", path: id, message: fitted.error }];
-  const { form, constants, replicates, fit, ranks } = fitted.value;
   const cpu = points.facts.conditions["cpu.model"];
-  const law: Law = {
-    format: LAW_FORMAT,
-    id,
-    title: `${measure.title}, on the CPU ${String(cpu)}`,
-    subject: points.facts.subject,
-    measure: { id: measure.id, unit: UNITS[measure.id] ?? "" },
-    variables: [{ id: set.variable.id, unit: set.variable.unit, min: Math.min(...points.x), max: Math.max(...points.x), scale: set.variable.scale }],
-    conditions: {
-      ...points.facts.conditions,
-      ...(measure.served === undefined ? {} : { served: measure.served }),
-      ...(measure.tail === undefined ? {} : { tail: measure.tail }),
+  const result = fitLawFrom(
+    {
+      id,
+      title: `${measure.title}, on the CPU ${String(cpu)}`,
+      subject: points.facts.subject,
+      measure: { id: measure.id, unit: UNITS[measure.id] ?? "" },
+      residual: measure.residual,
+      ...(measure.forms === undefined ? {} : { forms: measure.forms }),
+      variable: set.variable,
+      x: points.x,
+      y,
+      groups: points.jobs.map(jobName),
+      conditions: {
+        ...points.facts.conditions,
+        ...(measure.served === undefined ? {} : { served: measure.served }),
+        ...(measure.tail === undefined ? {} : { tail: measure.tail }),
+      },
+      runs: runsOf(points),
+      noise,
     },
-    form,
-    constants,
-    replicates,
-    fit,
-    evidence: { runs: runsOf(points) },
-    noise,
-  };
-  const found = checkLaw(law);
-  return found.length > 0 ? found.map((each) => ({ code: "law" as const, check: each.code, path: id, message: `${each.path}: ${each.message}` })) : { law, ranks, cut };
+    options,
+  );
+  return isProblems(result) ? result : { ...result, cut };
 };
 
-/** This function gives the knee of a fitted law with the knee rule of its measure, or the problem of the search. */
-const kneeOf = (set: LawSet, measure: LawMeasure, fitted: FittedLaw): FittedLaw | LawsProblem => {
-  if (measure.knee === undefined) return fitted;
-  const knee = lawKnee(fitted.law, set.variable.id, measure.knee);
+/** This function gives the knee of a fitted law with a knee rule, or the problem of the search. With no rule, it gives the law. */
+export const kneeOf = <T extends { readonly law: Law; readonly knee?: Knee }>(variable: string, rule: KneeRule | undefined, fitted: T): T | LawsProblem => {
+  if (rule === undefined) return fitted;
+  const knee = lawKnee(fitted.law, variable, rule);
   if (knee.tag === "err") return { code: "knee", path: fitted.law.id, message: `${knee.error.path}: ${knee.error.message}` };
   return { ...fitted, knee: knee.value };
 };
@@ -732,7 +818,7 @@ export const lawsOf = (plan: { readonly id: string; readonly laws?: LawSet }, jo
       let fitted: FittedLaw | undefined;
       if (isProblems(result)) found.push(...result);
       else {
-        const knee = kneeOf(set, measure, result);
+        const knee = kneeOf(set.variable.id, measure.knee, result);
         fitted = "law" in knee ? knee : result;
         if (!("law" in knee)) found.push(knee);
       }

@@ -4,6 +4,7 @@ import type { Law } from "@mark1russell7/capacity";
 import { readLaw } from "@mark1russell7/capacity/schema";
 import type { LawJob } from "./laws.ts";
 import { RECORD_FORMAT, type CaseRecord } from "./record.ts";
+import { START_RECORD_FORMAT, type StartRecord } from "./start-measure.ts";
 import { MANIFEST, TIMED_FORMAT, type Timed } from "./timed.ts";
 
 /** This text is the end of the name of a law file. */
@@ -12,8 +13,8 @@ export const LAW_SUFFIX = ".law.json";
 const readJson = (file: string): unknown => JSON.parse(readFileSync(file, "utf8"));
 
 /**
- * This function gives each job of a folder. A job is a manifest `timed.json` in the folder or in a subfolder, with the
- * records of its cases of load. The order of the jobs is the order of the paths of their manifests.
+ * This function gives each job of a folder. A job is a manifest `timed.json` in the folder or in a subfolder. The job
+ * also has the records of its cases of load and of its start cases. The order of the jobs is the order of the paths of their manifests.
  *
  * It throws an `Error` for a manifest of another format.
  */
@@ -25,10 +26,10 @@ export const readJobs = (folder: string): readonly LawJob[] =>
       const file = join(folder, name);
       const timed = readJson(file) as Timed;
       if (timed.format !== TIMED_FORMAT) throw new Error(`The file ${file} is not a manifest of the format "${TIMED_FORMAT}".`);
-      const records = timed.files
-        .map((each) => readJson(join(dirname(file), each.record)) as { readonly format?: unknown })
-        .filter((record): record is CaseRecord => record.format === RECORD_FORMAT);
-      return { timed, records };
+      const all = timed.files.map((each) => readJson(join(dirname(file), each.record)) as { readonly format?: unknown });
+      const records = all.filter((record): record is CaseRecord => record.format === RECORD_FORMAT);
+      const starts = all.filter((record): record is StartRecord => record.format === START_RECORD_FORMAT);
+      return { timed, records, starts };
     });
 
 /**

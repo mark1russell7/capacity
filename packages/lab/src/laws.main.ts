@@ -8,7 +8,8 @@
  *
  * - `fit` reads each manifest `timed.json` in each folder `--records` and in its subfolders, and the
  *   records of each manifest. The jobs of each plan with a law set give the laws of the plan
- *   (`lawsOf`). The jobs of the check `floor` give the noise of each law.
+ *   (`lawsOf`). The jobs of the check `floor` give the noise of each law. The jobs of each plan with
+ *   a start law set give its start laws (`startLawsOf`). The A/A pairs of the base give their noise.
  * - It writes each law into `<out>/<id>.law.json`, then it reads each file again with `readLaw`.
  * - It writes a summary into `GITHUB_STEP_SUMMARY`. A problem, or no law, gives the exit code 1. A known
  *   problem (the field `known` of a measure) does not.
@@ -23,6 +24,7 @@ import { errorMessage } from "@mark1russell7/text";
 import { LAW_SUFFIX, readJobs, readLawFile } from "./jobs.ts";
 import { lawsOf, lawsSummaryOf, type LawsOptions } from "./laws.ts";
 import { readPlans } from "./plan.ts";
+import { startLawsOf } from "./start-laws.ts";
 
 /** This folder holds the plan files of the lab. */
 const PLANS = fileURLToPath(new URL("../plans/", import.meta.url));
@@ -56,8 +58,8 @@ const fit = (args: readonly string[]): void => {
   let failed = false;
   for (const plan of plans) {
     const own = jobs.filter((job) => job.timed.plan === plan.id);
-    if (plan.laws === undefined || own.length === 0) continue;
-    const result = lawsOf(plan, own, floors, options);
+    if ((plan.laws === undefined && plan.startLaws === undefined) || own.length === 0) continue;
+    const result = plan.startLaws === undefined ? lawsOf(plan, own, floors, options) : startLawsOf(plan, own, options);
     for (const { law } of result.laws) {
       const file = join(out, `${law.id}${LAW_SUFFIX}`);
       mkdirSync(dirname(file), { recursive: true });
@@ -68,7 +70,7 @@ const fit = (args: readonly string[]): void => {
     failed ||= result.problems.length > 0;
     summaries.push(lawsSummaryOf(plan.id, result));
   }
-  if (summaries.length === 0) summaries.push(`No job of the ${jobs.length} jobs of the records is a job of a plan with a law set.\n`);
+  if (summaries.length === 0) summaries.push(`No job of the ${jobs.length} jobs of the records is a job of a plan with a law set or a start law set.\n`);
   const summary = summaries.join("\n");
   process.stdout.write(summary);
   const file = process.env["GITHUB_STEP_SUMMARY"];

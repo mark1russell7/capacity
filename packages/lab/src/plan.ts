@@ -10,6 +10,7 @@ import { windowOf } from "./cell.ts";
 import { CHECKS } from "./check.ts";
 import { FLOOR_IDS } from "./floor.ts";
 import { lawSetProblems, type LawSet } from "./laws.ts";
+import { startLawSetProblems, type StartLawSet } from "./start-laws.ts";
 import { isStartCase, startCaseProblems, startWindowOf, type StartCase } from "./start.ts";
 
 /** This text is the format of a plan file. */
@@ -48,6 +49,7 @@ export const MAX_JOBS = 256;
  * or a start case (`capacity-start/1`). A check judges only the cases of load.
  *
  * The field `laws` tells the laws that the records of the plan give (`lawsOf`). A plan with no law set gives no law.
+ * The field `startLaws` tells the laws that the start records of the plan give (`startLawsOf`). A plan has one of the two sets, or none.
  * The field `gate` makes a gate plan: the plan measures the subject again at points of the laws of another plan (`planGate`).
  */
 export interface Plan {
@@ -65,6 +67,7 @@ export interface Plan {
    */
   readonly jobs?: number;
   readonly laws?: LawSet;
+  readonly startLaws?: StartLawSet;
   readonly gate?: GateSet;
 }
 
@@ -106,7 +109,8 @@ export const planMinutes = (plan: Plan): number => {
  * It examines the format, the id, the title, the check, the triggers and the count of jobs. It examines each case with
  * `caseProblems`, or a start case with `startCaseProblems`. The ids of the cases must differ. Then the time limit of the job of the plan
  * (`planMinutes`) must be `MAX_JOB_MINUTES` or less. A plan with correct cases and a law set gets the problems of `lawSetProblems`.
- * A plan with a law set has no case with a cost. A gate plan has the check `gate`, a plan id in `gate.laws` and no law set.
+ * A plan with a law set has no case with a cost. A plan with a start law set gets the problems of `startLawSetProblems`.
+ * A plan has no law set and start law set together. A gate plan has the check `gate`, a plan id in `gate.laws` and no law set.
  * `readPlans` compares the cases of a gate plan with the cases of its plans.
  */
 export const planProblems = (plan: Plan): readonly PlanProblem[] => {
@@ -144,7 +148,11 @@ export const planProblems = (plan: Plan): readonly PlanProblem[] => {
       ids.add(id);
     }
   });
-  if (problems.length === 0 && plan.laws !== undefined) {
+  if (plan.laws !== undefined && plan.startLaws !== undefined) {
+    problems.push(problem("laws", "startLaws", "A plan has a law set or a start law set, not the two. The laws of one plan come from one kind of record."));
+  } else if (problems.length === 0 && plan.startLaws !== undefined) {
+    problems.push(...startLawSetProblems(plan.startLaws, plan.cases));
+  } else if (problems.length === 0 && plan.laws !== undefined) {
     problems.push(...lawSetProblems(plan.laws, plan.cases));
     plan.cases.forEach((value, index) => {
       if (!isStartCase(value) && caseCost(value) > 0) {
@@ -176,6 +184,7 @@ const gateShapeProblems = (plan: Plan): readonly PlanProblem[] => {
   }
   if (plan.check !== "gate") problems.push(problem("gate", "check", `A gate plan has the check "gate", not ${JSON.stringify(plan.check)}.`));
   if (plan.laws !== undefined) problems.push(problem("gate", "laws", "A gate plan has no law set. It compares the records with the laws of another plan."));
+  if (plan.startLaws !== undefined) problems.push(problem("gate", "startLaws", "A gate plan has no start law set. It compares the records with the laws of another plan."));
   if ((plan.jobs ?? 1) < GATE_JOBS) problems.push(problem("gate", "jobs", `A gate plan has ${GATE_JOBS} jobs or more. A side of a law needs ${GATE_JOBS} jobs.`));
   return problems;
 };
