@@ -159,8 +159,8 @@ interface AaPair {
 }
 
 /**
- * The start groups of one CPU model hold the group of each arm and kind of start, and the A/A pairs of each kind of start.
- * They also hold each failure and each problem of the records.
+ * The start groups of one CPU model hold the group of each arm and kind of start. They also hold the A/A pairs of
+ * each kind of start, each failure and each problem of the records.
  */
 interface StartGroups {
   readonly groups: readonly StartGroup[];
