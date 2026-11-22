@@ -16,9 +16,13 @@ export type Amounts = Readonly<Record<string, Quantity>>;
  * the size of its body and its duration.
  *
  * A class is one point. Requests of two sizes are two classes, each with its own rate.
+ *
+ * The field `of` names the class of the contract of the app that the class is a point of. A class
+ * with no `of` is a point of the class of the app with its own id.
  */
 export interface WorkloadClass {
   readonly id: string;
+  readonly of?: string | undefined;
   readonly rate: Quantity;
   readonly request: Amounts;
 }

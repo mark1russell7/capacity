@@ -1,6 +1,8 @@
 import { err, ok, type Result } from "@mark1russell7/optional";
 import { parse, type Expr } from "@mark1russell7/vex";
 import { z } from "zod";
+import { checkApp } from "./app-check.ts";
+import { APP_FORMAT, type AppContract, type AppProblem } from "./app.ts";
 import { checkLaw } from "./check.ts";
 import { COMPOSITION_FORMAT, checkComposition, type Composition, type CompositionProblem } from "./composition.ts";
 import { checkInstance, checkLimits } from "./instance-check.ts";
@@ -125,7 +127,7 @@ export const workloadSchema: z.ZodType<Workload> = z.strictObject({
   format: z.literal(WORKLOAD_FORMAT),
   id: z.string(),
   title: z.string(),
-  classes: z.array(z.strictObject({ id: z.string(), rate: amountSchema, request: amountsSchema })),
+  classes: z.array(z.strictObject({ id: z.string(), of: z.string().optional(), rate: amountSchema, request: amountsSchema })),
   levels: amountsSchema,
   source: z.discriminatedUnion("kind", [
     z.strictObject({ kind: z.literal("plan"), note: z.string() }),
@@ -185,3 +187,70 @@ export const limitsSchema: z.ZodType<LimitSet> = z.strictObject({
  * data has the shape of one and `checkLimits` finds no problem. If not, it gives each problem.
  */
 export const readLimits: (data: unknown) => Result<LimitSet, readonly LimitProblem[]> = reader(limitsSchema, checkLimits);
+
+const scaleSchema = z.enum(["linear", "log"]);
+const rangeFields = { unit: z.string(), min: z.number(), max: z.number(), scale: scaleSchema };
+const commandFields = { argv: z.array(z.string()), cwd: z.string(), env: z.record(z.string(), z.string()) };
+const commandSchema = z.strictObject(commandFields);
+const processSchema = z.strictObject({
+  ...commandFields,
+  ready: z.discriminatedUnion("kind", [
+    z.strictObject({ kind: z.literal("line"), text: z.string() }),
+    z.strictObject({ kind: z.literal("http"), path: z.string() }),
+  ]),
+});
+
+/**
+ * This schema accepts the shape of the contract file of an app: each field with its type, and no other
+ * field. It does not examine what the fields mean. The function `checkApp` does that.
+ */
+export const appSchema: z.ZodType<AppContract> = z.strictObject({
+  format: z.literal(APP_FORMAT),
+  id: z.string(),
+  title: z.string(),
+  repository: z.string(),
+  variables: z.array(z.strictObject({ id: z.string(), title: z.string(), kind: z.enum(["request", "level", "store"]), ...rangeFields })),
+  classes: z.array(
+    z.strictObject({
+      id: z.string(),
+      title: z.string(),
+      rate: z.strictObject(rangeFields),
+      request: z.array(z.string()),
+      entry: z.discriminatedUnion("kind", [
+        z.strictObject({
+          kind: z.literal("http"),
+          method: z.enum(["GET", "POST", "PUT", "PATCH", "DELETE"]),
+          path: z.string(),
+          body: z.string().optional(),
+        }),
+        z.strictObject({ kind: z.literal("service"), service: z.string() }),
+      ]),
+    }),
+  ),
+  start: z.strictObject({
+    install: commandSchema.optional(),
+    check: commandSchema.optional(),
+    seed: commandSchema.optional(),
+    run: processSchema,
+  }),
+  services: z.array(z.strictObject({ id: z.string(), title: z.string(), fake: processSchema })),
+  metrics: z.array(
+    z.strictObject({
+      id: z.string(),
+      kind: z.enum(["counter", "gauge"]),
+      unit: z.string(),
+      of: z.union([
+        z.strictObject({ rate: z.string() }),
+        z.strictObject({ level: z.string() }),
+        z.strictObject({ total: z.string(), class: z.string() }),
+        z.strictObject({ measure: z.string() }),
+      ]),
+    }),
+  ),
+});
+
+/**
+ * This function reads the contract of an app from the data of a contract file. It gives the contract when
+ * the data has the shape of one and `checkApp` finds no problem. If not, it gives each problem.
+ */
+export const readApp: (data: unknown) => Result<AppContract, readonly AppProblem[]> = reader(appSchema, checkApp);
