@@ -90,7 +90,7 @@ describe("the laws of the start records", () => {
   });
 
   it("skips a job of another plan, and tells each failure of a start", () => {
-    const other = { ...jobsOf(1)[0]!, timed: timedOf("alerts-start-files", runOf(99), EPYC, "2026-11-22T08:00:00Z") };
+    const other = { ...jobsOf(1)[0]!, timed: timedOf("alerts-start-bytes-mean", runOf(99), EPYC, "2026-11-22T08:00:00Z") };
     const failed = jobsOf(5, EPYC, (record, job) =>
       job === 0 ? { ...record, failures: [{ arm: "new", case: "log-512", round: 1, reason: "passed the memory limit of its container.", kind: "memory" }] } : record,
     );

@@ -1,7 +1,7 @@
 {
   "format": "capacity-plan/1",
   "id": "alerts-start-app",
-  "title": "The start of alerts from its contract and from the start subject of the lab, on one commit and one store, with and with no deploy",
+  "title": "The start of alerts from its contract, with and with no deploy",
   "check": null,
   "triggers": [],
   "jobs": 5,
@@ -95,126 +95,6 @@
           "at": {
             "log": {
               "value": 268435456,
-              "unit": "B"
-            }
-          }
-        }
-      ]
-    },
-    {
-      "format": "capacity-start/1",
-      "id": "alerts-start-app/subject",
-      "title": "The start of alerts from the start subject of the lab, with the snapshot of the start, as the run script does",
-      "subject": "alerts",
-      "arms": [
-        {
-          "id": "main",
-          "commit": "769d3db2a9cccd25d5891f1ced347269c71b6581",
-          "snapshot": true
-        },
-        {
-          "id": "deploy",
-          "commit": "769d3db2a9cccd25d5891f1ced347269c71b6581",
-          "snapshot": true,
-          "ballast": [
-            {
-              "bytes": {
-                "value": 72351744,
-                "unit": "B"
-              },
-              "at": "ready",
-              "models": "The esbuild process of the first deploy of the outage call at the good start, from a study of the start on the cloud machine on 2026-11-21, with 23 samples of 5 s from /proc and /sys of the child: 69 MiB of resident memory."
-            }
-          ]
-        }
-      ],
-      "seeder": "769d3db2a9cccd25d5891f1ced347269c71b6581",
-      "seed": "al124",
-      "rounds": 1,
-      "watch": {
-        "value": 60,
-        "unit": "s"
-      },
-      "probe": {
-        "value": 500,
-        "unit": "ms"
-      },
-      "target": {
-        "image": "node:24.21.0-bookworm-slim",
-        "node": "v24.21.0",
-        "memory": {
-          "value": 1011425280,
-          "unit": "B"
-        },
-        "swap": {
-          "value": 2147483648,
-          "unit": "B"
-        },
-        "cpus": 2,
-        "heapLimit": {
-          "value": 556269568,
-          "unit": "B"
-        }
-      },
-      "limit": {
-        "value": 720,
-        "unit": "s"
-      },
-      "windows": [
-        {
-          "value": 90,
-          "unit": "s"
-        }
-      ],
-      "observed": [],
-      "points": [
-        {
-          "id": "log-16",
-          "at": {
-            "log": {
-              "value": 16777216,
-              "unit": "B"
-            },
-            "shapes": {
-              "value": 30466048,
-              "unit": "B"
-            },
-            "transit": {
-              "value": 3122485,
-              "unit": "B"
-            }
-          }
-        },
-        {
-          "id": "cut-1030",
-          "at": {
-            "log": {
-              "value": 191089706,
-              "unit": "B"
-            },
-            "shapes": {
-              "value": 30466048,
-              "unit": "B"
-            },
-            "transit": {
-              "value": 3122485,
-              "unit": "B"
-            }
-          }
-        },
-        {
-          "id": "log-256",
-          "at": {
-            "log": {
-              "value": 268435456,
-              "unit": "B"
-            },
-            "shapes": {
-              "value": 30466048,
-              "unit": "B"
-            },
-            "transit": {
-              "value": 3122485,
               "unit": "B"
             }
           }
