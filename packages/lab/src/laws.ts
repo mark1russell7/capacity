@@ -5,11 +5,17 @@ import {
   NAME,
   SLUG,
   checkLaw,
+  constantIntervals,
   fitLaw,
+  kneeRuleProblem,
+  lawKnee,
+  lawValue,
   leastCount,
   loadPointOf,
   type ConditionValue,
   type FormRank,
+  type Knee,
+  type KneeRule,
   type Law,
   type Noise,
   type PointLaw,
@@ -19,7 +25,7 @@ import {
   type Scale,
 } from "@mark1russell7/capacity";
 import { isRecord } from "@mark1russell7/optional/read";
-import { isCanonicalUnit, isQuantity } from "@mark1russell7/quantity";
+import { isCanonicalUnit, isQuantity, valueIn } from "@mark1russell7/quantity";
 import { cpuEntry } from "@mark1russell7/rigor-bench";
 import { canonicalJson } from "@mark1russell7/rigor-generators";
 import { escapeMarkdown } from "@mark1russell7/text";
@@ -42,6 +48,13 @@ export interface LawMeasure {
   readonly residual: ResidualKind;
   /** These ids name the forms of `FORMS` that compete. With no value, each form of `FORMS` competes. */
   readonly forms?: readonly string[];
+  /**
+   * This share is the least share of the offered rate that the subject serves at each point of the law,
+   * from 0 to 1. A point with a smaller share stays out of the law (`servedShare`). With no value, each point is in the law.
+   */
+  readonly served?: number;
+  /** This rule gives the knee of each law of the measure, with `lawKnee` of `@mark1russell7/capacity`. */
+  readonly knee?: KneeRule;
 }
 
 /** A law variable is the load variable of the laws of a plan: its id, its unit and its scale. The points give its range. */
@@ -111,7 +124,7 @@ const measureProblems = (value: unknown, path: string, seen: Set<string>): reado
   const problems: LawSetProblem[] = [];
   const add = (at: string, message: string): void => void problems.push({ code: "laws", path: `${path}${at}`, message });
   if (!isRecord(value)) return [{ code: "laws", path, message: "The measure is not a record." }];
-  const { id, title, residual, forms } = value;
+  const { id, title, residual, forms, served, knee } = value;
   if (typeof id !== "string" || !(FLOOR_MEASURES as readonly string[]).includes(id)) add(".id", `The measure is not one of ${FLOOR_MEASURES.join(", ")}. A law needs the noise floor of its measure.`);
   else if (seen.has(id)) add(".id", `The measure "${id}" is in the set two times.`);
   else seen.add(id);
@@ -125,6 +138,11 @@ const measureProblems = (value: unknown, path: string, seen: Set<string>): reado
         else if (forms.indexOf(form) !== index) add(`.forms[${index}]`, `The form "${form}" is in the list two times.`);
       });
     }
+  }
+  if (served !== undefined && !(typeof served === "number" && served > 0 && served < 1)) add(".served", "The served share is not a number above 0 and below 1.");
+  if (knee !== undefined) {
+    const bad = kneeRuleProblem(knee, `${path}.knee`);
+    if (bad !== undefined) problems.push({ code: "laws", path: bad.path, message: bad.message });
   }
   return problems;
 };
@@ -188,17 +206,46 @@ export interface LawsOptions {
   readonly seed?: number;
 }
 
-/** A laws problem code names the part of the input that gave no law. */
-export type LawsProblemCode = "plan" | "job" | "cpu" | "case" | "read" | "noise" | "fit" | "law";
+/** A laws problem code names the part of the input that gave no law, or the law that gave no knee. */
+export type LawsProblemCode = "plan" | "job" | "cpu" | "case" | "read" | "noise" | "fit" | "law" | "knee";
 
-/** A laws problem tells why a job gave no point, or why a measure gave no law. `path` names the job or the law. */
+/** A laws problem tells why a job gave no point, why a measure gave no law, or why a law gave no knee. `path` names the job or the law. */
 export type LawsProblem = Problem<LawsProblemCode>;
 
-/** A fitted law is a law and the rank of each form that competed for it, best first. */
+/**
+ * A cut point is a point that a law leaves out, because the subject served too small a share there.
+ * It has its case, its job, its largest latency in ms and the least share that the latency gives (`servedShare`).
+ */
+export interface CutPoint {
+  readonly case: string;
+  readonly job: string;
+  readonly max: number;
+  readonly served: number;
+}
+
+/**
+ * A fitted law is a law and the rank of each form that competed for it, best first. The list `cut`
+ * tells each point that the law leaves out. A measure with a knee rule gives the knee of the law.
+ */
 export interface FittedLaw {
   readonly law: Law;
   readonly ranks: readonly FormRank[];
+  readonly cut: readonly CutPoint[];
+  readonly knee?: Knee;
 }
+
+/**
+ * This function gives the least share of the offered rate that the subject served in a case. Each
+ * planned time of a request is in the duration `T` of a run, and each reply comes at most `latency.max`
+ * after its planned time. Thus the subject served the requests of `T` in `T + latency.max` or less, and
+ * the share is `T / (T + latency.max)` or more. The latency is the median over the runs (`caseValue`).
+ */
+export const servedShare = (record: CaseRecord): number | Problem<"read"> => {
+  const max = caseValue(record, "latency.max");
+  if (typeof max !== "number") return { code: "read", path: max.path, message: max.message };
+  const duration = valueIn(record.case.duration, "ms");
+  return duration / (duration + max);
+};
 
 /**
  * The laws of a plan are the laws that its records gave. `skipped` tells each job that gave no point,
@@ -313,19 +360,50 @@ const noiseOf = (measure: FloorMeasure, cpu: string, jobs: readonly FloorJob[]):
   return { floor: largest(chosen), cpu: chosen[0]!.cpu, runs: uniqueRuns(chosen.map((job) => job.run)) };
 };
 
-/** The points of the laws of one CPU model: the records, the value of the variable of each, and the facts that they share. */
+/**
+ * The points of the laws of one CPU model: the records, the value of the variable of each, the job
+ * of each and the facts that they share.
+ */
 interface Points {
   readonly records: readonly CaseRecord[];
   readonly x: readonly number[];
+  readonly jobs: readonly Timed[];
   readonly facts: Facts;
-  readonly runs: readonly Run[];
 }
+
+/** This function gives each CI run of the jobs of some points once. */
+const runsOf = (points: Points): readonly Run[] => uniqueRuns(points.jobs.flatMap((timed) => (timed.run === null ? [] : [timed.run])));
+
+/** The points of one measure: the points where the subject served the share `served` of the measure, and the points that it left out. */
+interface ServedPoints {
+  readonly points: Points;
+  readonly cut: readonly CutPoint[];
+}
+
+/** This function gives the points of one measure, or the problems of the reads of the served share. */
+const servedOf = (measure: LawMeasure, id: string, points: Points): ServedPoints | readonly LawsProblem[] => {
+  const least = measure.served;
+  if (least === undefined) return { points, cut: [] };
+  const kept: number[] = [];
+  const cut: CutPoint[] = [];
+  const reads: LawsProblem[] = [];
+  points.records.forEach((record, index) => {
+    const share = servedShare(record);
+    if (typeof share !== "number") return void reads.push({ code: "read", path: id, message: `${share.path}: ${share.message}` });
+    if (share >= least) return void kept.push(index);
+    cut.push({ case: record.case.id, job: jobName(points.jobs[index]!), max: caseValue(record, "latency.max") as number, served: share });
+  });
+  if (reads.length > 0) return reads;
+  const pick = <T>(list: readonly T[]): T[] => kept.map((index) => list[index]!);
+  return { points: { ...points, records: pick(points.records), x: pick(points.x), jobs: pick(points.jobs) }, cut };
+};
 
 /** This function gives the points of one CPU model, or the problems of its cases. */
 const pointsOf = (set: LawSet, base: string, jobs: readonly LawJob[]): Points | readonly LawsProblem[] => {
   const problems: LawsProblem[] = [];
   const records: CaseRecord[] = [];
   const x: number[] = [];
+  const timeds: Timed[] = [];
   let first: { readonly facts: Facts; readonly id: string } | undefined;
   for (const { timed, records: found } of jobs) {
     for (const record of found) {
@@ -343,15 +421,20 @@ const pointsOf = (set: LawSet, base: string, jobs: readonly LawJob[]): Points | 
       }
       records.push(record);
       x.push(point.value[set.variable.id]!);
+      timeds.push(timed);
     }
   }
   if (problems.length > 0) return problems;
   if (first === undefined) return [{ code: "case", path: base, message: "The jobs have no record." }];
-  return { records, x, facts: first.facts, runs: uniqueRuns(jobs.flatMap(({ timed }) => (timed.run === null ? [] : [timed.run]))) };
+  return { records, x, jobs: timeds, facts: first.facts };
 };
 
-/** This function gives the law of one measure from the points of one CPU model, or the problems of the law. */
-const lawOf = (set: LawSet, measure: LawMeasure, id: string, points: Points, noise: Noise, options: LawsOptions): FittedLaw | readonly LawsProblem[] => {
+/**
+ * This function gives the law of one measure from its points on one CPU model, or the problems of the
+ * law. A measure with a served share gives the condition `served`.
+ */
+const lawOf = (set: LawSet, measure: LawMeasure, id: string, served: ServedPoints, noise: Noise, options: LawsOptions): FittedLaw | readonly LawsProblem[] => {
+  const { points, cut } = served;
   const y: number[] = [];
   const reads: LawsProblem[] = [];
   for (const record of points.records) {
@@ -381,16 +464,24 @@ const lawOf = (set: LawSet, measure: LawMeasure, id: string, points: Points, noi
     subject: points.facts.subject,
     measure: { id: measure.id, unit: UNITS[measure.id] ?? "" },
     variables: [{ id: set.variable.id, unit: set.variable.unit, min: Math.min(...points.x), max: Math.max(...points.x), scale: set.variable.scale }],
-    conditions: points.facts.conditions,
+    conditions: measure.served === undefined ? points.facts.conditions : { ...points.facts.conditions, served: measure.served },
     form,
     constants,
     replicates,
     fit,
-    evidence: { runs: points.runs },
+    evidence: { runs: runsOf(points) },
     noise,
   };
   const found = checkLaw(law);
-  return found.length > 0 ? found.map((each) => ({ code: "law" as const, path: id, message: `${each.path}: ${each.message}` })) : { law, ranks };
+  return found.length > 0 ? found.map((each) => ({ code: "law" as const, path: id, message: `${each.path}: ${each.message}` })) : { law, ranks, cut };
+};
+
+/** This function gives the knee of a fitted law with the knee rule of its measure, or the problem of the search. */
+const kneeOf = (set: LawSet, measure: LawMeasure, fitted: FittedLaw): FittedLaw | LawsProblem => {
+  if (measure.knee === undefined) return fitted;
+  const knee = lawKnee(fitted.law, set.variable.id, measure.knee);
+  if (knee.tag === "err") return { code: "knee", path: fitted.law.id, message: `${knee.error.path}: ${knee.error.message}` };
+  return { ...fitted, knee: knee.value };
 };
 
 /**
@@ -402,9 +493,14 @@ const lawOf = (set: LawSet, measure: LawMeasure, id: string, points: Points, noi
  * - **The jobs:** a job with no CI run, or with a problem in its verdict, gives no point. A law needs
  *   40 points or more (`leastCount` of the level 0.95), thus two jobs of a plan of 25 cases. A CPU model
  *   with fewer points goes into `skipped`: the runners give random CPU models, thus few points are no read, not a problem.
- * - **The evidence:** the CI runs of the jobs of the CPU model.
+ * - **The served share:** a measure with the field `served` keeps only the points where the subject
+ *   served that share of the offered rate (`servedShare`). The range of its law is the range of these
+ *   points. With fewer than 40 of them, the law goes into `skipped`.
+ * - **The evidence:** the CI runs of the jobs of the points.
  * - **The noise:** the largest floor of the floor jobs on the CPU model. With none, the model with the largest floor.
  * - **The fit:** `fitLaw` of `@mark1russell7/capacity`. The law keeps each form that lost. `checkLaw` examines each law.
+ * - **The knee:** a measure with the field `knee` gives the knee of each law in its range (`lawKnee`).
+ *   A search that cannot apply gives a problem, and the law stays.
  */
 export const lawsOf = (plan: { readonly id: string; readonly laws?: LawSet }, jobs: readonly LawJob[], floors: readonly Timed[], options: LawsOptions = {}): Laws => {
   const set = plan.laws;
@@ -451,9 +547,25 @@ export const lawsOf = (plan: { readonly id: string; readonly laws?: LawSet }, jo
         problems.push({ code: "noise", path: id, message: noise });
         continue;
       }
-      const result = lawOf(set, measure, id, points, noise, options);
-      if (isProblems(result)) problems.push(...result);
-      else laws.push(result);
+      const served = servedOf(measure, id, points);
+      if (isProblems(served)) {
+        problems.push(...served);
+        continue;
+      }
+      const kept = served.points.records.length;
+      if (kept < need) {
+        const message = `The subject served the share ${measure.served ?? 1} at ${kept} of ${points.records.length} points. A law needs ${need} points or more.`;
+        skipped.push({ code: "case", path: id, message });
+        continue;
+      }
+      const result = lawOf(set, measure, id, served, noise, options);
+      if (isProblems(result)) {
+        problems.push(...result);
+        continue;
+      }
+      const knee = kneeOf(set, measure, result);
+      if ("law" in knee) laws.push(knee);
+      else problems.push(knee);
     }
   }
   return { laws, skipped, problems };
@@ -462,18 +574,70 @@ export const lawsOf = (plan: { readonly id: string; readonly laws?: LawSet }, jo
 /** This function gives the text of a number with at most 4 significant digits. */
 const short = (value: number): string => (Number.isInteger(value) ? String(value) : value.toPrecision(4));
 
-/** This function gives the summary of the laws of a plan as Markdown: a table of the laws, then each problem and each skipped job. */
+/** This function gives the text of an interval. A null end is past the end of the search. */
+const intervalText = (low: number | null, high: number | null): string => {
+  const end = (value: number | null): string => (value === null ? "past the end" : short(value));
+  return `[${end(low)}, ${end(high)}]`;
+};
+
+/** This function gives the text of each constant of a law, with its interval. */
+const constantsText = (law: Law): string => {
+  const intervals = constantIntervals(law);
+  if (intervals.tag === "err") return law.constants.map((constant) => `${constant.id} = ${short(constant.value)}`).join(", ");
+  return intervals.value.map((each) => `${each.id} = ${short(each.value)} ${intervalText(each.interval.low, each.interval.high)}`).join(", ");
+};
+
+/** This function gives the text of the value of a law at one end of its range, with its interval. */
+const endText = (law: Law, load: number): string => {
+  const variable = law.variables[0];
+  if (variable === undefined) return "";
+  const value = lawValue(law, { [variable.id]: load });
+  if (value.tag === "err") return value.error.message;
+  return `${short(value.value.value)} ${intervalText(value.value.interval.low, value.value.interval.high)} ${law.measure.unit}`;
+};
+
+/** This function gives the text of the knee of a law: the knee, its interval, the floor of the rule `floor` and an edge in the range. */
+const kneeText = (law: Law, knee: Knee | undefined): string => {
+  if (knee === undefined) return "";
+  const share = knee.rule.kind === "slope" ? `factor ${short(knee.rule.factor)}` : `share ${short(knee.rule.share)}`;
+  const rule = `rule ${knee.rule.kind}, ${share}`;
+  const found = knee.knee.value === null ? "no knee in the range" : `${short(knee.knee.value)} ${intervalText(knee.knee.interval.low, knee.knee.interval.high)} ${knee.unit}`;
+  const floor = knee.floor === undefined ? "" : `, floor ${short(knee.floor.value)} ${law.measure.unit} at ${short(knee.floor.load)}`;
+  const edge = knee.edge.value === null ? "" : `, edge at ${short(knee.edge.value)} ${intervalText(knee.edge.interval.low, knee.edge.interval.high)}`;
+  return `${found} (${rule}${floor}${edge})`;
+};
+
+/**
+ * This function gives the summary of the laws of a plan as Markdown. It gives a table of the laws, with
+ * the interval of each constant. A second table gives the range of each law, the values at its ends
+ * and its knee, with their intervals. Then it gives each point that a law leaves out, each problem and each skipped job.
+ */
 export const lawsSummaryOf = (plan: string, laws: Laws): string => {
   const lines = [`### The laws of the plan ${escapeMarkdown(plan)}`, ""];
+  const row = (cells: readonly string[]): void => void lines.push(`| ${cells.map((cell) => escapeMarkdown(cell)).join(" | ")} |`);
   if (laws.laws.length > 0) {
+    lines.push(`Each interval holds the share ${DEFAULT_LEVEL} of the bootstrap replicates.`, "");
     lines.push("| Law | Form | Constants | Held-out error | Points | Noise floor |", "| --- | --- | --- | --- | --- | --- |");
     for (const { law, ranks } of laws.laws) {
-      const constants = law.constants.map((constant) => `${constant.id} = ${short(constant.value)}`).join(", ");
       const error = ranks[0] === undefined ? "" : `rmse ${short(ranks[0].error.rmse)}`;
-      const cells = [law.id, law.form.id, constants, error, String(law.fit.residuals.length), `${short(law.noise.floor)} ${law.measure.unit}`];
-      lines.push(`| ${cells.map((cell) => escapeMarkdown(cell)).join(" | ")} |`);
+      row([law.id, law.form.id, constantsText(law), error, String(law.fit.residuals.length), `${short(law.noise.floor)} ${law.measure.unit}`]);
+    }
+    lines.push("", "| Law | Range | Value at the start | Value at the end | Knee |", "| --- | --- | --- | --- | --- |");
+    for (const { law, knee } of laws.laws) {
+      const variable = law.variables[0];
+      if (variable === undefined) continue;
+      row([law.id, `${short(variable.min)} to ${short(variable.max)} ${variable.unit}`, endText(law, variable.min), endText(law, variable.max), kneeText(law, knee)]);
     }
     lines.push("");
+    const cut = laws.laws.filter((each) => each.cut.length > 0);
+    if (cut.length > 0) {
+      lines.push("The points that a law leaves out, because the subject served a smaller share than the field `served` of the measure:", "");
+      for (const { law, cut: points } of cut) {
+        const each = points.map((point) => `${point.case} (latency.max ${short(point.max)} ms, served ${short(point.served)}) of ${point.job}`);
+        lines.push(`- ${escapeMarkdown(`${law.id}: ${each.join("; ")}`)}`);
+      }
+      lines.push("");
+    }
   }
   const list = (title: string, items: readonly LawsProblem[]): void => {
     if (items.length === 0) return;

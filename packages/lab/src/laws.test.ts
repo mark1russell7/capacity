@@ -9,7 +9,7 @@ import { escapeMarkdown } from "@mark1russell7/text";
 import { describe, expect, it } from "vitest";
 import type { Case } from "./case.ts";
 import { FLOOR_MEASURES } from "./floor.ts";
-import { CPU_IDS, conditionsOf, lawSetProblems, lawsOf, lawsSummaryOf, type LawJob, type LawSet } from "./laws.ts";
+import { CPU_IDS, conditionsOf, lawSetProblems, lawsOf, lawsSummaryOf, servedShare, type LawJob, type LawSet } from "./laws.ts";
 import { readPlans } from "./plan.ts";
 import type { CaseRecord, RunRecord } from "./record.ts";
 import { isStartCase } from "./start.ts";
@@ -42,8 +42,17 @@ const SET: LawSet = {
 };
 const PLAN = { id: "rate", laws: SET };
 
-/** This function gives the record of the case `index` of the plan rate in the job `job`, on the CPU model `cpu`. */
-const recordOf = (index: number, job: number, cpu: string): CaseRecord => {
+/** A set of one latency measure with a served share and the knee rule `floor`. */
+const SERVED: LawSet = {
+  ...RATE.laws!,
+  measures: [{ id: "latency.p50", title: "The median latency of a request", residual: "relative", forms: ["linear", "power"], served: 0.97, knee: { kind: "floor", share: 0.5 } }],
+};
+
+/**
+ * This function gives the record of the case `index` of the plan rate in the job `job`, on the CPU model `cpu`.
+ * Above the rate `slow`, the largest latency is 60 ms: the subject served less than 0.97 of the offered rate.
+ */
+const recordOf = (index: number, job: number, cpu: string, slow = 30_000): CaseRecord => {
   const value = CASES[index]!;
   const rate = value.demand.classes[0]!.rate.value;
   return {
@@ -60,6 +69,7 @@ const recordOf = (index: number, job: number, cpu: string): CaseRecord => {
         "latency.p50": { value: 0.3 * (1 + rate / 36_000) * (1 + 0.02 * wave(index, job, r + 9)), unit: "ms" },
         "latency.p90": { value: 0.5 * (1 + rate / 18_000) * (1 + 0.02 * wave(index, job, r + 12)), unit: "ms" },
         "latency.p99": { value: 0.9 * (1 + rate / 9_000) * (1 + 0.02 * wave(index, job, r + 15)), unit: "ms" },
+        "latency.max": { value: rate > slow ? 60 : 3, unit: "ms" },
       },
     })),
   };
@@ -79,10 +89,10 @@ const timedOf = (plan: string, run: Run | null, cpu: string, started: string, ve
   verdict: { check: plan === "floor" ? "floor" : "rate", values: {}, problems: [], ...verdict },
 });
 
-/** This function gives a job of the plan rate with a record of each case. */
-const jobOf = (run: Run | null, cpu: string, job: number, verdict: Partial<Timed["verdict"]> = {}): LawJob => ({
+/** This function gives a job of the plan rate with a record of each case. Above the rate `slow`, the subject did not keep up. */
+const jobOf = (run: Run | null, cpu: string, job: number, verdict: Partial<Timed["verdict"]> = {}, slow = 30_000): LawJob => ({
   timed: timedOf("rate", run, cpu, `2026-11-20T06:0${job}:00Z`, verdict),
-  records: CASES.map((_, index) => recordOf(index, job, cpu)),
+  records: CASES.map((_, index) => recordOf(index, job, cpu, slow)),
 });
 
 /** This function gives two jobs of the plan rate in one CI run, on one CPU model. */
@@ -220,6 +230,51 @@ describe("the laws of a plan", () => {
     expect(problems[0]!.message).toContain('differs from the case "rate/100" in memory.limit.');
   });
 
+  it("gives the least served share of a case from its largest latency and its duration", () => {
+    // Each run of the plan rate lasts 1 s. A largest latency of 3 ms gives 1000 / 1003.
+    expect(servedShare(recordOf(0, 1, EPYC))).toBeCloseTo(1000 / 1003, 12);
+    expect(servedShare(recordOf(24, 1, EPYC))).toBeCloseTo(1000 / 1060, 12);
+    const lost = recordOf(0, 1, EPYC);
+    const noRead = { ...lost, runs: lost.runs.map((run): RunRecord => ({ ...run, measures: { ...run.measures, "latency.max": null } })) };
+    expect(servedShare(noRead)).toMatchObject({ code: "read", path: `rate/100 run ${BASE.runs[0]!.index}` });
+  });
+
+  it("keeps only the points where the subject served the share of the measure, and gives the knee of its rule", () => {
+    const { laws, skipped, problems } = lawsOf({ id: "rate", laws: SERVED }, twoJobs(runOf(1), EPYC, 1), FLOORS, OPTIONS);
+    expect(problems).toEqual([]);
+    expect(skipped).toEqual([]);
+    expect(laws).toHaveLength(1);
+    const { law, cut, knee } = laws[0]!;
+    // The rates 33000 and 36000 of each job are out: 46 of the 50 points stay.
+    expect(law.fit.residuals).toHaveLength(46);
+    expect(law.variables).toEqual([{ id: "rate", unit: "{request}/s", min: 100, max: 30000, scale: "log" }]);
+    expect(law.conditions["served"]).toBe(0.97);
+    expect(checkLaw(law)).toEqual([]);
+    expect(cut.map((point) => point.case)).toEqual(["rate/33000", "rate/36000", "rate/33000", "rate/36000"]);
+    expect(cut[0]).toMatchObject({ job: `${runOf(1).url} at 2026-11-20T06:01:00Z`, max: 60 });
+    expect(cut[0]!.served).toBeCloseTo(1000 / 1060, 12);
+    // 0.3 (1 + x / 36000) is 1.5 times its floor, at 100, where x = 18150.
+    expect(knee?.floor?.load).toBe(100);
+    expect(Math.abs((knee!.knee.value as number) - 18_150) / 18_150).toBeLessThan(0.1);
+    expect(knee?.edge.value).toBeNull();
+  });
+
+  it("skips a law of a measure with fewer than 40 points where the subject served its share", () => {
+    const jobs = [jobOf(runOf(1), EPYC, 1, {}, 12_000), jobOf(runOf(1), EPYC, 2, {}, 12_000)];
+    const { laws, skipped, problems } = lawsOf({ id: "rate", laws: SERVED }, jobs, FLOORS, OPTIONS);
+    expect([laws, problems]).toEqual([[], []]);
+    expect(skipped).toEqual([{ code: "case", path: "node-http/rate/epyc-7763/latency.p50", message: "The subject served the share 0.97 at 28 of 50 points. A law needs 40 points or more." }]);
+  });
+
+  it("keeps a law with a knee search that cannot apply, and gives the problem of the search", () => {
+    const set: LawSet = { ...SERVED, measures: [{ ...SERVED.measures[0]!, knee: { kind: "rise", share: 0 } }] };
+    const { laws, problems } = lawsOf({ id: "rate", laws: set }, twoJobs(runOf(1), EPYC, 1), FLOORS, OPTIONS);
+    expect(laws.map(({ law, knee }) => [law.id, knee])).toEqual([["node-http/rate/epyc-7763/latency.p50", undefined]]);
+    expect(problems).toEqual([
+      { code: "knee", path: "node-http/rate/epyc-7763/latency.p50", message: 'rule.share: The share of the rule "rise" is 0. It must be a finite number above 0.' },
+    ]);
+  });
+
   it("gives a summary with a row for each law, each problem and each skipped job", () => {
     const result = lawsOf(PLAN, [...twoJobs(runOf(1), EPYC, 1), jobOf(null, EPYC, 3), jobOf(runOf(2), OTHER, 4)], FLOORS, OPTIONS);
     const summary = lawsSummaryOf("rate", result);
@@ -228,6 +283,16 @@ describe("the laws of a plan", () => {
     expect(summary).toContain("The problems:");
     expect(summary).toContain("The jobs and the CPU models that gave no law, and the floor jobs that gave no noise:");
     expect(lawsSummaryOf("rate", { laws: [], skipped: [], problems: [] })).toContain("The plan gave no law.");
+  });
+
+  it("gives the intervals, the range, the values at its ends, the knee and the points out of each law in the summary", () => {
+    const summary = lawsSummaryOf("rate", lawsOf({ id: "rate", laws: SERVED }, twoJobs(runOf(1), EPYC, 1), FLOORS, OPTIONS));
+    expect(summary).toContain("Each interval holds the share 0.95 of the bootstrap replicates.");
+    expect(summary).toContain("| Law | Range | Value at the start | Value at the end | Knee |");
+    expect(summary).toContain(escapeMarkdown("100 to 30000 {request}/s"));
+    expect(summary).toContain(escapeMarkdown("(rule floor, share 0.5, floor "));
+    expect(summary).toContain("The points that a law leaves out, because the subject served a smaller share than the field `served` of the measure:");
+    expect(summary).toContain(escapeMarkdown("rate/33000 (latency.max 60 ms, served 0.9434) of "));
   });
 });
 
@@ -266,6 +331,13 @@ describe("the law set of a plan", () => {
       "laws.conditions.Node",
       "laws.conditions.memory.limit",
       "laws.conditions.memory.limit",
+    ]);
+    const shares = { ...SET, measures: [{ ...SERVED.measures[0]!, served: 1 }, { ...SET.measures[0]!, served: "0.97", knee: { kind: "peak" } }, { ...SET.measures[1]!, knee: { kind: "floor" } }] };
+    expect(lawSetProblems(shares, RATE.cases).map((each) => each.path)).toEqual([
+      "laws.measures[0].served",
+      "laws.measures[1].served",
+      "laws.measures[1].knee.kind",
+      "laws.measures[2].knee.share",
     ]);
     expect(lawSetProblems([], RATE.cases)).toEqual([{ code: "laws", path: "laws", message: "The law set is not a record." }]);
     expect(lawSetProblems({ ...SET, measures: [] }, RATE.cases).map((each) => each.path)).toEqual(["laws.measures"]);

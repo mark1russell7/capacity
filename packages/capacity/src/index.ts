@@ -52,8 +52,8 @@ export type { FormRank, LawFit, LawFitOptions } from "./fit.ts";
 export { fitLaw } from "./fit.ts";
 export type { ConstantInterval, LawValue, LevelOptions, LoadPoint, Range } from "./value.ts";
 export { constantIntervals, lawValue } from "./value.ts";
-export type { Crossing, Knee, KneeOptions, KneeRule, OpenRange, Reach } from "./knee.ts";
-export { KNEE_STEPS, lawKnee, lawReach } from "./knee.ts";
+export type { Crossing, Floor, Knee, KneeOptions, KneeRule, OpenRange, Reach } from "./knee.ts";
+export { KNEE_STEPS, kneeRuleProblem, lawKnee, lawReach } from "./knee.ts";
 export type {
   Amounts,
   Demand,

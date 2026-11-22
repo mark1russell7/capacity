@@ -172,7 +172,7 @@ The plan runs each night, not on each pull request. Its time limit is 54 minutes
 
 ### The request rate
 
-The plan `rate` sends the bare request to the bare subject at 25 rates, from 100 to 36000 requests each second. The subject has one core and 512 MiB. The points of the laws of the request rate come from its records (CAP-20). Its law set tells the laws of its records (refer to [The laws](#the-laws)). Its six law files are in `packages/capacity/laws` (CAP-17). Their intervals and their knees are CAP-53.
+The plan `rate` sends the bare request to the bare subject at 25 rates, from 100 to 36000 requests each second. The subject has one core and 512 MiB. The points of the laws of the request rate come from its records (CAP-20). Its law set tells the laws of its records (refer to [The laws](#the-laws)). Its six law files are in `packages/capacity/laws` (CAP-17). The summary of the fit gives the interval of each constant, each value at the ends of a range and each knee (CAP-53).
 
 | Part | The value | Why |
 | --- | --- | --- |
@@ -252,7 +252,10 @@ A plan with the field `laws` gives laws from its records. The law set tells the 
 "laws": {
   "class": "rate",
   "variable": { "id": "rate", "unit": "{request}/s", "scale": "log" },
-  "measures": [{ "id": "cpu.request", "title": "The CPU time of one request", "residual": "relative", "forms": ["linear", "hinge"] }]
+  "measures": [
+    { "id": "cpu.request", "title": "The CPU time of one request", "residual": "relative", "forms": ["linear", "hinge"] },
+    { "id": "latency.p50", "title": "The median latency of a request", "residual": "relative", "served": 0.97, "knee": { "kind": "floor", "share": 1 } }
+  ]
 }
 ```
 
@@ -263,6 +266,29 @@ A plan with the field `laws` gives laws from its records. The law set tells the 
 - **The conditions.** The facts that do not change between the points are the conditions of the law (`conditionsOf`). They are the class, the CPU model, the limits, the duration and the arrivals. The connections and the version of the harness are conditions too. A case with other facts gives a problem.
 - **The noise.** Each law gets the floor of its measure from the jobs of the check `floor` on the same CPU model. With no floor on that CPU model, the law gets the largest floor of the jobs.
 - **The fit.** `fitLaw` of `@mark1russell7/capacity` fits each form of the measure. The law keeps each form that lost, with its error, in `fit.losers`. `checkLaw` examines each law before the command writes it.
+- **The served share.** A measure with the field `served` keeps only the points where the subject keeps up with the offered rate. The range of the law is the range of these points, and the law has the condition `served`.
+- **The knee.** A measure with the field `knee` gives the knee of each law in its range, with `lawKnee` of `@mark1russell7/capacity`. A search that cannot apply gives a problem, and the law stays.
+
+### The served share
+
+A case keeps up when the subject serves the share `served` of the offered rate or more. `servedShare` gives the least share that the records show:
+
+- Each planned time of a request is in the duration `T` of a run.
+- Each reply comes at most `latency.max` after its planned time.
+- Thus the subject serves the requests of `T` in `T + latency.max` or less. The share is `T / (T + latency.max)` or more.
+
+The latency is the median of the runs of the case. The plan `rate` gives the share 0.97 to its three latency laws. With runs of 1 s, a case keeps up when its `latency.max` is 30.9 ms or less.
+
+- **Why a cut.** Past the limit of the core, a queue grows in the driver for the duration of the run. Then the latency tells the duration of the case, not a property of the subject. One law of a smooth form cannot fit both regions.
+- **The other laws.** The laws of the CPU time and of the memory have good fits on all of the range. Thus their measures have no field `served`.
+- **Too few points.** With fewer than 40 points that keep up, the law of the measure goes into the list of skipped laws.
+
+### The knee of a latency
+
+The knee of a latency is the rate where the latency leaves its floor. The plan `rate` gives the rule `{ "kind": "floor", "share": 1 }` to its latency laws: the first rate where the latency is two times its floor.
+
+- **Why the floor, not the start.** At 100 requests each second, the median latency is 0.34 ms. From 1000 to 12000, it is approximately 0.13 ms. The first requests of a run are cold, and at a low rate they are a large part of the run. Thus the start value is not the floor.
+- **Why one amount.** Each replicate uses the floor of the constants. Some replicates of the 90th percentile have a value below 0 at 100. The rule `rise` cannot apply to them.
 
 ### The command and the workflow
 
@@ -277,6 +303,7 @@ gh workflow run laws.yml -R mark1russell7/capacity -f runs='<run of the plan rat
 - `node src/laws.main.ts fit --records <folder> --out <folder>` reads each manifest `timed.json` in the folder and in its subfolders.
 - It writes each law into `<out>/<id>.law.json`, then it reads the file again with `readLaw`.
 - A problem, or no law, gives the exit code 1. The summary of the job tells each law, each problem and each skipped job.
+- The summary gives the interval of each constant, the range of each law, its values at the ends of the range and its knee. Each interval holds 0.95 of the replicates. It also tells each point that a law leaves out, with its `latency.max` and its share.
 - The workflow uploads the files as the artifact `laws-<run>`. A pull request puts them into the repository.
 
 ## The start cases

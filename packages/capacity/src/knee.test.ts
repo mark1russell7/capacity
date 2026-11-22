@@ -5,7 +5,7 @@ import { app, ref, type Expr } from "@mark1russell7/vex";
 import { describe, expect, it } from "vitest";
 import { checkLaw } from "./check.ts";
 import { catalogForm, constantIdsOf, formOf } from "./forms.ts";
-import { lawKnee, lawReach, type Knee, type KneeOptions, type KneeRule, type Reach } from "./knee.ts";
+import { kneeRuleProblem, lawKnee, lawReach, type Knee, type KneeOptions, type KneeRule, type Reach } from "./knee.ts";
 import type { Law, LawProblem, Variable } from "./law.ts";
 import { hinge, sampleLaw, wave } from "./sample.fixture.ts";
 
@@ -233,6 +233,47 @@ describe("lawKnee", () => {
     expect(must(lawKnee(law, "rate", { kind: "rise", share: 0.5 })).knee.value).toBeCloseTo(2775, 6);
   });
 
+  it("finds the knee of the rule floor after the least value of a law that falls, then grows", () => {
+    // 1 + 100 / x + x has its least value, 21, at x = 10. A cold start is high, so the rule "rise" finds no knee.
+    const rate: Variable = { id: "rate", unit: "{request}/s", min: 1, max: 100, scale: "linear" };
+    const program = app("add", app("add", ref("base"), app("divide", ref("cold"), ref("rate"))), app("multiply", ref("slope"), ref("rate")));
+    const law = programLaw(program, { base: 1, cold: 100, slope: 1 }, [rate]);
+    expect(checkLaw(law)).toEqual([]);
+    expect(kneeOf(law, { kind: "rise", share: 1 }).knee).toEqual(NO_CROSSING);
+    const found = kneeOf(law, { kind: "floor", share: 1 });
+    const floor = found.floor as { load: number; value: number };
+    // The floor is the least value on the grid of 64 steps, thus near the least value of the curve.
+    expect(Math.abs(floor.load - 10)).toBeLessThan(99 / 64);
+    expect(floor.value).toBeCloseTo(1 + 100 / floor.load + floor.load, 9);
+    expect(floor.value).toBeGreaterThanOrEqual(21);
+    expect(floor.value).toBeLessThan(21.01);
+    // After the floor, 1 + 100 / x + x = 2 floor where x^2 - (2 floor - 1) x + 100 = 0.
+    const b = 2 * floor.value - 1;
+    expect(found.knee.value).toBeCloseTo((b + Math.sqrt(b * b - 400)) / 2, 6);
+    expect(found).toMatchObject({ rule: { kind: "floor", share: 1 }, edge: NO_CROSSING });
+  });
+
+  it("gives the rule floor to each replicate as one amount, also to a replicate with a value below 0", () => {
+    // Some replicates of the base are below 0. The floor of the estimate is its base, 0.5, at 0.
+    const spread = lawOf("linear", { base: 0.5, slope: 1 }, {}, { base: 3 });
+    expect(spread.replicates.some((row) => (row[0] as number) <= 0)).toBe(true);
+    const found = kneeOf(spread, { kind: "floor", share: 1 });
+    expect(found.floor).toEqual({ load: 0, value: 0.5 });
+    expect(found.knee.value).toBeCloseTo(0.5, 9);
+    // Each replicate is above 1 where base + x = 1.
+    const crossings = spread.replicates.map((row) => Math.max(0, 1 - (row[0] as number)));
+    expect(found.knee.interval.low).toBeCloseTo(Math.min(0.5, quantile(crossings, 0.025)), 6);
+    expect(found.knee.interval.high).toBeCloseTo(Math.max(0.5, quantile(crossings, 0.975)), 6);
+  });
+
+  it("takes the floor before the edge of a law", () => {
+    // Past its capacity, 100, the queue has values below 0. They are not the floor.
+    const found = kneeOf(lawOf("queue", QUEUE, QUEUE_RANGE), { kind: "floor", share: 1 }, { to: 150 });
+    expect(found.floor).toEqual({ load: 1, value: 0.5 + 100 / 99 });
+    expect(found.knee.value).toBeCloseTo(queueRise(1), 6);
+    expect(found.edge.value).toBeCloseTo(100, 9);
+  });
+
   it("holds the other variables at the point at", () => {
     const law = sampleLaw();
     const sized: Law = {
@@ -271,7 +312,24 @@ describe("the problems of lawKnee", () => {
     expect(problemOf(lawKnee(law, "rate", { kind: "rise", share: 0 }))).toMatchObject({ code: "knee", path: "rule.share" });
     expect(problemOf(lawKnee(law, "rate", { kind: "rise", share: Number.NaN }))).toMatchObject({ code: "knee", path: "rule.share" });
     expect(problemOf(lawKnee(law, "rate", { kind: "slope", factor: 1 }))).toMatchObject({ code: "knee", path: "rule.factor" });
+    expect(problemOf(lawKnee(law, "rate", { kind: "floor", share: -1 }))).toMatchObject({ code: "knee", path: "rule.share" });
     expect(problemOf(lawKnee(law, "rate", slope, { level: 0.99 }))).toMatchObject({ code: "level", path: "replicates" });
+  });
+
+  it("names a rule from data with a bad shape", () => {
+    expect(kneeRuleProblem({ kind: "floor", share: 1 })).toBeUndefined();
+    expect(kneeRuleProblem({ kind: "slope", factor: 2 }, "knee")).toBeUndefined();
+    expect(kneeRuleProblem([], "knee")).toMatchObject({ code: "knee", path: "knee" });
+    expect(kneeRuleProblem(null)).toMatchObject({ code: "knee", path: "rule" });
+    expect(kneeRuleProblem({ kind: "peak" }, "knee")).toMatchObject({ code: "knee", path: "knee.kind" });
+    expect(kneeRuleProblem({ kind: "rise", share: "1" }, "knee")).toMatchObject({ code: "knee", path: "knee.share" });
+    expect(kneeRuleProblem({ kind: "slope" })).toMatchObject({ code: "knee", path: "rule.factor" });
+  });
+
+  it("names a floor at 0 or below, or a law with no value at the start of the floor search", () => {
+    const negative = lawOf("linear", { base: -1, slope: 1 });
+    expect(problemOf(lawKnee(negative, "rate", { kind: "floor", share: 1 }))).toMatchObject({ code: "knee", path: "constants" });
+    expect(problemOf(lawKnee(lawOf("logarithm", { base: 1, scale: 1 }), "rate", { kind: "floor", share: 1 }))).toMatchObject({ code: "value", path: "constants" });
   });
 
   it("names the row with no value or no cheap region at the start of the search", () => {

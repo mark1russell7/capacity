@@ -16,8 +16,19 @@ const MAX_STEPS = 4096;
  *
  * - `rise`: the value is more than `1 + share` times the value at the start of the search.
  * - `slope`: the slope is more than `factor` times the slope at the start of the search.
+ * - `floor`: the value is more than `1 + share` times the floor of the law. The floor is the least
+ *   value of the law with its constants on the grid of the search. The search starts at the floor.
  */
-export type KneeRule = { readonly kind: "rise"; readonly share: number } | { readonly kind: "slope"; readonly factor: number };
+export type KneeRule =
+  | { readonly kind: "rise"; readonly share: number }
+  | { readonly kind: "slope"; readonly factor: number }
+  | { readonly kind: "floor"; readonly share: number };
+
+/** The floor of a law is its least value with its constants on the grid of a search, and the load of that value. */
+export interface Floor {
+  readonly load: number;
+  readonly value: number;
+}
 
 /**
  * These options set a knee search. The search goes along one variable, from `from` to `to`, on a
@@ -56,7 +67,8 @@ export interface Crossing {
  * The `knee` is the first load where the law obeys the rule: there the law leaves its cheap region.
  * The `edge` is the first load where the law has no finite value. This is a pole, where the value
  * grows with no limit, or the start of a region with no value. The knee is always before the edge.
- * The list `outside` names each other variable whose value is outside its range.
+ * The list `outside` names each other variable whose value is outside its range. Only a knee of the
+ * rule `floor` has the field `floor`.
  */
 export interface Knee {
   readonly variable: string;
@@ -67,6 +79,7 @@ export interface Knee {
   readonly knee: Crossing;
   readonly edge: Crossing;
   readonly outside: readonly string[];
+  readonly floor?: Floor;
 }
 
 /** A curve gives the value of one row of a law at each load of the variable. A load with no finite value gives undefined. */
@@ -240,7 +253,7 @@ const rowOf = (curve: Curve, path: string, testOf: TestOf, grid: readonly number
 
 /** This function gives the test of a knee rule: the value or the slope is above its mark from the start of the search. */
 const ruleTest =
-  (rule: KneeRule): TestOf =>
+  (rule: Exclude<KneeRule, { readonly kind: "floor" }>): TestOf =>
   ({ curve, start, path, from, unit }) => {
     if (rule.kind === "rise") {
       if (!(start > 0)) {
@@ -273,15 +286,25 @@ const amountTest =
   ({ curve }) =>
     ok((load, value = valueOf(curve, load)) => value !== undefined && value > amount);
 
-/** This function gives the problem of a knee rule, or undefined. */
-const ruleProblem = (rule: KneeRule): LawProblem | undefined => {
-  if (rule.kind === "rise" && !(Number.isFinite(rule.share) && rule.share > 0)) {
-    return problem("knee", "rule.share", `The share of the rule "rise" is ${rule.share}. It must be a finite number above 0.`);
+/** These kinds name the knee rules. */
+const KNEE_KINDS: readonly KneeRule["kind"][] = ["rise", "slope", "floor"];
+
+/**
+ * This function gives the problem of a knee rule, or undefined for a correct rule. The rule can come
+ * from data, thus the function also examines its shape. The path of a problem starts with `path`.
+ */
+export const kneeRuleProblem = (rule: unknown, path = "rule"): LawProblem | undefined => {
+  if (typeof rule !== "object" || rule === null || Array.isArray(rule)) return problem("knee", path, "The rule is not a record.");
+  const { kind, share, factor } = rule as Readonly<Record<string, unknown>>;
+  if (kind === "rise" || kind === "floor") {
+    if (typeof share === "number" && Number.isFinite(share) && share > 0) return undefined;
+    return problem("knee", `${path}.share`, `The share of the rule "${kind}" is ${String(share)}. It must be a finite number above 0.`);
   }
-  if (rule.kind === "slope" && !(Number.isFinite(rule.factor) && rule.factor > 1)) {
-    return problem("knee", "rule.factor", `The factor of the rule "slope" is ${rule.factor}. It must be a finite number above 1.`);
+  if (kind === "slope") {
+    if (typeof factor === "number" && Number.isFinite(factor) && factor > 1) return undefined;
+    return problem("knee", `${path}.factor`, `The factor of the rule "slope" is ${String(factor)}. It must be a finite number above 1.`);
   }
-  return undefined;
+  return problem("knee", `${path}.kind`, `The kind of the rule is ${JSON.stringify(kind) ?? "undefined"}. It must be one of ${KNEE_KINDS.join(", ")}.`);
 };
 
 /**
@@ -301,21 +324,32 @@ const crossingFrom = (values: readonly number[], level: number, range: Range, en
   };
 };
 
-/** The result of a search along one variable of a law: the first load that passes the test, and the edge. */
-interface Along {
+/**
+ * A search is the setup of a search along one variable of a law: its target variable, its level,
+ * its range, its grid and the variables outside their range. The function `curveOf` gives the curve
+ * of one row of constants.
+ */
+interface Search {
   readonly target: Variable;
   readonly level: number;
   readonly search: Range;
-  readonly crossing: Crossing;
-  readonly edge: Crossing;
+  readonly grid: readonly number[];
+  readonly unit: number;
+  readonly curveOf: (values: readonly number[]) => Curve;
   readonly outside: readonly string[];
 }
 
+/** The result of a search along one variable of a law: the first load that passes the test, and the edge. */
+interface Along {
+  readonly crossing: Crossing;
+  readonly edge: Crossing;
+}
+
 /**
- * This function searches along one variable of a law for the first load that passes a test, in the
- * constants and in each replicate. The function `check` gives the problem of the test before the search.
+ * This function gives the setup of a search along one variable of a law, or its problem. The function
+ * `check` gives the problem of the test before the setup.
  */
-const along = (law: Law, variable: string, options: KneeOptions, check: () => LawProblem | undefined, testOf: TestOf): Result<Along, LawProblem> => {
+const searchOf = (law: Law, variable: string, options: KneeOptions, check: () => LawProblem | undefined): Result<Search, LawProblem> => {
   const level = options.level ?? DEFAULT_LEVEL;
   const noLevel = levelProblem(law, level, false);
   if (noLevel !== undefined) return err(noLevel);
@@ -356,9 +390,20 @@ const along = (law: Law, variable: string, options: KneeOptions, check: () => La
   const grid = Array.from({ length: steps + 1 }, (_, index) =>
     index === steps ? to : log ? from * (to / from) ** (index / steps) : from + ((to - from) * index) / steps,
   );
-  const unit = log ? 0 : to - from;
   const names = law.constants.map((constant) => constant.id);
   const program: Expr = law.form.program;
+  const curveOf =
+    (values: readonly number[]): Curve =>
+    (loads) =>
+      valuesAt(program, loads.map((load) => recordOf(names, values, { ...base, [variable]: load })));
+  const outside = law.variables
+    .filter((entry) => entry.id !== variable && ((base[entry.id] as number) < entry.min || (base[entry.id] as number) > entry.max))
+    .map((entry) => entry.id);
+  return ok({ target, level, search: { low: from, high: to }, grid, unit: log ? 0 : to - from, curveOf, outside });
+};
+
+/** This function searches a law for the first load that passes a test, in the constants and in each replicate. */
+const along = (law: Law, setup: Search, testOf: TestOf): Result<Along, LawProblem> => {
   const rows = [
     { path: "constants", values: law.constants.map((constant) => constant.value) },
     ...law.replicates.map((row, index) => ({ path: `replicates[${index}]`, values: row })),
@@ -366,25 +411,44 @@ const along = (law: Law, variable: string, options: KneeOptions, check: () => La
   const crossings: number[] = [];
   const edges: number[] = [];
   for (const row of rows) {
-    const curve: Curve = (loads) => valuesAt(program, loads.map((load) => recordOf(names, row.values, { ...base, [variable]: load })));
-    const result = rowOf(curve, row.path, testOf, grid, unit);
+    const result = rowOf(setup.curveOf(row.values), row.path, testOf, setup.grid, setup.unit);
     if (result.tag === "err") return result;
     crossings.push(result.value.crossing);
     edges.push(result.value.edge);
   }
-
-  const range: Range = { low: target.min, high: target.max };
-  const outside = law.variables
-    .filter((entry) => entry.id !== variable && ((base[entry.id] as number) < entry.min || (base[entry.id] as number) > entry.max))
-    .map((entry) => entry.id);
+  const range: Range = { low: setup.target.min, high: setup.target.max };
   return ok({
-    target,
-    level,
-    search: { low: from, high: to },
-    crossing: crossingFrom(crossings, level, range, to),
-    edge: crossingFrom(edges, level, range, to),
-    outside,
+    crossing: crossingFrom(crossings, setup.level, range, setup.search.high),
+    edge: crossingFrom(edges, setup.level, range, setup.search.high),
   });
+};
+
+/**
+ * This function gives the floor of a law on the grid of a search: the least value of the law with its
+ * constants, at the loads before its edge. The rule `floor` needs a floor above 0.
+ */
+const floorOf = (law: Law, setup: Search): Result<Floor, LawProblem> => {
+  const curve = setup.curveOf(law.constants.map((constant) => constant.value));
+  const values = curve(setup.grid);
+  const start = values[0];
+  const first = setup.grid[0] as number;
+  if (start === undefined) return err(problem("value", "constants", `The law has no value at the start of the search, ${first}.`));
+  const edge = edgeOf(curve, setup.grid, values, start);
+  let floor: Floor = { load: first, value: start };
+  setup.grid.forEach((load, index) => {
+    const value = values[index];
+    if (load < edge && value !== undefined && value < floor.value) floor = { load, value };
+  });
+  if (!(floor.value > 0)) {
+    return err(problem("knee", "constants", `The rule "floor" needs a floor above 0. The floor is ${floor.value} at ${floor.load}.`));
+  }
+  return ok(floor);
+};
+
+/** This function gives the test of the rule `floor`: from the load of the floor, the value is above `1 + share` times the floor. */
+const floorTest = (floor: Floor, share: number): TestOf => {
+  const limit = (1 + share) * floor.value;
+  return ({ curve }) => ok((load, value = valueOf(curve, load)) => load >= floor.load && value !== undefined && value > limit);
 };
 
 /**
@@ -398,15 +462,28 @@ const along = (law: Law, variable: string, options: KneeOptions, check: () => La
  * The search tests a grid of loads, then a bisection finds each crossing. A crossing between two
  * loads of the grid is found. Two edges in one step of the grid can hide the first edge.
  *
+ * The rule `floor` takes the floor of the law with its constants. Each replicate uses that floor,
+ * thus a replicate with a low or negative value does not stop the search.
+ *
  * The function gives a problem for a variable or a point that the law cannot read. A bad search
  * range, rule or count of steps, and a level that the law cannot show, also give a problem. The last
  * problems are a law with no value at the start of the search, and a rule that cannot apply there.
  */
 export const lawKnee = (law: Law, variable: string, rule: KneeRule, options: KneeOptions = {}): Result<Knee, LawProblem> => {
-  const found = along(law, variable, options, () => ruleProblem(rule), ruleTest(rule));
+  const setup = searchOf(law, variable, options, () => kneeRuleProblem(rule));
+  if (setup.tag === "err") return setup;
+  let floor: Floor | undefined;
+  if (rule.kind === "floor") {
+    const least = floorOf(law, setup.value);
+    if (least.tag === "err") return least;
+    floor = least.value;
+  }
+  const testOf = rule.kind === "floor" ? floorTest(floor as Floor, rule.share) : ruleTest(rule);
+  const found = along(law, setup.value, testOf);
   if (found.tag === "err") return found;
-  const { target, level, search, crossing, edge, outside } = found.value;
-  return ok({ variable, unit: target.unit, rule, level, search, knee: crossing, edge, outside });
+  const { target, level, search, outside } = setup.value;
+  const knee: Knee = { variable, unit: target.unit, rule, level, search, knee: found.value.crossing, edge: found.value.edge, outside };
+  return ok(floor === undefined ? knee : { ...knee, floor });
 };
 
 /**
@@ -448,8 +525,10 @@ export const lawReach = (law: Law, variable: string, amount: Quantity, options: 
     return err(problem("unit", "amount", `The amount is in "${amount.unit}", and the measure of the law is in "${law.measure.unit}": ${why}.`));
   }
   const value = valueIn(amount, law.measure.unit);
-  const found = along(law, variable, options, () => undefined, amountTest(value));
+  const setup = searchOf(law, variable, options, () => undefined);
+  if (setup.tag === "err") return setup;
+  const found = along(law, setup.value, amountTest(value));
   if (found.tag === "err") return found;
-  const { target, level, search, crossing, edge, outside } = found.value;
-  return ok({ variable, unit: target.unit, amount: value, level, search, crossing, edge, outside });
+  const { target, level, search, outside } = setup.value;
+  return ok({ variable, unit: target.unit, amount: value, level, search, crossing: found.value.crossing, edge: found.value.edge, outside });
 };

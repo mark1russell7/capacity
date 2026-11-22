@@ -118,6 +118,9 @@ A rule tells when the cost grows fast. The law obeys the rule at the knee, and n
 | --- | --- |
 | `{ kind: "rise", share }` | The first load where the value is `1 + share` times the value at the start of the search. |
 | `{ kind: "slope", factor }` | The first load where the slope is `factor` times the slope at the start of the search. |
+| `{ kind: "floor", share }` | The first load after the floor where the value is `1 + share` times the floor. The floor is the least value of the law with its constants on the grid, before the edge. |
+
+The rule `floor` is for a law that falls before it grows, for example a latency with a cold start at a low rate. The knee has the field `floor`: the `load` and the `value` of the floor. Each replicate uses the floor of the constants, thus a replicate with a value below 0 at the start does not stop the search.
 
 The search goes along the range of the variable. The options `from` and `to` change it, and the point `at` gives each other variable. The search tests a grid of `KNEE_STEPS` steps on the scale of the variable, then a bisection finds each crossing. The option `steps` changes the count.
 
@@ -135,7 +138,9 @@ The search goes along the range of the variable. The options `from` and `to` cha
 - The search range, the rule or the count of steps is not correct. A share is more than 0, and a factor is more than 1.
 - The law has too few replicates for the level.
 - The constants or a replicate give no value at the start of the search. The path names the row.
-- The rule cannot apply at the start: a rise needs a value more than 0, and a slope needs a slope more than 0.
+- The rule cannot apply at the start: a rise needs a value more than 0, and a slope needs a slope more than 0. A floor must be more than 0.
+
+`kneeRuleProblem(rule, path)` examines a rule from data, for example from a plan file. It gives the problem of the rule, or `undefined`.
 
 The search finds a pole where the value grows as a power or as a logarithm, also between two floats. At a pole, each step nearer adds as much size as the step before. Near a finite peak, each step nearer adds much less.
 
