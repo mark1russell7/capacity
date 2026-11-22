@@ -9,7 +9,7 @@ import { windowOf } from "./cell.ts";
 import { CONTROL_CASES } from "./control.ts";
 import { FLOOR_IDS, FLOOR_PAIRS, floorPair } from "./floor.ts";
 import { expectedOf } from "./gate.ts";
-import { MAX_JOB_MINUTES, MAX_JOBS, PLAN_FORMAT, SETUP_MINUTES, gatePlanProblems, matrixOf, planMinutes, planProblems, readPlans, selectPlans, type Plan } from "./plan.ts";
+import { MAX_JOB_MINUTES, MAX_JOBS, PLAN_FORMAT, SETUP_MINUTES, gatePlanProblems, matrixOf, planMinutes, planProblems, planSwap, readPlans, selectPlans, type Plan } from "./plan.ts";
 import type { StartLawSet } from "./start-laws.ts";
 import { isStartCase, startWindowOf, type StartCase } from "./start.ts";
 
@@ -323,10 +323,10 @@ describe("the matrix of the workflow", () => {
     const other = plan({ id: "other", cases: [CASE, { ...CASE, id: "node-http/idle-2" }] });
     expect(matrixOf([PLAN, other], [1, 2])).toEqual({
       include: [
-        { plan: "idle", run: 1, minutes: planMinutes(PLAN) },
-        { plan: "idle", run: 2, minutes: planMinutes(PLAN) },
-        { plan: "other", run: 1, minutes: planMinutes(other) },
-        { plan: "other", run: 2, minutes: planMinutes(other) },
+        { plan: "idle", run: 1, minutes: planMinutes(PLAN), swap: 0 },
+        { plan: "idle", run: 2, minutes: planMinutes(PLAN), swap: 0 },
+        { plan: "other", run: 1, minutes: planMinutes(other), swap: 0 },
+        { plan: "other", run: 2, minutes: planMinutes(other), swap: 0 },
       ],
     });
     expect(planMinutes(other)).toBeGreaterThan(planMinutes(PLAN));
@@ -337,6 +337,19 @@ describe("the matrix of the workflow", () => {
     expect(matrixOf([PLAN, three]).include.map((each) => `${each.plan} ${each.run}`)).toEqual(["idle 1", "three 1", "three 2", "three 3"]);
     expect(matrixOf([three], [2]).include.map((each) => each.run)).toEqual([2]);
     expect(() => matrixOf([plan({ jobs: MAX_JOBS }), three])).toThrow(/at most 256/);
+  });
+
+  it("gives each job of a plan the most swap of a target of its start cases, and 0 to a plan with no start case", () => {
+    const app = readPlans(PLANS).plans.find((each) => each.id === "alerts-start-app");
+    if (app === undefined) throw new Error("The plan alerts-start-app is not in the folder of the plans.");
+    const most = Math.max(...app.cases.filter(isStartCase).map((value) => valueIn(value.target.swap, "B")));
+    expect(most).toBeGreaterThan(0);
+    expect(matrixOf([app], [1]).include[0]?.swap).toBe(most);
+    const [first] = app.cases.filter(isStartCase);
+    if (first === undefined) throw new Error("The plan alerts-start-app has no start case.");
+    const more: StartCase = { ...first, id: `${first.id}-more`, target: { ...first.target, swap: { value: 5, unit: "GiB" } } };
+    expect(planSwap({ ...app, cases: [...app.cases, more] })).toBe(5 * 1024 ** 3);
+    expect(planSwap(PLAN)).toBe(0);
   });
 
   it("refuses runs that are not different whole numbers above 0, and a matrix that GitHub does not start", () => {
