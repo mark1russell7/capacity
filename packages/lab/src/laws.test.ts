@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSyn
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { checkLaw, type Run } from "@mark1russell7/capacity";
+import { checkLaw } from "@mark1russell7/capacity";
 import { readLaw } from "@mark1russell7/capacity/schema";
 import { escapeMarkdown } from "@mark1russell7/text";
 import { describe, expect, it } from "vitest";

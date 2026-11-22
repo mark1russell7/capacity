@@ -185,3 +185,5 @@ jobs:
       - uses: mark1russell7/template/.github/actions/gate-summary@a456a3a088d2bf443f2bce9ac0dc0041e827a1de # main
         with:
           needs: ${{ toJSON(needs) }}
+          # The job gate starts only for a selection with a gate plan.
+          allow-skip: gate
