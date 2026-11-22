@@ -12,8 +12,8 @@ export const LAW_SUFFIX = ".law.json";
 const readJson = (file: string): unknown => JSON.parse(readFileSync(file, "utf8"));
 
 /**
- * This function gives each job of a folder: each manifest `timed.json` in the folder or in a subfolder, with the records
- * of its cases of load. The order of the jobs is the order of the paths of their manifests.
+ * This function gives each job of a folder. A job is a manifest `timed.json` in the folder or in a subfolder, with the
+ * records of its cases of load. The order of the jobs is the order of the paths of their manifests.
  *
  * It throws an `Error` for a manifest of another format.
  */

@@ -346,7 +346,7 @@ export const jobName = (timed: Timed): string => `${timed.run?.url ?? "a local r
 
 /**
  * This function gives the reason that a job of a plan cannot give points, or null for a good job. A good job has a CI run, a
- * machine, a verdict with no problem and a record of a case of load, and each record has the CPU model of the machine.
+ * machine, a verdict with no problem and a record of a case of load. Each record has the CPU model of the machine.
  */
 export const jobProblem = (plan: string, timed: Timed, records: readonly CaseRecord[]): string | null => {
   if (timed.plan !== plan) return `The job measured the plan "${timed.plan}", not the plan "${plan}".`;
@@ -534,7 +534,7 @@ export interface LawPoint {
 
 /**
  * This function gives the point of a measure at one record, with the rules of the measure. The value of the variable comes from
- * the demand of the case (`loadPointOf`), and the value of the measure is the median over the runs (`caseValue`), as in a fit of a law.
+ * the demand of the case (`loadPointOf`). The value of the measure is the median over the runs (`caseValue`), as in a fit of a law.
  * A record that a rule of the measure leaves out (`served`, `tail`) gives its cut. A read that fails gives a problem.
  */
 export const lawPointOf = (set: LawSet, measure: LawMeasure, record: CaseRecord, job: string): LawPoint | CutPoint | LawsProblem => {

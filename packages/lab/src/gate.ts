@@ -106,7 +106,7 @@ const gateJobOf = (set: LawSet, law: Law, job: string, timed: Timed, records: re
 
 /**
  * This function gives the gate of the laws of a gate plan. The plan measures the subject again at some points of the laws
- * of the plan `lawPlan`, and the gate compares each measured value with the run range of its law (`lawGate` of
+ * of the plan `lawPlan`. The gate compares each measured value with the run range of its law (`lawGate` of
  * `@mark1russell7/capacity`).
  *
  * - **The jobs:** each job of the plan with no problem (`jobProblem`) gives the reads of its cases of load. The A/A pairs
@@ -116,7 +116,7 @@ const gateJobOf = (set: LawSet, law: Law, job: string, timed: Timed, records: re
  * - **The noise:** a job with a noise floor of a measure over its limit gives no read of the laws of that measure.
  * - **The reads:** a record must have the subject and the conditions of the law (`lawDifferences`). A point that the
  *   rules of the law leave out (`served`, `tail`) gives no read. Each such record goes into the list `unread` of its job.
- * - **No read:** a gate with no case, or with too few jobs for a case, is "no read", never a pass (`lawGate`).
+ * - **No read:** a gate with no case, or with too few jobs for a case, is "no read". It does not pass (`lawGate`).
  *
  * The function throws a `RangeError` for a plan of the laws with no law set.
  */
@@ -160,8 +160,8 @@ export const SUMMARY_UNREAD = 12;
 const pText = (value: number | undefined): string => (value === undefined ? "" : value < 1e-4 ? value.toExponential(1) : short(value));
 
 /**
- * This function gives the summary of the gate of a plan in Markdown: the outcome against the expected outcome, a row for
- * each law, each job that no law reads, each job with no read of a law, and the first reads that the laws left out.
+ * This function gives the summary of the gate of a plan in Markdown. It tells the outcome and the expected outcome, with a
+ * row for each law. It lists each job that no law reads, each job with no read of a law, and the first reads that the laws left out.
  */
 export const gateSummaryOf = (result: PlanGate): string => {
   const { gate } = result;

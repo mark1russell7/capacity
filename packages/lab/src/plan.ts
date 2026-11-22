@@ -1,6 +1,6 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { basename, join } from "node:path";
-import type { Problem } from "@mark1russell7/capacity";
+import { GATE_JOBS, type Problem } from "@mark1russell7/capacity";
 import { isRecord } from "@mark1russell7/optional/read";
 import { valueIn } from "@mark1russell7/quantity";
 import { canonicalJson } from "@mark1russell7/rigor-generators";
@@ -59,6 +59,11 @@ export interface Plan {
   /** These triggers are the events that start the plan with no selection by hand. */
   readonly triggers: readonly PlanTrigger[];
   readonly cases: readonly (Case | StartCase)[];
+  /**
+   * This count is the jobs of the plan when the workflow gives no list of runs. The default is 1. Each job is a job on its
+   * own runner (`matrixOf`).
+   */
+  readonly jobs?: number;
   readonly laws?: LawSet;
   readonly gate?: GateSet;
 }
@@ -67,8 +72,8 @@ export interface Plan {
 export const FLOOR_PLAN = "floor";
 
 /**
- * A gate set tells the plan of the laws of a gate plan. A gate plan has the check `gate`, each case of the plan
- * `FLOOR_PLAN`, and some cases of the plan of the laws, each with the same id. A case of the laws can add a cost
+ * A gate set tells the plan of the laws of a gate plan. A gate plan has the check `gate` and each case of the plan
+ * `FLOOR_PLAN`. It also has some cases of the plan of the laws, each with the same id. A case of the laws can add a cost
  * (`Case.cost`): a slower subject, thus a gate that must block.
  */
 export interface GateSet {
@@ -77,7 +82,7 @@ export interface GateSet {
 }
 
 /** A plan problem code names the part of a plan that is not correct. */
-export type PlanProblemCode = "shape" | "format" | "id" | "check" | "trigger" | "case" | "time" | "laws" | "gate";
+export type PlanProblemCode = "shape" | "format" | "id" | "check" | "trigger" | "jobs" | "case" | "time" | "laws" | "gate";
 
 /** A plan problem tells what is not correct, and where: `path` is the path of the field in the plan. */
 export type PlanProblem = Problem<PlanProblemCode>;
@@ -98,7 +103,7 @@ export const planMinutes = (plan: Plan): number => {
  * This function examines a plan and gives each problem that it finds. A plan with no problem gives
  * an empty list.
  *
- * It examines the format, the id, the title, the check and the triggers. It examines each case with
+ * It examines the format, the id, the title, the check, the triggers and the count of jobs. It examines each case with
  * `caseProblems`, or a start case with `startCaseProblems`. The ids of the cases must differ. Then the time limit of the job of the plan
  * (`planMinutes`) must be `MAX_JOB_MINUTES` or less. A plan with correct cases and a law set gets the problems of `lawSetProblems`.
  * A plan with a law set has no case with a cost. A gate plan has the check `gate`, a plan id in `gate.laws` and no law set.
@@ -123,6 +128,9 @@ export const planProblems = (plan: Plan): readonly PlanProblem[] => {
         problems.push(problem("trigger", `triggers[${index}]`, `The trigger "${String(trigger)}" is in the list two times.`));
       }
     });
+  }
+  if (plan.jobs !== undefined && !(Number.isInteger(plan.jobs) && plan.jobs >= 1 && plan.jobs <= MAX_JOBS)) {
+    problems.push(problem("jobs", "jobs", `The count of jobs is not a whole number from 1 to ${MAX_JOBS}.`));
   }
   if (!Array.isArray(plan.cases) || plan.cases.length === 0) return [...problems, problem("case", "cases", "The plan has no case. A plan measures one case or more.")];
   const ids = new Set<string>();
@@ -151,14 +159,24 @@ export const planProblems = (plan: Plan): readonly PlanProblem[] => {
   return problems;
 };
 
-/** This function gives the problems of the field `gate` of a plan, with no other plan: its shape, its check and no law set. */
+/**
+ * This text is the start of the id of each gate plan. The job `gate` of the workflow `lab.yml` downloads only the artifacts
+ * `lab-gate-*`. A job of the plan `rate` has approximately 3 GB of raw results, and the gate does not read them.
+ */
+export const GATE_PREFIX = "gate-";
+
+/** This function gives the problems of a gate plan alone: its id, the shape of its field `gate`, its check and no law set. */
 const gateShapeProblems = (plan: Plan): readonly PlanProblem[] => {
   const problems: PlanProblem[] = [];
   if (!isRecord(plan.gate) || typeof plan.gate.laws !== "string" || !PLAN_ID.test(plan.gate.laws)) {
     problems.push(problem("gate", "gate", `The gate is not a record with the id of a plan in "laws", for example { "laws": "rate" }.`));
   }
+  if (typeof plan.id === "string" && !plan.id.startsWith(GATE_PREFIX)) {
+    problems.push(problem("gate", "id", `The id of a gate plan starts with "${GATE_PREFIX}". The job gate of the workflow reads only the artifacts of such plans.`));
+  }
   if (plan.check !== "gate") problems.push(problem("gate", "check", `A gate plan has the check "gate", not ${JSON.stringify(plan.check)}.`));
   if (plan.laws !== undefined) problems.push(problem("gate", "laws", "A gate plan has no law set. It compares the records with the laws of another plan."));
+  if ((plan.jobs ?? 1) < GATE_JOBS) problems.push(problem("gate", "jobs", `A gate plan has ${GATE_JOBS} jobs or more. A side of a law needs ${GATE_JOBS} jobs.`));
   return problems;
 };
 
@@ -276,14 +294,20 @@ export interface MatrixEntry {
 
 /**
  * This function gives the matrix of the workflow: one job for each run of each plan. Each run is a
- * job on its own runner, thus a limit can take the worst of many runners.
+ * job on its own runner, thus a limit can take the worst of many runners. With no list of runs, each
+ * plan has the runs 1 to its count of jobs (`Plan.jobs`).
  *
  * This function throws a `RangeError` for a run that is not a whole number above 0, and for a run in
  * the list two times. It also throws for a matrix of more than `MAX_JOBS` jobs.
  */
-export const matrixOf = (plans: readonly Plan[], runs: readonly number[]): { readonly include: readonly MatrixEntry[] } => {
-  const bad = runs.filter((run, index) => !Number.isInteger(run) || run < 1 || runs.indexOf(run) !== index);
-  if (runs.length === 0 || bad.length > 0) throw new RangeError(`The runs are not a list of different whole numbers above 0: ${JSON.stringify(runs)}.`);
-  if (plans.length * runs.length > MAX_JOBS) throw new RangeError(`The matrix has ${plans.length * runs.length} jobs. GitHub starts at most ${MAX_JOBS}.`);
-  return { include: plans.flatMap((plan) => runs.map((run) => ({ plan: plan.id, run, minutes: planMinutes(plan) }))) };
+export const matrixOf = (plans: readonly Plan[], runs?: readonly number[]): { readonly include: readonly MatrixEntry[] } => {
+  if (runs !== undefined) {
+    const bad = runs.filter((run, index) => !Number.isInteger(run) || run < 1 || runs.indexOf(run) !== index);
+    if (runs.length === 0 || bad.length > 0) throw new RangeError(`The runs are not a list of different whole numbers above 0: ${JSON.stringify(runs)}.`);
+  }
+  const include = plans.flatMap((plan) =>
+    (runs ?? Array.from({ length: plan.jobs ?? 1 }, (_, index) => index + 1)).map((run) => ({ plan: plan.id, run, minutes: planMinutes(plan) })),
+  );
+  if (include.length > MAX_JOBS) throw new RangeError(`The matrix has ${include.length} jobs. GitHub starts at most ${MAX_JOBS}.`);
+  return { include };
 };

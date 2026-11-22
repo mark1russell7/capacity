@@ -9,7 +9,8 @@
  * ```
  *
  * - `plan` reads each plan file of `plans` and examines it. It writes the matrix of the workflow as
- *   JSON on its standard output: one entry for each run of each plan of the selection.
+ *   JSON on its standard output: one entry for each run of each plan of the selection. With no `--runs`, each plan has
+ *   its count of jobs (`Plan.jobs`).
  * - `gates` writes the ids of the gate plans of the same selection as a JSON list. The job `gate` of the workflow starts
  *   only for a list that is not empty.
  * - `measure` measures each case of one plan (`timePlan`) in the run `--run` of the matrix. The default
@@ -48,12 +49,13 @@ const idsOf = (text: string): readonly string[] =>
     .filter((id) => id !== "");
 
 const plan = (args: readonly string[]): void => {
-  const { values } = parseArgs({ args: [...args], options: { event: { type: "string" }, plans: { type: "string", default: "" }, runs: { type: "string", default: "[1]" } } });
+  const { values } = parseArgs({ args: [...args], options: { event: { type: "string" }, plans: { type: "string", default: "" }, runs: { type: "string", default: "" } } });
   if (values.event === undefined) throw new Error(`The command needs --event.\n${USAGE}`);
-  const runs: unknown = JSON.parse(values.runs);
-  if (!Array.isArray(runs)) throw new Error(`--runs is not a JSON list: ${values.runs}`);
+  const parsed: unknown = values.runs.trim() === "" ? undefined : JSON.parse(values.runs);
+  if (parsed !== undefined && !Array.isArray(parsed)) throw new Error(`--runs is not a JSON list: ${values.runs}`);
+  const runs = Array.isArray(parsed) ? parsed.map(Number) : undefined;
   const chosen = selectPlans(plans(), { event: values.event, ids: idsOf(values.plans) });
-  process.stdout.write(`${JSON.stringify(matrixOf(chosen, runs.map(Number)))}\n`);
+  process.stdout.write(`${JSON.stringify(matrixOf(chosen, runs))}\n`);
 };
 
 const gates = (args: readonly string[]): void => {
@@ -85,8 +87,9 @@ const measure = async (args: readonly string[]): Promise<void> => {
 const main = async (): Promise<void> => {
   const [command, ...rest] = process.argv.slice(2);
   if (command === "plan") return plan(rest);
+  if (command === "gates") return gates(rest);
   if (command === "measure") return measure(rest);
-  throw new Error(`The command "${command ?? ""}" is not plan or measure.\n${USAGE}`);
+  throw new Error(`The command "${command ?? ""}" is not plan, gates or measure.\n${USAGE}`);
 };
 
 main().catch((error: unknown) => {

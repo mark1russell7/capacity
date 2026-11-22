@@ -9,8 +9,13 @@
 #     gh workflow run lab.yml -R mark1russell7/capacity --ref <branch> -f plans=control -f runs='[1,2,3,4,5]'
 #
 # The job plan reads and examines each plan file. It gives the matrix: one job for each run of each plan, with the time
-# limit of the plan. Each job measures its plan, and writes the CPU model and the verdict of the check into its summary.
-# It uploads the records, the raw results and the manifest timed.json as the artifact lab-<plan>-<run>-<attempt>.
+# limit of the plan. With no runs, a plan has its count of jobs (the field jobs, 1 by default). Each job measures its
+# plan, and writes the CPU model and the verdict of the check into its summary. It uploads the records, the raw results
+# and the manifest timed.json as the artifact lab-<plan>-<run>-<attempt>.
+#
+# The job gate starts when the run has a gate plan (the field gate). It reads the records of each job of the run and
+# compares them with the laws of the plan of the laws (gate.main.ts). A gate that does not give the outcome that its plan
+# expects fails the job. A gate with no read fails the job too: no read is not a pass.
 name: Lab
 
 on:
@@ -21,9 +26,9 @@ on:
         type: string
         default: ""
       runs:
-        description: The numbers of the runs, as a JSON list. Each run of each plan is a job on its own runner.
+        description: The numbers of the runs, as a JSON list. Each run of each plan is a job on its own runner. Empty gives each plan its count of jobs.
         type: string
-        default: "[1]"
+        default: ""
   schedule:
     # each night at 06:22 UTC: the rule runner-budget gives the minute of this repository and file
     - cron: "22 6 * * *"
@@ -73,6 +78,7 @@ jobs:
     timeout-minutes: 10
     outputs:
       matrix: ${{ steps.plan.outputs.matrix }}
+      gates: ${{ steps.plan.outputs.gates }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -90,11 +96,13 @@ jobs:
         env:
           EVENT: ${{ github.event_name }}
           PLANS: ${{ inputs.plans }}
-          RUNS: ${{ inputs.runs || '[1]' }}
+          RUNS: ${{ inputs.runs }}
         run: |
           matrix=$(node packages/lab/src/timed.main.ts plan --event "$EVENT" --plans "$PLANS" --runs "$RUNS")
           echo "$matrix"
           echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+          gates=$(node packages/lab/src/timed.main.ts gates --event "$EVENT" --plans "$PLANS")
+          echo "gates=$gates" >> "$GITHUB_OUTPUT"
 
   lab:
     needs: plan
@@ -139,10 +147,37 @@ jobs:
           path: ${{ runner.temp }}/lab-records
           if-no-files-found: warn
 
+  gate:
+    needs: [plan, lab]
+    # also after a job that failed: a job with a problem is a job that no law reads, and the summary tells it
+    if: ${{ !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.gates != '[]' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 26
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # each artifact of a job of a gate plan, in its own folder: the id of a gate plan starts with gate- (GATE_PREFIX)
+      - name: The records of the gate plans
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: lab-gate-*
+          path: ${{ runner.temp }}/gate-records
+      - name: The gate of the laws
+        env:
+          RECORDS: ${{ runner.temp }}/gate-records
+        run: node packages/lab/src/gate.main.ts --records "$RECORDS"
+
   lab-ok:
     name: Lab OK
     if: ${{ !cancelled() }}
-    needs: [changes, plan, lab]
+    needs: [changes, plan, lab, gate]
     runs-on: ubuntu-latest
     timeout-minutes: 2
     permissions: {}
