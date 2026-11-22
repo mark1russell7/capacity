@@ -1,0 +1,17 @@
+{
+  "format": "capacity-composition/1",
+  "id": "node-http/xeon-6975p-c/cpu",
+  "title": "The CPU of a bare Node HTTP server on the Intel Xeon 6975P-C",
+  "subject": "node-http",
+  "measure": {
+    "id": "cpu",
+    "unit": "{core}"
+  },
+  "terms": [
+    {
+      "law": "node-http/rate/xeon-6975p-c/cpu.request",
+      "over": "each",
+      "load": "total"
+    }
+  ]
+}

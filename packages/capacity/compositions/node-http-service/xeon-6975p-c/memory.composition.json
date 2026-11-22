@@ -1,0 +1,19 @@
+{
+  "format": "capacity-composition/1",
+  "id": "node-http-service/xeon-6975p-c/memory",
+  "title": "The highest memory of a Node HTTP server on the service runner, on the Intel Xeon 6975P-C",
+  "subject": "node-http-service",
+  "measure": {
+    "id": "memory",
+    "unit": "B"
+  },
+  "terms": [
+    {
+      "composition": "node-http/xeon-6975p-c/memory"
+    },
+    {
+      "law": "node-http-service/overhead/xeon-6975p-c/memory.high.overhead",
+      "over": "instance"
+    }
+  ]
+}

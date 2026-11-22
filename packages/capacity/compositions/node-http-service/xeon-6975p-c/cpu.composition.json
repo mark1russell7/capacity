@@ -1,0 +1,20 @@
+{
+  "format": "capacity-composition/1",
+  "id": "node-http-service/xeon-6975p-c/cpu",
+  "title": "The CPU of a Node HTTP server on the service runner, on the Intel Xeon 6975P-C",
+  "subject": "node-http-service",
+  "measure": {
+    "id": "cpu",
+    "unit": "{core}"
+  },
+  "terms": [
+    {
+      "composition": "node-http/xeon-6975p-c/cpu"
+    },
+    {
+      "law": "node-http-service/overhead/xeon-6975p-c/cpu.request.overhead",
+      "over": "each",
+      "load": "total"
+    }
+  ]
+}
