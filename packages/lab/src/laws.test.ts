@@ -173,12 +173,11 @@ describe("the laws of a plan", () => {
     ]);
   });
 
-  it("gives no law for a CPU model with fewer than 40 points", () => {
-    const { laws, problems } = lawsOf(PLAN, [jobOf(runOf(1), EPYC, 1)], FLOORS, OPTIONS);
-    expect(laws).toEqual([]);
-    expect(problems).toEqual([
-      { code: "case", path: "node-http/rate/epyc-7763", message: "The jobs on the CPU model give 25 points. A law needs 40 points or more: measure the plan again on this CPU model." },
-    ]);
+  it("skips a CPU model with fewer than 40 points, and fits the laws of the other models", () => {
+    const { laws, skipped, problems } = lawsOf(PLAN, [jobOf(runOf(1), EPYC, 1), ...twoJobs(runOf(2), XEON, 2)], FLOORS, OPTIONS);
+    expect(problems).toEqual([]);
+    expect(laws.map(({ law }) => law.id)).toEqual(["node-http/rate/xeon-6975p-c/cpu.request", "node-http/rate/xeon-6975p-c/memory"]);
+    expect(skipped).toEqual([{ code: "case", path: "node-http/rate/epyc-7763", message: "The jobs on the CPU model give 25 points. A law needs 40 points or more." }]);
   });
 
   it("gives no law for a CPU model with no id, and no law with no job", () => {
@@ -227,7 +226,7 @@ describe("the laws of a plan", () => {
     expect(summary).toContain("| Law | Form | Constants | Held-out error | Points | Noise floor |");
     expect(summary).toContain(escapeMarkdown("node-http/rate/epyc-7763/cpu.request"));
     expect(summary).toContain("The problems:");
-    expect(summary).toContain("The jobs that gave no point or no noise:");
+    expect(summary).toContain("The jobs and the CPU models that gave no law, and the floor jobs that gave no noise:");
     expect(lawsSummaryOf("rate", { laws: [], skipped: [], problems: [] })).toContain("The plan gave no law.");
   });
 });

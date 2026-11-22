@@ -201,14 +201,18 @@ export interface FittedLaw {
 }
 
 /**
- * The laws of a plan are the laws that its records gave. `skipped` tells each job that gave no point
- * and each floor job that gave no noise. `problems` tells each law that the records did not give.
+ * The laws of a plan are the laws that its records gave. `skipped` tells each job that gave no point,
+ * each CPU model with too few points and each floor job that gave no noise. `problems` tells each law
+ * that the records did not give.
  */
 export interface Laws {
   readonly laws: readonly FittedLaw[];
   readonly skipped: readonly LawsProblem[];
   readonly problems: readonly LawsProblem[];
 }
+
+/** This function tells if a result is a list of problems. `Array.isArray` does not narrow a union with a readonly list. */
+const isProblems = <T extends object>(value: T | readonly LawsProblem[]): value is readonly LawsProblem[] => Array.isArray(value);
 
 /** This function gives the name of a job: the address of its CI run and its start. */
 const jobName = (timed: Timed): string => `${timed.run?.url ?? "a local run"} at ${timed.at.started}`;
@@ -343,10 +347,6 @@ const pointsOf = (set: LawSet, base: string, jobs: readonly LawJob[]): Points | 
   }
   if (problems.length > 0) return problems;
   if (first === undefined) return [{ code: "case", path: base, message: "The jobs have no record." }];
-  const need = leastCount(DEFAULT_LEVEL);
-  if (records.length < need) {
-    return [{ code: "case", path: base, message: `The jobs on the CPU model give ${records.length} points. A law needs ${need} points or more: measure the plan again on this CPU model.` }];
-  }
   return { records, x, facts: first.facts, runs: uniqueRuns(jobs.flatMap(({ timed }) => (timed.run === null ? [] : [timed.run]))) };
 };
 
@@ -400,7 +400,8 @@ const lawOf = (set: LawSet, measure: LawMeasure, id: string, points: Points, noi
  * - **The points:** each record of a job gives one point. The variable comes from the demand of its
  *   case, and the value is the median over its runs (`caseValue`). All points share their subject and conditions.
  * - **The jobs:** a job with no CI run, or with a problem in its verdict, gives no point. A law needs
- *   40 points or more (`leastCount` of the level 0.95), thus two jobs of a plan of 25 cases.
+ *   40 points or more (`leastCount` of the level 0.95), thus two jobs of a plan of 25 cases. A CPU model
+ *   with fewer points goes into `skipped`: the runners give random CPU models, thus few points are no read, not a problem.
  * - **The evidence:** the CI runs of the jobs of the CPU model.
  * - **The noise:** the largest floor of the floor jobs on the CPU model. With none, the model with the largest floor.
  * - **The fit:** `fitLaw` of `@mark1russell7/capacity`. The law keeps each form that lost. `checkLaw` examines each law.
@@ -412,6 +413,7 @@ export const lawsOf = (plan: { readonly id: string; readonly laws?: LawSet }, jo
   const problems: LawsProblem[] = [];
   const laws: FittedLaw[] = [];
   const floor = floorJobs(floors, skipped);
+  const need = leastCount(DEFAULT_LEVEL);
   const byCpu = new Map<string, LawJob[]>();
   const ordered = [...jobs].sort((a, b) => (jobName(a.timed) < jobName(b.timed) ? -1 : jobName(a.timed) > jobName(b.timed) ? 1 : 0));
   for (const job of ordered) {
@@ -434,8 +436,12 @@ export const lawsOf = (plan: { readonly id: string; readonly laws?: LawSet }, jo
     const subject = group[0]?.records[0]?.case.subject ?? "";
     const base = `${subject}/${plan.id}/${model}`;
     const points = pointsOf(set, base, group);
-    if (Array.isArray(points)) {
-      problems.push(...(points as readonly LawsProblem[]));
+    if (isProblems(points)) {
+      problems.push(...points);
+      continue;
+    }
+    if (points.records.length < need) {
+      skipped.push({ code: "case", path: base, message: `The jobs on the CPU model give ${points.records.length} points. A law needs ${need} points or more.` });
       continue;
     }
     for (const measure of set.measures) {
@@ -445,9 +451,9 @@ export const lawsOf = (plan: { readonly id: string; readonly laws?: LawSet }, jo
         problems.push({ code: "noise", path: id, message: noise });
         continue;
       }
-      const result = lawOf(set, measure, id, points as Points, noise, options);
-      if (Array.isArray(result)) problems.push(...(result as readonly LawsProblem[]));
-      else laws.push(result as FittedLaw);
+      const result = lawOf(set, measure, id, points, noise, options);
+      if (isProblems(result)) problems.push(...result);
+      else laws.push(result);
     }
   }
   return { laws, skipped, problems };
@@ -474,7 +480,7 @@ export const lawsSummaryOf = (plan: string, laws: Laws): string => {
     lines.push(`${title}:`, "", ...items.map((each) => `- ${escapeMarkdown(`${each.path}: ${each.message}`)}`), "");
   };
   list("The problems", laws.problems);
-  list("The jobs that gave no point or no noise", laws.skipped);
+  list("The jobs and the CPU models that gave no law, and the floor jobs that gave no noise", laws.skipped);
   if (laws.laws.length === 0 && laws.problems.length === 0) lines.push("The plan gave no law.", "");
   return `${lines.join("\n")}\n`;
 };
