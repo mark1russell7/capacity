@@ -268,6 +268,8 @@ A plan with the field `laws` gives laws from its records. The law set tells the 
 
 The fit of the laws of a plan takes minutes, thus only CI starts it. The workflow `laws.yml` downloads the artifacts of each Lab run of its input `runs`, and fits the laws of each plan with a law set.
 
+The fit reads only the manifests and the records. A job of the plan `rate` has approximately 3 GB of raw results. Thus the workflow downloads one artifact at a time, and deletes its raw results before the next download.
+
 ```sh
 gh workflow run laws.yml -R mark1russell7/capacity -f runs='<run of the plan rate> <run of the plan floor>'
 ```
