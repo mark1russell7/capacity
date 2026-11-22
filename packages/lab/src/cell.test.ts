@@ -46,6 +46,12 @@ describe("the parts of a cell", () => {
     expect(commandOf({ ...CASE, demand: { ...CASE.demand, levels: {} } })).toEqual(["node", "/opt/subject/node-http.main.ts", "--port", "8080", "--keep-alive-timeout", "0"]);
   });
 
+  it("gives the flag --cost for a case with a cost above 0", () => {
+    const plain = { ...CASE, demand: { ...CASE.demand, levels: {} } };
+    expect(commandOf({ ...plain, cost: { value: 10, unit: "us" } })).toEqual(["node", "/opt/subject/node-http.main.ts", "--port", "8080", "--keep-alive-timeout", "0", "--cost", "10"]);
+    expect(commandOf({ ...plain, cost: { value: 0, unit: "us" } })).toEqual(commandOf(plain));
+  });
+
   it("gives each stream its own Poisson seed, and keeps uniform arrivals", () => {
     expect(streamArrivals({ arrivals: "poisson", seed: "case" }, "work")).toEqual({ arrivals: "poisson", seed: "case/work" });
     expect(streamArrivals({ arrivals: "poisson", seed: 7 }, "work")).toEqual({ arrivals: "poisson", seed: "7/work" });

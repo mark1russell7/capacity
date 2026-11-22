@@ -342,10 +342,13 @@ export interface Laws {
 const isProblems = <T extends object>(value: T | readonly LawsProblem[]): value is readonly LawsProblem[] => Array.isArray(value);
 
 /** This function gives the name of a job: the address of its CI run and its start. */
-const jobName = (timed: Timed): string => `${timed.run?.url ?? "a local run"} at ${timed.at.started}`;
+export const jobName = (timed: Timed): string => `${timed.run?.url ?? "a local run"} at ${timed.at.started}`;
 
-/** This function gives the reason that a job of a plan cannot give points, or null for a good job. */
-const jobProblem = (plan: string, timed: Timed, records: readonly CaseRecord[]): string | null => {
+/**
+ * This function gives the reason that a job of a plan cannot give points, or null for a good job. A good job has a CI run, a
+ * machine, a verdict with no problem and a record of a case of load. Each record has the CPU model of the machine.
+ */
+export const jobProblem = (plan: string, timed: Timed, records: readonly CaseRecord[]): string | null => {
   if (timed.plan !== plan) return `The job measured the plan "${timed.plan}", not the plan "${plan}".`;
   if (timed.run === null) return "The job has no CI run. The evidence of a law is a CI run.";
   if (timed.machine === null) return "The manifest of the job has no machine.";
@@ -390,6 +393,18 @@ const differences = (a: Facts, b: Facts): readonly string[] => {
   const names = new Set(["subject", ...Object.keys(a.conditions), ...Object.keys(b.conditions)]);
   const of = (facts: Facts, name: string): string => canonicalJson(name === "subject" ? facts.subject : (facts.conditions[name] ?? null));
   return [...names].filter((name) => of(a, name) !== of(b, name));
+};
+
+/** These conditions of a law are the rules of its points (`served`, `tail`), not facts of a record. */
+export const RULE_CONDITIONS: readonly string[] = ["served", "tail"];
+
+/**
+ * This function gives the names of the facts of a record that differ from the facts of a law: the subject and each
+ * condition (`conditionsOf`). It does not compare the conditions of `RULE_CONDITIONS`. An empty list tells a record in the conditions of the law.
+ */
+export const lawDifferences = (law: Law, record: CaseRecord, set: LawSet): readonly string[] => {
+  const conditions = Object.fromEntries(Object.entries(law.conditions).filter(([name]) => !RULE_CONDITIONS.includes(name)));
+  return differences({ subject: law.subject, conditions }, { subject: record.case.subject, conditions: conditionsOf(record, set) });
 };
 
 /** This function gives each run once, in the order of their addresses. */
@@ -476,22 +491,26 @@ const tailCut = (tail: number, level: number, record: CaseRecord, job: string): 
   return count >= need ? undefined : { rule: "tail", case: record.case.id, job, count, need };
 };
 
+/** This function gives each cut of one point by the rules of a measure (`served`, `tail`), and each problem of the reads of the rules. */
+const cutsOf = (measure: LawMeasure, record: CaseRecord, job: string): readonly (CutPoint | Problem<"read">)[] => {
+  const { served, tail } = measure;
+  const level = isQuantile(measure.id) ? QUANTILE_MEASURES[measure.id] : undefined;
+  const found = [served === undefined ? undefined : servedCut(served, record, job), tail === undefined || level === undefined ? undefined : tailCut(tail, level, record, job)];
+  return found.filter((each) => each !== undefined);
+};
+
 /**
  * This function gives the points in the range of one measure, or the problems of the reads of its rules.
  * A point stays when no rule cuts it. The list `cut` has each cut of each rule.
  */
 const rangeOf = (measure: LawMeasure, id: string, points: Points): RangePoints | readonly LawsProblem[] => {
-  const { served, tail } = measure;
-  const level = isQuantile(measure.id) ? QUANTILE_MEASURES[measure.id] : undefined;
   const kept: number[] = [];
   const cut: CutPoint[] = [];
   const reads: LawsProblem[] = [];
   points.records.forEach((record, index) => {
     const job = jobName(points.jobs[index]!);
-    const found = [served === undefined ? undefined : servedCut(served, record, job), tail === undefined || level === undefined ? undefined : tailCut(tail, level, record, job)];
     let out = false;
-    for (const each of found) {
-      if (each === undefined) continue;
+    for (const each of cutsOf(measure, record, job)) {
       if ("code" in each) reads.push({ code: "read", path: id, message: `${each.path}: ${each.message}` });
       else cut.push(each);
       out = true;
@@ -506,6 +525,27 @@ const rangeOf = (measure: LawMeasure, id: string, points: Points): RangePoints |
 /** This function gives the text of the rules of the range of a measure, for example "served share 0.97, tail 10". */
 const rangeText = (measure: LawMeasure): string =>
   [measure.served === undefined ? [] : [`served share ${measure.served}`], measure.tail === undefined ? [] : [`tail ${measure.tail}`]].flat().join(", ");
+
+/** A law point is one point of a law at one record: the value of the variable and the value of the measure. */
+export interface LawPoint {
+  readonly x: number;
+  readonly value: number;
+}
+
+/**
+ * This function gives the point of a measure at one record, with the rules of the measure. The value of the variable comes from
+ * the demand of the case (`loadPointOf`). The value of the measure is the median over the runs (`caseValue`), as in a fit of a law.
+ * A record that a rule of the measure leaves out (`served`, `tail`) gives its cut. A read that fails gives a problem.
+ */
+export const lawPointOf = (set: LawSet, measure: LawMeasure, record: CaseRecord, job: string): LawPoint | CutPoint | LawsProblem => {
+  const [first] = cutsOf(measure, record, job);
+  if (first !== undefined) return "code" in first ? { code: "read", path: record.case.id, message: `${first.path}: ${first.message}` } : first;
+  const point = loadPointOf(record.case.demand, set.class, pointLawOf(record.case.id, set.variable));
+  if (point.tag === "err") return { code: "case", path: record.case.id, message: point.error.message };
+  const value = caseValue(record, measure.id);
+  if (typeof value !== "number") return { code: "read", path: value.path, message: value.message };
+  return { x: point.value[set.variable.id]!, value };
+};
 
 /** This function gives the points of one CPU model, or the problems of its cases. */
 const pointsOf = (set: LawSet, base: string, jobs: readonly LawJob[]): Points | readonly LawsProblem[] => {

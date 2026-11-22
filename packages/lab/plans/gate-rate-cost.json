@@ -1,0 +1,597 @@
+{
+  "format": "capacity-plan/1",
+  "id": "gate-rate-cost",
+  "title": "The proof of the gate of the laws of the request rate: the same 4 rates with 100 us more CPU time in each request",
+  "check": "gate",
+  "triggers": [
+    "schedule"
+  ],
+  "jobs": 12,
+  "gate": {
+    "laws": "rate"
+  },
+  "cases": [
+    {
+      "format": "capacity-case/1",
+      "id": "floor/a1",
+      "title": "The A/A pair 1, case a: the load of control/base",
+      "subject": "node-http",
+      "instance": {
+        "resources": {
+          "cpu": {
+            "value": 1,
+            "unit": "{core}"
+          },
+          "memory": {
+            "value": 512,
+            "unit": "MiB"
+          }
+        }
+      },
+      "demand": {
+        "classes": [
+          {
+            "id": "control",
+            "rate": {
+              "value": 100,
+              "unit": "{request}/s"
+            },
+            "request": {}
+          }
+        ],
+        "levels": {}
+      },
+      "duration": {
+        "value": 10,
+        "unit": "s"
+      },
+      "arrivals": {
+        "arrivals": "uniform"
+      },
+      "runs": 3
+    },
+    {
+      "format": "capacity-case/1",
+      "id": "floor/b1",
+      "title": "The A/A pair 1, case b: the load of control/base",
+      "subject": "node-http",
+      "instance": {
+        "resources": {
+          "cpu": {
+            "value": 1,
+            "unit": "{core}"
+          },
+          "memory": {
+            "value": 512,
+            "unit": "MiB"
+          }
+        }
+      },
+      "demand": {
+        "classes": [
+          {
+            "id": "control",
+            "rate": {
+              "value": 100,
+              "unit": "{request}/s"
+            },
+            "request": {}
+          }
+        ],
+        "levels": {}
+      },
+      "duration": {
+        "value": 10,
+        "unit": "s"
+      },
+      "arrivals": {
+        "arrivals": "uniform"
+      },
+      "runs": 3
+    },
+    {
+      "format": "capacity-case/1",
+      "id": "floor/a2",
+      "title": "The A/A pair 2, case a: the load of control/base",
+      "subject": "node-http",
+      "instance": {
+        "resources": {
+          "cpu": {
+            "value": 1,
+            "unit": "{core}"
+          },
+          "memory": {
+            "value": 512,
+            "unit": "MiB"
+          }
+        }
+      },
+      "demand": {
+        "classes": [
+          {
+            "id": "control",
+            "rate": {
+              "value": 100,
+              "unit": "{request}/s"
+            },
+            "request": {}
+          }
+        ],
+        "levels": {}
+      },
+      "duration": {
+        "value": 10,
+        "unit": "s"
+      },
+      "arrivals": {
+        "arrivals": "uniform"
+      },
+      "runs": 3
+    },
+    {
+      "format": "capacity-case/1",
+      "id": "floor/b2",
+      "title": "The A/A pair 2, case b: the load of control/base",
+      "subject": "node-http",
+      "instance": {
+        "resources": {
+          "cpu": {
+            "value": 1,
+            "unit": "{core}"
+          },
+          "memory": {
+            "value": 512,
+            "unit": "MiB"
+          }
+        }
+      },
+      "demand": {
+        "classes": [
+          {
+            "id": "control",
+            "rate": {
+              "value": 100,
+              "unit": "{request}/s"
+            },
+            "request": {}
+          }
+        ],
+        "levels": {}
+      },
+      "duration": {
+        "value": 10,
+        "unit": "s"
+      },
+      "arrivals": {
+        "arrivals": "uniform"
+      },
+      "runs": 3
+    },
+    {
+      "format": "capacity-case/1",
+      "id": "floor/a3",
+      "title": "The A/A pair 3, case a: the load of control/base",
+      "subject": "node-http",
+      "instance": {
+        "resources": {
+          "cpu": {
+            "value": 1,
+            "unit": "{core}"
+          },
+          "memory": {
+            "value": 512,
+            "unit": "MiB"
+          }
+        }
+      },
+      "demand": {
+        "classes": [
+          {
+            "id": "control",
+            "rate": {
+              "value": 100,
+              "unit": "{request}/s"
+            },
+            "request": {}
+          }
+        ],
+        "levels": {}
+      },
+      "duration": {
+        "value": 10,
+        "unit": "s"
+      },
+      "arrivals": {
+        "arrivals": "uniform"
+      },
+      "runs": 3
+    },
+    {
+      "format": "capacity-case/1",
+      "id": "floor/b3",
+      "title": "The A/A pair 3, case b: the load of control/base",
+      "subject": "node-http",
+      "instance": {
+        "resources": {
+          "cpu": {
+            "value": 1,
+            "unit": "{core}"
+          },
+          "memory": {
+            "value": 512,
+            "unit": "MiB"
+          }
+        }
+      },
+      "demand": {
+        "classes": [
+          {
+            "id": "control",
+            "rate": {
+              "value": 100,
+              "unit": "{request}/s"
+            },
+            "request": {}
+          }
+        ],
+        "levels": {}
+      },
+      "duration": {
+        "value": 10,
+        "unit": "s"
+      },
+      "arrivals": {
+        "arrivals": "uniform"
+      },
+      "runs": 3
+    },
+    {
+      "format": "capacity-case/1",
+      "id": "floor/a4",
+      "title": "The A/A pair 4, case a: the load of control/base",
+      "subject": "node-http",
+      "instance": {
+        "resources": {
+          "cpu": {
+            "value": 1,
+            "unit": "{core}"
+          },
+          "memory": {
+            "value": 512,
+            "unit": "MiB"
+          }
+        }
+      },
+      "demand": {
+        "classes": [
+          {
+            "id": "control",
+            "rate": {
+              "value": 100,
+              "unit": "{request}/s"
+            },
+            "request": {}
+          }
+        ],
+        "levels": {}
+      },
+      "duration": {
+        "value": 10,
+        "unit": "s"
+      },
+      "arrivals": {
+        "arrivals": "uniform"
+      },
+      "runs": 3
+    },
+    {
+      "format": "capacity-case/1",
+      "id": "floor/b4",
+      "title": "The A/A pair 4, case b: the load of control/base",
+      "subject": "node-http",
+      "instance": {
+        "resources": {
+          "cpu": {
+            "value": 1,
+            "unit": "{core}"
+          },
+          "memory": {
+            "value": 512,
+            "unit": "MiB"
+          }
+        }
+      },
+      "demand": {
+        "classes": [
+          {
+            "id": "control",
+            "rate": {
+              "value": 100,
+              "unit": "{request}/s"
+            },
+            "request": {}
+          }
+        ],
+        "levels": {}
+      },
+      "duration": {
+        "value": 10,
+        "unit": "s"
+      },
+      "arrivals": {
+        "arrivals": "uniform"
+      },
+      "runs": 3
+    },
+    {
+      "format": "capacity-case/1",
+      "id": "floor/a5",
+      "title": "The A/A pair 5, case a: the load of control/base",
+      "subject": "node-http",
+      "instance": {
+        "resources": {
+          "cpu": {
+            "value": 1,
+            "unit": "{core}"
+          },
+          "memory": {
+            "value": 512,
+            "unit": "MiB"
+          }
+        }
+      },
+      "demand": {
+        "classes": [
+          {
+            "id": "control",
+            "rate": {
+              "value": 100,
+              "unit": "{request}/s"
+            },
+            "request": {}
+          }
+        ],
+        "levels": {}
+      },
+      "duration": {
+        "value": 10,
+        "unit": "s"
+      },
+      "arrivals": {
+        "arrivals": "uniform"
+      },
+      "runs": 3
+    },
+    {
+      "format": "capacity-case/1",
+      "id": "floor/b5",
+      "title": "The A/A pair 5, case b: the load of control/base",
+      "subject": "node-http",
+      "instance": {
+        "resources": {
+          "cpu": {
+            "value": 1,
+            "unit": "{core}"
+          },
+          "memory": {
+            "value": 512,
+            "unit": "MiB"
+          }
+        }
+      },
+      "demand": {
+        "classes": [
+          {
+            "id": "control",
+            "rate": {
+              "value": 100,
+              "unit": "{request}/s"
+            },
+            "request": {}
+          }
+        ],
+        "levels": {}
+      },
+      "duration": {
+        "value": 10,
+        "unit": "s"
+      },
+      "arrivals": {
+        "arrivals": "uniform"
+      },
+      "runs": 3
+    },
+    {
+      "format": "capacity-case/1",
+      "id": "rate/300",
+      "title": "The bare request at 300 requests each second",
+      "subject": "node-http",
+      "instance": {
+        "resources": {
+          "cpu": {
+            "value": 1,
+            "unit": "{core}"
+          },
+          "memory": {
+            "value": 512,
+            "unit": "MiB"
+          }
+        }
+      },
+      "demand": {
+        "classes": [
+          {
+            "id": "rate",
+            "rate": {
+              "value": 300,
+              "unit": "{request}/s"
+            },
+            "request": {}
+          }
+        ],
+        "levels": {}
+      },
+      "duration": {
+        "value": 1,
+        "unit": "s"
+      },
+      "arrivals": {
+        "arrivals": "poisson",
+        "seed": "rate"
+      },
+      "connections": {
+        "mode": "pool",
+        "size": 64
+      },
+      "runs": 3,
+      "cost": {
+        "value": 100,
+        "unit": "us"
+      }
+    },
+    {
+      "format": "capacity-case/1",
+      "id": "rate/1000",
+      "title": "The bare request at 1000 requests each second",
+      "subject": "node-http",
+      "instance": {
+        "resources": {
+          "cpu": {
+            "value": 1,
+            "unit": "{core}"
+          },
+          "memory": {
+            "value": 512,
+            "unit": "MiB"
+          }
+        }
+      },
+      "demand": {
+        "classes": [
+          {
+            "id": "rate",
+            "rate": {
+              "value": 1000,
+              "unit": "{request}/s"
+            },
+            "request": {}
+          }
+        ],
+        "levels": {}
+      },
+      "duration": {
+        "value": 1,
+        "unit": "s"
+      },
+      "arrivals": {
+        "arrivals": "poisson",
+        "seed": "rate"
+      },
+      "connections": {
+        "mode": "pool",
+        "size": 64
+      },
+      "runs": 3,
+      "cost": {
+        "value": 100,
+        "unit": "us"
+      }
+    },
+    {
+      "format": "capacity-case/1",
+      "id": "rate/2000",
+      "title": "The bare request at 2000 requests each second",
+      "subject": "node-http",
+      "instance": {
+        "resources": {
+          "cpu": {
+            "value": 1,
+            "unit": "{core}"
+          },
+          "memory": {
+            "value": 512,
+            "unit": "MiB"
+          }
+        }
+      },
+      "demand": {
+        "classes": [
+          {
+            "id": "rate",
+            "rate": {
+              "value": 2000,
+              "unit": "{request}/s"
+            },
+            "request": {}
+          }
+        ],
+        "levels": {}
+      },
+      "duration": {
+        "value": 1,
+        "unit": "s"
+      },
+      "arrivals": {
+        "arrivals": "poisson",
+        "seed": "rate"
+      },
+      "connections": {
+        "mode": "pool",
+        "size": 64
+      },
+      "runs": 3,
+      "cost": {
+        "value": 100,
+        "unit": "us"
+      }
+    },
+    {
+      "format": "capacity-case/1",
+      "id": "rate/3000",
+      "title": "The bare request at 3000 requests each second",
+      "subject": "node-http",
+      "instance": {
+        "resources": {
+          "cpu": {
+            "value": 1,
+            "unit": "{core}"
+          },
+          "memory": {
+            "value": 512,
+            "unit": "MiB"
+          }
+        }
+      },
+      "demand": {
+        "classes": [
+          {
+            "id": "rate",
+            "rate": {
+              "value": 3000,
+              "unit": "{request}/s"
+            },
+            "request": {}
+          }
+        ],
+        "levels": {}
+      },
+      "duration": {
+        "value": 1,
+        "unit": "s"
+      },
+      "arrivals": {
+        "arrivals": "poisson",
+        "seed": "rate"
+      },
+      "connections": {
+        "mode": "pool",
+        "size": 64
+      },
+      "runs": 3,
+      "cost": {
+        "value": 100,
+        "unit": "us"
+      }
+    }
+  ]
+}

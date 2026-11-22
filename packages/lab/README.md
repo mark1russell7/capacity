@@ -109,6 +109,9 @@ A plan is a set of cases that one CI job measures on one runner, and the check o
 | `check` | The name of a check of `CHECKS`, or `null`. The check judges the records of the plan. |
 | `triggers` | The events that start the plan with no selection by hand: `pull_request` and `schedule`. A person can start each plan by its id. |
 | `cases` | The cases of the plan, each a case record or a start case. The ids of the cases are different. |
+| `jobs` | The count of jobs of the plan when the workflow gets no list of runs. The default is 1. Each job is on its own runner. |
+| `laws` | The law set of the plan: the laws that the records of the plan give. Refer to "The laws". |
+| `gate` | The plan of the laws of a gate plan, for example `{ "laws": "rate" }`. Refer to "The gate of the laws". |
 
 - **One runner for each plan.** The cases of a plan share one runner, thus one CPU model. Thus a check can compare two cases, and the points of a law come from one machine.
 - **The check.** `planProblems` gives each problem of a plan. It examines each case with `caseProblems`, and each start case with `startCaseProblems`. `readPlans` reads each plan file of a folder, and the id of each plan must be the name of its file.
@@ -333,6 +336,31 @@ gh workflow run laws.yml -R mark1russell7/capacity -f runs='<run of the plan rat
 - A problem, or no law, gives the exit code 1. A known problem does not. Refer to "A known problem". The summary of the job tells each law, each problem, each known problem and each skipped job.
 - The summary gives the interval of each constant, the range of each law, its values at the ends of the range and its knee. Each interval holds 0.95 of the replicates. It also tells each point that a law leaves out, with its `latency.max` and its share.
 - The workflow uploads the files as the artifact `laws-<run>`. A pull request puts them into the repository.
+
+### The gate of the laws
+
+A gate plan measures the subject again at some points of the laws of another plan. The gate compares each value with the run range of its law (`planGate`). Thus a change of Node, of the runner or of the subject cannot move a law with no signal.
+
+- **The plan.** A gate plan has the check `gate`, the field `gate` and 2 jobs or more. Its id starts with `gate-`.
+- **The cases.** A gate plan has each A/A pair of the plan `floor`, for the noise floor of its job. Its other cases are cases of the plan of the laws, with the same ids. `gatePlanProblems` examines them.
+- **The noise.** A job with a noise floor over its limit (`FLOOR_LIMITS`) gives no read of the laws of that measure.
+- **The laws.** A job reads each law of its CPU model. A job on a CPU model with no law gives no read. The laws of the plan `rate` are on the Intel Xeon 6975P-C only.
+- **The outcome.** `lawGate` of `@mark1russell7/capacity` counts the reads above and below the run range in each job. A side needs 2 jobs or more, and Holm corrects the family. A gate with too few reads gives "no read". No read is not a pass.
+- **The proof.** A case can add a CPU time to each request (`cost`, in us). A plan with a cost expects a block (`expectedOf`). Each other gate plan expects a pass.
+
+The plans `gate-rate` and `gate-rate-cost` measure 4 rates of the plan `rate` from 300 to 3000 requests each second, in 12 jobs each night. The second plan adds 100 us to each request, thus its gate must block. Thus each night shows that the gate can block, and that the subject agrees with its laws.
+
+The count of jobs comes from the share of the CPU model of the laws. In the first run of the two plans, 5 of 12 jobs had the Intel Xeon 6975P-C. With 6 jobs, a night at that share gives no read of a plan 1 time in 5. With 12 jobs, the chance is less than 2 in 100. The item CAP-60 calculates the count of jobs from the share of each CPU model in the runs.
+
+The job `gate` of the workflow `lab.yml` starts after the jobs of the plans. It downloads the artifacts `lab-gate-*`, then it starts the command:
+
+```sh
+node src/gate.main.ts --records <folder> [--records <folder>] [--laws <folder>]
+```
+
+- The default folder of the laws is the folder `laws` of the package capacity.
+- The summary of the job has a row for each law, each job with no read and the first reads that the laws left out.
+- The exit code is 1 when a gate does not give the outcome that its plan expects. A gate with no job also gives 1.
 
 ## The start cases
 

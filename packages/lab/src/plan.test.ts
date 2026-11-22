@@ -7,8 +7,9 @@ import { afterEach, describe, expect, it } from "vitest";
 import { CASE_FORMAT, MAX_ARRIVALS, arrivalsOf, type Case } from "./case.ts";
 import { windowOf } from "./cell.ts";
 import { CONTROL_CASES } from "./control.ts";
-import { FLOOR_PAIRS, floorPair } from "./floor.ts";
-import { MAX_JOB_MINUTES, MAX_JOBS, PLAN_FORMAT, SETUP_MINUTES, matrixOf, planMinutes, planProblems, readPlans, selectPlans, type Plan } from "./plan.ts";
+import { FLOOR_IDS, FLOOR_PAIRS, floorPair } from "./floor.ts";
+import { expectedOf } from "./gate.ts";
+import { MAX_JOB_MINUTES, MAX_JOBS, PLAN_FORMAT, SETUP_MINUTES, gatePlanProblems, matrixOf, planMinutes, planProblems, readPlans, selectPlans, type Plan } from "./plan.ts";
 import { isStartCase, startWindowOf, type StartCase } from "./start.ts";
 
 const PLANS = fileURLToPath(new URL("../plans/", import.meta.url));
@@ -57,6 +58,17 @@ describe("the plan files of the lab", () => {
     for (const each of floor?.cases ?? []) expect({ ...each, id: base?.id, title: base?.title }).toEqual(base);
     // 10 cases: each one 4 runs with the warm-up, each run in a window of 2 x 10 s and a drain of 30 s
     expect(planMinutes(floor!)).toBe(SETUP_MINUTES + Math.ceil((10 * 4 * 50) / 60));
+  });
+
+  it("have the two gate plans of the laws of the request rate, in 12 jobs each night: the second adds a cost and must block", () => {
+    const { plans } = readPlans(PLANS);
+    const [pass, block] = ["gate-rate", "gate-rate-cost"].map((id) => plans.find((each) => each.id === id)!);
+    for (const each of [pass!, block!]) {
+      expect([each.check, each.gate, each.jobs, each.triggers]).toEqual(["gate", { laws: "rate" }, 12, ["schedule"]]);
+      expect(each.cases.map((value) => value.id)).toEqual([...FLOOR_IDS, "rate/300", "rate/1000", "rate/2000", "rate/3000"]);
+      expect(gatePlanProblems(each, plans)).toEqual([]);
+    }
+    expect([expectedOf(pass!), expectedOf(block!)]).toEqual(["pass", "block"]);
   });
 
   it("have the plan of the request rate, with its check, by hand only: the bare request at a sweep of rates", () => {
@@ -166,10 +178,60 @@ describe("the problems of a plan", () => {
     expect(planMinutes(plan({ cases: [CASE, start] }))).toBe(SETUP_MINUTES + Math.ceil(seconds / 60));
   });
 
+  it("examines the count of jobs: a whole number from 1 to the most jobs of a matrix", () => {
+    for (const jobs of [0, 1.5, MAX_JOBS + 1, Number.NaN]) expect(paths(plan({ jobs }))).toEqual(["jobs jobs"]);
+    expect(paths(plan({ jobs: "2" as unknown as number }))).toEqual(["jobs jobs"]);
+    expect(paths(plan({ jobs: 1 }))).toEqual([]);
+    expect(paths(plan({ jobs: MAX_JOBS }))).toEqual([]);
+  });
+
+  it("examines the shape of a gate plan: its id, the id of the plan of its laws, the check gate, no law set and 2 jobs or more", () => {
+    const gate = plan({ id: "gate-idle", check: "gate", gate: { laws: "rate" }, jobs: 2 });
+    expect(paths(gate)).toEqual([]);
+    expect(paths({ ...gate, id: "idle" })).toEqual(["gate id"]);
+    expect(paths({ ...gate, gate: {} })).toEqual(["gate gate"]);
+    expect(paths({ ...gate, gate: { laws: "Rate" } })).toEqual(["gate gate"]);
+    expect(paths({ ...gate, check: "rate" })).toEqual(["gate check"]);
+    expect(paths({ ...gate, jobs: 1 })).toEqual(["gate jobs"]);
+    expect(paths({ ...gate, jobs: undefined })).toEqual(["gate jobs"]);
+    const rate = readPlans(PLANS).plans.find((each) => each.id === "rate")!;
+    expect(paths({ ...gate, laws: rate.laws })).toContain("gate laws");
+  });
+
   it("refuses a plan whose job needs more than the time of one job", () => {
     const long: Case = { ...CASE, duration: { value: 600, unit: "s" }, runs: 20 };
     expect(planMinutes(plan({ cases: [long] }))).toBeGreaterThan(MAX_JOB_MINUTES);
     expect(paths(plan({ cases: [long] }))).toEqual(["time cases"]);
+  });
+});
+
+describe("the problems of a gate plan against the other plans", () => {
+  const { plans } = readPlans(PLANS);
+  const gate = plans.find((each) => each.id === "gate-rate")!;
+  const codes = (value: Plan, others: readonly Plan[] = plans): readonly string[] => gatePlanProblems(value, others).map((each) => `${each.code} ${each.path}`);
+  const load = gate.cases.findIndex((value) => !FLOOR_IDS.includes(value.id));
+
+  it("gives no problem for a case of the plan of the laws with a cost", () => {
+    const cases = gate.cases.map((value, index) => (index === load ? { ...value, cost: { value: 50, unit: "us" } } : value));
+    expect(codes({ ...gate, cases })).toEqual([]);
+  });
+
+  it("refuses a plan of the laws with no law set, and a folder with no plan floor", () => {
+    expect(codes({ ...gate, gate: { laws: "floor" } })).toEqual(["gate gate.laws"]);
+    expect(codes(gate, plans.filter((each) => each.id !== "floor"))).toEqual(["gate cases"]);
+  });
+
+  it("refuses a plan with an A/A pair that is not the pair of the plan floor, or with no such pair", () => {
+    expect(codes({ ...gate, cases: gate.cases.slice(1) })).toEqual(["gate cases"]);
+    const cases = gate.cases.map((value, index) => (index === 0 ? { ...value, runs: 4 } : value));
+    expect(codes({ ...gate, cases })).toEqual(["gate cases"]);
+  });
+
+  it("refuses a case that differs from the case of the plan of the laws in more than its cost, and a case with no such case", () => {
+    const runs = gate.cases.map((value, index) => (index === load ? { ...value, runs: 4 } : value));
+    expect(codes({ ...gate, cases: runs })).toEqual([`gate cases[${load}]`]);
+    const other = gate.cases.map((value, index) => (index === load ? { ...value, id: "rate/350" } : value));
+    expect(codes({ ...gate, cases: other })).toEqual([`gate cases[${load}]`]);
   });
 });
 
@@ -230,6 +292,13 @@ describe("the matrix of the workflow", () => {
       ],
     });
     expect(planMinutes(other)).toBeGreaterThan(planMinutes(PLAN));
+  });
+
+  it("gives each plan its count of jobs with no list of runs, and 1 job to a plan with no count", () => {
+    const three = plan({ id: "three", jobs: 3 });
+    expect(matrixOf([PLAN, three]).include.map((each) => `${each.plan} ${each.run}`)).toEqual(["idle 1", "three 1", "three 2", "three 3"]);
+    expect(matrixOf([three], [2]).include.map((each) => each.run)).toEqual([2]);
+    expect(() => matrixOf([plan({ jobs: MAX_JOBS }), three])).toThrow(/at most 256/);
   });
 
   it("refuses runs that are not different whole numbers above 0, and a matrix that GitHub does not start", () => {
