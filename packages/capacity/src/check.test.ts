@@ -84,7 +84,7 @@ const cases: readonly (readonly [name: string, change: Change, code: string, pat
       ...law,
       replicates: law.replicates.map((row, index) => row.map((value, column) => (column === 1 ? (law.constants[1]?.value as number) * (1 - 1e-11 * (index % 2)) : value))),
     }),
-    "replicates",
+    "flat",
     "constants[1]",
   ],
   ["a program that is not an expression", withProgram({ tag: "what" }), "program", "form.program"],

@@ -10,7 +10,8 @@
  *   records of each manifest. The jobs of each plan with a law set give the laws of the plan
  *   (`lawsOf`). The jobs of the check `floor` give the noise of each law.
  * - It writes each law into `<out>/<id>.law.json`, then it reads each file again with `readLaw`.
- * - It writes a summary into `GITHUB_STEP_SUMMARY`. A problem, or no law, gives the exit code 1.
+ * - It writes a summary into `GITHUB_STEP_SUMMARY`. A problem, or no law, gives the exit code 1. A known
+ *   problem (the field `known` of a measure) does not.
  * - `--runs` is the count of the bootstrap runs of each fit, and `--seed` is the seed of each fit.
  *   The defaults are the defaults of `fitLaw`.
  */

@@ -114,7 +114,7 @@ export const checkLaw = (law: Law): readonly LawProblem[] => {
       }
       if (high - low <= FLAT_SHARE * Math.max(Math.abs(low), Math.abs(high))) {
         add(
-          "replicates",
+          "flat",
           `constants[${index}]`,
           `Each replicate of the constant "${constant.id}" has the value ${low}, thus its interval has a width of 0. ` +
             "A shape at the edge of its search in each fit gives this.",

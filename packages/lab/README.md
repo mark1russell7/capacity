@@ -305,7 +305,18 @@ The knee of a latency is the rate where the latency leaves its floor. The plan `
 - **The 99th percentile does not fall.** It goes up from 1.11 ms at 100. The tail count cuts the rates 100 and 300, thus its law starts at 1000.
 - **Why the tail leaves first.** On the Intel Xeon 6975P-C, the 90th and the 99th percentiles are two times their floor between 3000 and 4000. The median is two times its floor near 16000. A delay that stops a share of the requests can cause this, for example a stop of the event loop. A quantile `p` leaves its floor when that share is more than `1 - p`. The records have no measure of garbage collection, thus this cause is not certain.
 - **Each replicate has each rate.** The fall of the 90th percentile rests on the two lowest rates, 100 and 300. A bootstrap of whole rates left out the rate 100 in approximately one third of its replicates. These replicates extrapolated the fall, and 11 of 200 had a value of 0 or less at a low rate. The bootstrap draws whole jobs, thus each replicate has each rate. On the Intel Xeon 6975P-C, no replicate of the three laws has a floor of 0 or less.
-- **No law of the median.** The forms `power` and `fall-power` fit the median best. In each replicate, their exponent is 4: the end of the search of a grid that ends at 3. Thus the interval of the exponent has a width of 0, and `checkLaw` refuses the law. CAP-57 gives a problem for a shape at the edge of its search. Then the next form wins.
+- **No law of the median.** The forms `power` and `fall-power` fit the median best. In each replicate, their exponent is 4: the end of the search of a grid that ends at 3. Thus the interval of the exponent has a width of 0, and `checkLaw` refuses the law with the code `flat`. CAP-57 gives a problem for a shape at the edge of its search. Then the next form wins.
+
+### A known problem
+
+The field `known` of a measure marks a problem that the fit of the measure gives until an item of the roadmap removes it. The plan `rate` gives the median the mark `{ "item": "CAP-57", "code": "flat" }`.
+
+- **The codes.** The code is one of `KNOWN_CODES`, the codes of `checkLaw` that come from the data of a fit. Today the list has only `flat`. Each code of the list refuses the law, thus a measure with a mark has no law file.
+- **A known problem.** The fit puts a problem of the measure with that code into the list `known`, with its item. The summary tells it, and it does not fail the fit.
+- **Each other problem** fails the fit, also a problem of the same measure with another code.
+- **A mark that the fit does not meet.** A law of the measure is a problem with the code `known`, and it fails the fit. Thus the item must remove the mark. A measure that gives no fit on a CPU model gives no read of its mark.
+- **The check of the plan.** The item is the id of an item of the roadmap, for example `CAP-57`. The code is one of `KNOWN_CODES`.
+- **Why a mark, not a red run.** A workflow that fails in each run teaches its readers to ignore a failure. The mark keeps the run green and the reason in the plan.
 
 ### The command and the workflow
 
@@ -319,7 +330,7 @@ gh workflow run laws.yml -R mark1russell7/capacity -f runs='<run of the plan rat
 
 - `node src/laws.main.ts fit --records <folder> --out <folder>` reads each manifest `timed.json` in the folder and in its subfolders.
 - It writes each law into `<out>/<id>.law.json`, then it reads the file again with `readLaw`.
-- A problem, or no law, gives the exit code 1. The summary of the job tells each law, each problem and each skipped job.
+- A problem, or no law, gives the exit code 1. A known problem does not. Refer to "A known problem". The summary of the job tells each law, each problem, each known problem and each skipped job.
 - The summary gives the interval of each constant, the range of each law, its values at the ends of the range and its knee. Each interval holds 0.95 of the replicates. It also tells each point that a law leaves out, with its `latency.max` and its share.
 - The workflow uploads the files as the artifact `laws-<run>`. A pull request puts them into the repository.
 

@@ -9,7 +9,7 @@ import { escapeMarkdown } from "@mark1russell7/text";
 import { describe, expect, it } from "vitest";
 import type { Case } from "./case.ts";
 import { FLOOR_MEASURES } from "./floor.ts";
-import { CPU_IDS, conditionsOf, lawSetProblems, lawsOf, lawsSummaryOf, servedShare, tailNeed, type LawJob, type LawSet } from "./laws.ts";
+import { CPU_IDS, conditionsOf, lawSetProblems, lawsOf, lawsSummaryOf, servedShare, tailNeed, type KnownMark, type LawJob, type LawSet } from "./laws.ts";
 import { readPlans } from "./plan.ts";
 import type { CaseRecord, RunRecord } from "./record.ts";
 import { isStartCase } from "./start.ts";
@@ -376,7 +376,7 @@ describe("the laws of a plan", () => {
     expect(summary).toContain(escapeMarkdown("node-http/rate/epyc-7763/cpu.request"));
     expect(summary).toContain("The problems:");
     expect(summary).toContain("The jobs and the CPU models that gave no law, and the floor jobs that gave no noise:");
-    expect(lawsSummaryOf("rate", { laws: [], skipped: [], problems: [] })).toContain("The plan gave no law.");
+    expect(lawsSummaryOf("rate", { laws: [], skipped: [], problems: [], known: [] })).toContain("The plan gave no law.");
   });
 
   it("gives the intervals, the range, the values at its ends, the knee and the points out of each law in the summary", () => {
@@ -390,6 +390,68 @@ describe("the laws of a plan", () => {
     const tails = lawsSummaryOf("rate", lawsOf({ id: "rate", laws: TAIL }, tailJobs(), FLOORS, OPTIONS));
     expect(tails).toContain("The points that a law leaves out, because a run has fewer arrivals than the field `tail` of the measure needs:");
     expect(tails).toContain(escapeMarkdown("rate/100 (101 arrivals, 1000 needed) of "));
+  });
+});
+
+/** This function gives five jobs of the plan rate where the measure `memory` has the same value in each run. Its law has a flat column. */
+const flatJobs = (): readonly LawJob[] =>
+  jobsOf(runOf(1), EPYC, 1).map((job) => ({
+    ...job,
+    records: job.records.map((record) => ({ ...record, runs: record.runs.map((run): RunRecord => ({ ...run, measures: { ...run.measures, memory: { value: 30_000_000, unit: "B" } } })) })),
+  }));
+
+/** This function gives the set `FAST` with the known mark `known` on the measure `memory`. */
+const markedPlan = (known: KnownMark): { readonly id: string; readonly laws: LawSet } => ({
+  id: "rate",
+  laws: { ...FAST, measures: FAST.measures.map((measure) => (measure.id === "memory" ? { ...measure, known } : measure)) },
+});
+
+const MARK: KnownMark = { item: "CAP-57", code: "flat" };
+const MEMORY = "node-http/rate/epyc-7763/memory";
+
+describe("the known mark of a measure", () => {
+  it("gives the flat column of a measure with no mark as a problem", () => {
+    const { laws, problems, known } = lawsOf(FAST_PLAN, flatJobs(), FLOORS, OPTIONS);
+    expect(laws.map(({ law }) => law.id)).toEqual(["node-http/rate/epyc-7763/cpu.request"]);
+    expect(problems.length).toBeGreaterThan(0);
+    expect(problems.every((problem) => problem.code === "law" && problem.check === "flat" && problem.path === MEMORY)).toBe(true);
+    expect(known).toEqual([]);
+  });
+
+  it("gives a known problem as known, with its item, and not as a problem", () => {
+    const result = lawsOf(markedPlan(MARK), flatJobs(), FLOORS, OPTIONS);
+    expect(result.problems).toEqual([]);
+    expect(result.laws.map(({ law }) => law.id)).toEqual(["node-http/rate/epyc-7763/cpu.request"]);
+    expect(result.known.length).toBeGreaterThan(0);
+    for (const each of result.known) expect(each).toMatchObject({ code: "law", check: "flat", path: MEMORY, item: "CAP-57" });
+    const summary = lawsSummaryOf("rate", result);
+    expect(summary).toContain("The known problems, each with the item of the roadmap that removes it. They do not fail the fit:");
+    expect(summary).toContain(escapeMarkdown("thus its interval has a width of 0. A shape at the edge of its search in each fit gives this. (known until CAP-57)"));
+  });
+
+  it("gives each other problem of a measure with a mark as a problem", () => {
+    const [job, ...rest] = flatJobs();
+    const records = job!.records.map((record, index) =>
+      index === 3 ? { ...record, runs: record.runs.map((run): RunRecord => (run.index === record.runs[1]!.index ? { ...run, measures: { ...run.measures, memory: null } } : run)) } : record,
+    );
+    const { problems, known } = lawsOf(markedPlan(MARK), [{ ...job!, records }, ...rest], FLOORS, OPTIONS);
+    expect(problems).toEqual([{ code: "read", path: MEMORY, message: `${CASES[3]!.id} run ${BASE.runs[1]!.index}: The run has no read of memory.` }]);
+    expect(known).toEqual([]);
+  });
+
+  it("gives a problem when the fit of a measure with a mark gives a law, because the item must remove the mark", () => {
+    const { laws, problems, known } = lawsOf(markedPlan(MARK), jobsOf(runOf(1), EPYC, 1), FLOORS, OPTIONS);
+    expect(laws.map(({ law }) => law.id)).toEqual(["node-http/rate/epyc-7763/cpu.request", MEMORY]);
+    expect(problems).toEqual([
+      { code: "known", path: MEMORY, message: 'The plan marks the problem "flat" of the measure as known until CAP-57, but the fit gave a law. Remove the mark.' },
+    ]);
+    expect(known).toEqual([]);
+  });
+
+  it("gives no read of a mark on a CPU model with too few jobs", () => {
+    const { problems, known, skipped } = lawsOf(markedPlan(MARK), flatJobs().slice(0, 4), FLOORS, OPTIONS);
+    expect([problems, known]).toEqual([[], []]);
+    expect(skipped.map((each) => each.path)).toEqual(["node-http/rate/epyc-7763"]);
   });
 });
 
@@ -448,6 +510,20 @@ describe("the law set of a plan", () => {
     ]);
     expect(found[1]!.message).toBe("The tail count is not a whole number above 0.");
     expect(found[3]!.message).toBe('The measure "cpu.request" is not a quantile. Only latency.p50, latency.p90, latency.p99 have a tail.');
+    const marks = {
+      ...SET,
+      measures: [
+        { ...SET.measures[0]!, known: "CAP-57" },
+        { ...SET.measures[1]!, known: { item: "cap 57", code: "replicates" } },
+        { ...SERVED.measures[0]!, known: { code: "flat" } },
+      ],
+    };
+    expect(lawSetProblems(marks, RATE.cases)).toEqual([
+      { code: "laws", path: "laws.measures[0].known", message: "The known mark is not a record." },
+      { code: "laws", path: "laws.measures[1].known.item", message: 'The item is not the id of an item of the roadmap, for example "CAP-57".' },
+      { code: "laws", path: "laws.measures[1].known.code", message: "The code is not one of flat." },
+      { code: "laws", path: "laws.measures[2].known.item", message: 'The item is not the id of an item of the roadmap, for example "CAP-57".' },
+    ]);
     expect(lawSetProblems([], RATE.cases)).toEqual([{ code: "laws", path: "laws", message: "The law set is not a record." }]);
     expect(lawSetProblems({ ...SET, measures: [] }, RATE.cases).map((each) => each.path)).toEqual(["laws.measures"]);
   });
@@ -477,18 +553,24 @@ const writeJob = (folder: string, name: string, timed: Timed, records: readonly 
 describe("the command of the laws", () => {
   // The plan rate has 39 forms of 6 laws, and their fits on the Vex interpreter are slow (CAP-55 compiles the bases).
   // Thus the test fits 40 points, the least count of a law: the 8 lowest rates of 5 jobs, the least count of jobs.
-  it("writes a correct law file of each measure of the plan rate from the folders of the jobs", () => {
+  // The median of the plan has a known mark of a flat column (CAP-57). Thus the median of the jobs has one value in each run.
+  it("writes a correct law file of each measure of the plan rate from the folders of the jobs, and exits 0 for a known problem", () => {
     const folder = mkdtempSync(join(tmpdir(), "capacity-laws-"));
     try {
-      jobsOf(runOf(1), EPYC, 1).forEach((job, index) => writeJob(folder, `lab-rate-${index + 1}-1`, job.timed, job.records.slice(0, 8)));
+      const flat = (record: CaseRecord): CaseRecord => ({ ...record, runs: record.runs.map((run): RunRecord => ({ ...run, measures: { ...run.measures, "latency.p50": { value: 0.3, unit: "ms" } } })) });
+      jobsOf(runOf(1), EPYC, 1).forEach((job, index) => writeJob(folder, `lab-rate-${index + 1}-1`, job.timed, job.records.slice(0, 8).map(flat)));
       writeJob(folder, "lab-floor-1-1", FLOORS[0]!, []);
       const out = join(folder, "out");
       const result = spawnSync(process.execPath, [COMMAND, "fit", "--records", folder, "--out", out, "--runs", "40"], { encoding: "utf8" });
       expect(result.stderr).toBe("");
+      expect(result.stdout).not.toContain("The problems:");
+      expect(result.stdout).toContain(escapeMarkdown("node-http/rate/epyc-7763/latency.p50: constants["));
+      expect(result.stdout).toContain(escapeMarkdown("(known until CAP-57)"));
       expect(result.status).toBe(0);
       expect(result.stdout).toContain("### The laws of the plan rate");
       const files = readdirSync(join(out, "node-http", "rate", "epyc-7763")).sort();
-      expect(files).toEqual(RATE.laws!.measures.map((measure) => `${measure.id}.law.json`).sort());
+      expect(RATE.laws!.measures.filter((measure) => measure.known !== undefined).map((measure) => measure.id)).toEqual(["latency.p50"]);
+      expect(files).toEqual(RATE.laws!.measures.filter((measure) => measure.known === undefined).map((measure) => `${measure.id}.law.json`).sort());
       for (const name of files) {
         const law = readLaw(JSON.parse(readFileSync(join(out, "node-http", "rate", "epyc-7763", name), "utf8")));
         expect(law.tag).toBe("ok");

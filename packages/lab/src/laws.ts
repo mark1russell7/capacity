@@ -21,6 +21,7 @@ import {
   type Noise,
   type PointLaw,
   type Problem,
+  type ProblemCode,
   type ResidualKind,
   type Run,
   type Scale,
@@ -62,6 +63,30 @@ export interface LawMeasure {
   readonly tail?: number;
   /** This rule gives the knee of each law of the measure, with `lawKnee` of `@mark1russell7/capacity`. */
   readonly knee?: KneeRule;
+  /** This mark tells a problem that the fit of the measure gives until an item of the roadmap removes it. */
+  readonly known?: KnownMark;
+}
+
+/** A known code is the code of a problem of `checkLaw` that a plan can mark as known. Each refuses the law. */
+export type KnownCode = "flat";
+
+/**
+ * These codes are the known codes. A flat column of replicates comes from the data of a fit, not from
+ * a fault of the code. Thus an item of the roadmap can remove it.
+ */
+export const KNOWN_CODES: readonly KnownCode[] = ["flat"];
+
+/** This pattern accepts the id of an item of a roadmap, for example "CAP-57". */
+const ITEM = /^[A-Z][A-Z0-9]*-\d+$/;
+
+/**
+ * A known mark tells a problem that the fit of a measure gives, and the item of the roadmap that removes it.
+ * The fit reports each problem with the code `code` of the measure as known, not as a problem. A law of the
+ * measure with no such problem is a problem, because the item must remove the mark.
+ */
+export interface KnownMark {
+  readonly item: string;
+  readonly code: KnownCode;
 }
 
 /** A law variable is the load variable of the laws of a plan: its id, its unit and its scale. The points give its range. */
@@ -140,7 +165,7 @@ const measureProblems =(value: unknown, path: string, seen: Set<string>): readon
   const problems: LawSetProblem[] = [];
   const add = (at: string, message: string): void => void problems.push({ code: "laws", path: `${path}${at}`, message });
   if (!isRecord(value)) return [{ code: "laws", path, message: "The measure is not a record." }];
-  const { id, title, residual, forms, served, tail, knee } = value;
+  const { id, title, residual, forms, served, tail, knee, known } = value;
   if (typeof id !== "string" || !(FLOOR_MEASURES as readonly string[]).includes(id)) add(".id", `The measure is not one of ${FLOOR_MEASURES.join(", ")}. A law needs the noise floor of its measure.`);
   else if (seen.has(id)) add(".id", `The measure "${id}" is in the set two times.`);
   else seen.add(id);
@@ -163,6 +188,13 @@ const measureProblems =(value: unknown, path: string, seen: Set<string>): readon
   if (knee !== undefined) {
     const bad = kneeRuleProblem(knee, `${path}.knee`);
     if (bad !== undefined) problems.push({ code: "laws", path: bad.path, message: bad.message });
+  }
+  if (known !== undefined) {
+    if (!isRecord(known)) add(".known", "The known mark is not a record.");
+    else {
+      if (typeof known["item"] !== "string" || !ITEM.test(known["item"])) add(".known.item", 'The item is not the id of an item of the roadmap, for example "CAP-57".');
+      if (!(KNOWN_CODES as readonly unknown[]).includes(known["code"])) add(".known.code", `The code is not one of ${KNOWN_CODES.join(", ")}.`);
+    }
   }
   return problems;
 };
@@ -226,11 +258,22 @@ export interface LawsOptions {
   readonly seed?: number;
 }
 
-/** A laws problem code names the part of the input that gave no law, or the law that gave no knee. */
-export type LawsProblemCode = "plan" | "job" | "cpu" | "case" | "read" | "noise" | "fit" | "law" | "knee";
+/**
+ * A laws problem code names the part of the input that gave no law, or the law that gave no knee. The code
+ * `known` names a known mark that the fit of its measure did not meet.
+ */
+export type LawsProblemCode = "plan" | "job" | "cpu" | "case" | "read" | "noise" | "fit" | "law" | "knee" | "known";
 
 /** A laws problem tells why a job gave no point, why a measure gave no law, or why a law gave no knee. `path` names the job or the law. */
-export type LawsProblem = Problem<LawsProblemCode>;
+export interface LawsProblem extends Problem<LawsProblemCode> {
+  /** This code is the code of the problem of `checkLaw`, for a problem with the code `law`. */
+  readonly check?: ProblemCode;
+}
+
+/** A known problem is a problem of the fit that the known mark of its measure tells, with the item that removes it. */
+export interface KnownProblem extends LawsProblem {
+  readonly item: string;
+}
 
 /** A cut point is a point that a law leaves out, with its case, its job and the rule that cuts it. */
 export type CutPoint = ServedCut | TailCut;
@@ -286,12 +329,13 @@ export const servedShare = (record: CaseRecord): number | Problem<"read"> => {
 /**
  * The laws of a plan are the laws that its records gave. `skipped` tells each job that gave no point,
  * each CPU model with too few points and each floor job that gave no noise. `problems` tells each law
- * that the records did not give.
+ * that the records did not give. `known` tells each problem that the known mark of its measure tells.
  */
 export interface Laws {
   readonly laws: readonly FittedLaw[];
   readonly skipped: readonly LawsProblem[];
   readonly problems: readonly LawsProblem[];
+  readonly known: readonly KnownProblem[];
 }
 
 /** This function tells if a result is a list of problems. `Array.isArray` does not narrow a union with a readonly list. */
@@ -543,7 +587,7 @@ const lawOf = (set: LawSet, measure: LawMeasure, id: string, range: RangePoints,
     noise,
   };
   const found = checkLaw(law);
-  return found.length > 0 ? found.map((each) => ({ code: "law" as const, path: id, message: `${each.path}: ${each.message}` })) : { law, ranks, cut };
+  return found.length > 0 ? found.map((each) => ({ code: "law" as const, check: each.code, path: id, message: `${each.path}: ${each.message}` })) : { law, ranks, cut };
 };
 
 /** This function gives the knee of a fitted law with the knee rule of its measure, or the problem of the search. */
@@ -576,12 +620,16 @@ const kneeOf = (set: LawSet, measure: LawMeasure, fitted: FittedLaw): FittedLaw 
  *   The bootstrap draws whole jobs, because the plan fixes its rates. The held-out fit holds out whole rates.
  * - **The knee:** a measure with the field `knee` gives the knee of each law in its range (`lawKnee`).
  *   A search that cannot apply gives a problem, and the law stays.
+ * - **The known mark:** a problem of a measure with the code of its field `known` goes into `known`, with its item.
+ *   A law of such a measure is a problem with the code `known`, because the item must remove the mark. A measure
+ *   that gives no fit on a CPU model gives no read of its mark.
  */
 export const lawsOf = (plan: { readonly id: string; readonly laws?: LawSet }, jobs: readonly LawJob[], floors: readonly Timed[], options: LawsOptions = {}): Laws => {
   const set = plan.laws;
-  if (set === undefined) return { laws: [], skipped: [], problems: [{ code: "plan", path: plan.id, message: `The plan "${plan.id}" has no law set.` }] };
+  if (set === undefined) return { laws: [], skipped: [], problems: [{ code: "plan", path: plan.id, message: `The plan "${plan.id}" has no law set.` }], known: [] };
   const skipped: LawsProblem[] = [];
   const problems: LawsProblem[] = [];
+  const known: KnownProblem[] = [];
   const laws: FittedLaw[] = [];
   const floor = floorJobs(floors, skipped);
   const need = leastCount(DEFAULT_LEVEL);
@@ -640,19 +688,27 @@ export const lawsOf = (plan: { readonly id: string; readonly laws?: LawSet }, jo
         continue;
       }
       const result = lawOf(set, measure, id, range, noise, options);
-      if (isProblems(result)) {
-        problems.push(...result);
-        continue;
-      }
-      const knee = kneeOf(set, measure, result);
-      if ("law" in knee) laws.push(knee);
+      const found: LawsProblem[] = [];
+      let fitted: FittedLaw | undefined;
+      if (isProblems(result)) found.push(...result);
       else {
-        laws.push(result);
-        problems.push(knee);
+        const knee = kneeOf(set, measure, result);
+        fitted = "law" in knee ? knee : result;
+        if (!("law" in knee)) found.push(knee);
+      }
+      if (fitted !== undefined) laws.push(fitted);
+      const mark = measure.known;
+      const isKnown = (problem: LawsProblem): boolean => mark !== undefined && problem.code === "law" && problem.check === mark.code;
+      problems.push(...found.filter((problem) => !isKnown(problem)));
+      if (mark === undefined) continue;
+      known.push(...found.filter(isKnown).map((problem) => ({ ...problem, item: mark.item })));
+      if (fitted !== undefined) {
+        const message = `The plan marks the problem "${mark.code}" of the measure as known until ${mark.item}, but the fit gave a law. Remove the mark.`;
+        problems.push({ code: "known", path: id, message });
       }
     }
   }
-  return { laws, skipped, problems };
+  return { laws, skipped, problems, known };
 };
 
 /** This function gives the text of a number with at most 4 significant digits. */
@@ -714,7 +770,7 @@ const cutList = <Rule extends CutPoint["rule"]>(
 /**
  * This function gives the summary of the laws of a plan as Markdown. It gives a table of the laws, with
  * the interval of each constant. A second table gives the range of each law, the values at its ends
- * and its knee, with their intervals. Then it gives each point that a law leaves out, each problem and each skipped job.
+ * and its knee, with their intervals. Then it gives each point that a law leaves out, each problem, each known problem and each skipped job.
  */
 export const lawsSummaryOf = (plan: string, laws: Laws): string => {
   const lines = [`### The laws of the plan ${escapeMarkdown(plan)}`, ""];
@@ -745,6 +801,10 @@ export const lawsSummaryOf = (plan: string, laws: Laws): string => {
     lines.push(`${title}:`, "", ...items.map((each) => `- ${escapeMarkdown(`${each.path}: ${each.message}`)}`), "");
   };
   list("The problems", laws.problems);
+  if (laws.known.length > 0) {
+    const title = "The known problems, each with the item of the roadmap that removes it. They do not fail the fit:";
+    lines.push(title, "", ...laws.known.map((each) => `- ${escapeMarkdown(`${each.path}: ${each.message} (known until ${each.item})`)}`), "");
+  }
   list("The jobs and the CPU models that gave no law, and the floor jobs that gave no noise", laws.skipped);
   if (laws.laws.length === 0 && laws.problems.length === 0) lines.push("The plan gave no law.", "");
   return `${lines.join("\n")}\n`;

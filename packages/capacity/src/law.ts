@@ -145,6 +145,8 @@ export type ProblemCode =
   | "read"
   | "constant"
   | "replicates"
+  // The replicates of a constant have one value. This is a fault of the data of the fit, not of the law file.
+  | "flat"
   | "value"
   | "fit"
   | "evidence"

@@ -188,6 +188,7 @@ The options, the search and the fields `edge`, `search` and `outside` are as in 
 - The law has a finite value at each corner and at the middle of its ranges.
 - The law has 40 replicates and 40 residuals or more. Each replicate has one finite number for each constant.
 - Each constant is in the range of its replicates.
+- The replicates of each constant have a width. A column of one value gives the code `flat`. A shape at the edge of its search in each fit gives this.
 - Each form that lost has an error, and the form of the law is not in that list.
 - The evidence names one run or more, each with an `https` address, a full commit and a UTC time.
 - The noise has a floor of 0 or more and a CPU model. It names its runs as the evidence does.
@@ -279,22 +280,26 @@ A pull request puts the files into the folder. A test reads each file with `read
 
 ### The laws of the request rate
 
-The Laws run 44971762036 gives the laws of the plan `rate` on the Intel Xeon 6975P-C. Their points are the 100 cases of the four jobs of the Lab run 44964347304 on that CPU model. The floor jobs of the Lab run 44467543161 give the noise. Each law has 1000 replicates.
+The Laws run 44987398580 gives the laws of the plan `rate` on the Intel Xeon 6975P-C. Their points are the 200 cases of the 8 jobs of the Lab runs 44964347304 and 44977025221 on that CPU model. The floor jobs of the Lab run 44467543161 give the noise. Each law has 1000 replicates, and the bootstrap draws whole jobs. Each interval holds 0.95 of the replicates.
 
-| Measure | Form | Constant | Held-out error |
-| --- | --- | --- | --- |
-| `cpu.request` | power | exponent −0.486 | 0.106 |
-| `memory` | hinge | knee at 14490 requests each second | 0.013 |
-| `memory.high` | hinge | knee at 17150 requests each second | 0.013 |
-| `latency.p50` | queue | capacity of 36210 requests each second | 1.60 |
-| `latency.p90` | queue | capacity of 44170 requests each second | 1.25 |
-| `latency.p99` | hinge | knee at 32710 requests each second | 0.70 |
+| Measure | Form | Knee, or a constant of the form | Range, requests each second | Held-out error |
+| --- | --- | --- | --- | --- |
+| `cpu.request` | power | exponent −0.481 [−0.490, −0.471] | 100 to 36000 | 0.104 |
+| `memory` | hinge | constant `knee` 13840 [11200, 16880] | 100 to 36000 | 0.012 |
+| `memory.high` | hinge | constant `knee` 14940 [11000, 17890] | 100 to 36000 | 0.012 |
+| `latency.p50` | no law | | | |
+| `latency.p90` | fall-power | knee 3289 [3076, 3507] | 100 to 33000 | 0.497 |
+| `latency.p99` | hinge | knee 6840 [5750, 8524] | 1000 to 33000 | 0.445 |
 
 - **The held-out error** is the root mean square of the relative held-out residuals.
 - **The CPU time of each request** falls as the rate increases.
-- **The memory** increases by approximately 80 B for each request each second, up to its knee. After the knee, it stays approximately flat.
-- **The latency fits are poor past the limit of the core.** The capacity of the queue law of `latency.p50` is 0.6% above the top rate of 36000. CAP-53 examines these fits and gives the interval of each knee.
-- **The Intel Xeon Platinum 8573C has no law.** One job of five was on it, with 25 points, and a law needs 40.
+- **The memory** increases by approximately 80 B for each request each second, up to the constant `knee` of the hinge. After it, the memory stays approximately flat.
+- **The range of the latency laws.** A latency law keeps the points where the subject served 0.97 of the offered rate or more. Thus its range ends at 33000. The tail count cuts the rates 100 and 300 from the law of the 99th percentile.
+- **The knee of a latency** is the first rate after its floor where the latency is more than two times that floor (the rule `floor` of the plan, with the share 1). The 90th percentile has its knee at 3289, and the 99th percentile at 6840.
+- **The median has no law.** In each replicate, the exponent of its best form is at the end of its search, and `checkLaw` refuses the flat column. The plan marks this problem as known until CAP-57. The file of CAP-17 is removed. Its fit kept the points past the limit of the core, and it has no served share.
+- **The Intel Xeon Platinum 8573C and the AMD EPYC 9V45 have no law.** Each had one job of 25 points. The bootstrap draws whole jobs, thus a law needs 5 jobs (CAP-58).
+
+A test of the lab reads these files with the plan `rate`. Each measure of the plan has a law on each CPU model of the folder, except a measure with a known mark. Each law has the served share and the tail count of its measure. Each law also has a finite value at each end of its range and a held-out error below 1. Each knee and its interval are in the range.
 
 ## A workload
 
