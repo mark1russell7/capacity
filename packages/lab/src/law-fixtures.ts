@@ -154,19 +154,20 @@ export const OVERHEAD_SET: LawSet = {
 /**
  * This function gives the record of a case of the plan overhead in the job `job`. Each side has the measures of `recordOf`,
  * with its own noise. The service side adds `0.05 + 0.000002 · rate` ms of CPU time to each request and 2 MB of memory.
- * It adds nothing to the highest memory. Thus the overhead of the highest memory is only noise.
+ * It adds no overhead to the highest memory. Its highest memory gets only an offset of its machine: `20000 · (job − 2)` B.
+ * The mean of the offsets of the jobs 0 to 4 is 0. A noise that does not change between the jobs gives no interval that holds 0.
  */
 export const overheadRecordOf = (value: Case, index: number, job: number, cpu: string): CaseRecord => {
   const record = recordFor(value, index, job, cpu);
   if (value.subject !== "node-http-service") return record;
   const rate = value.demand.classes[0]!.rate.value;
-  const plus = (run: RunRecord, measure: "cpu.request" | "memory", amount: number): Quantity | null => {
+  const plus = (run: RunRecord, measure: "cpu.request" | "memory" | "memory.high", amount: number): Quantity | null => {
     const found = run.measures[measure];
     return found === null ? null : { ...found, value: found.value + amount };
   };
   const runs = record.runs.map((run): RunRecord => ({
     ...run,
-    measures: { ...run.measures, "cpu.request": plus(run, "cpu.request", 0.05 + 0.000_002 * rate), memory: plus(run, "memory", 2_000_000) },
+    measures: { ...run.measures, "cpu.request": plus(run, "cpu.request", 0.05 + 0.000_002 * rate), memory: plus(run, "memory", 2_000_000), "memory.high": plus(run, "memory.high", 20_000 * (job - 2)) },
   }));
   return { ...record, runs };
 };
