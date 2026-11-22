@@ -56,7 +56,9 @@ describe("the reader of the law files", () => {
   it("reads each law file of the laws of the package capacity", () => {
     const ids = readLaws(LAWS).map((law) => law.id);
     expect(ids).toContain("node-http/rate/xeon-6975p-c/cpu.request");
-    expect(ids.every((id) => id.startsWith("node-http/"))).toBe(true);
+    expect(ids).toContain("node-http-service/overhead/xeon-6975p-c/cpu.request.overhead");
+    // Each id is in the folder `<subject>/<plan>` of a plan with a law set: the plan `rate` of the bare server, or the plan `overhead` of the runner.
+    expect(ids.filter((id) => !id.startsWith("node-http/rate/") && !id.startsWith("node-http-service/overhead/"))).toEqual([]);
   });
 
   it("reads only the files with the end of a law file, in the order of their paths, and throws for a law file with a problem", () => {

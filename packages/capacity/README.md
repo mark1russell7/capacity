@@ -301,6 +301,29 @@ The Laws run 44987398580 gives the laws of the plan `rate` on the Intel Xeon 697
 
 A test of the lab reads these files with the plan `rate`. Each measure of the plan has a law on each CPU model of the folder, except a measure with a known mark. Each law has the served share and the tail count of its measure. Each law also has a finite value at each end of its range and a held-out error below 1. Each knee and its interval are in the range.
 
+### The laws of the overhead
+
+The Laws run 45069050798 gives the laws of the plan `overhead` on the Intel Xeon 6975P-C. A point is the value of the service subject less the value of the bare subject, in one pair of one job. The points come from the 9 jobs on that CPU model of the Lab runs 45061643369, 45063129123 and 45066776472. These runs have one commit of the subjects. The floor jobs of the Lab run 44467543161 give the noise.
+
+| Measure | Form | At 100 requests each second | At 8000 requests each second | Held-out error |
+| --- | --- | --- | --- | --- |
+| `cpu.request.overhead` | logarithm | 0.232 [0.215, 0.248] {core}·ms | 0.064 [0.060, 0.069] {core}·ms | 0.019 {core}·ms |
+| `memory.overhead` | power | 1.25 [1.14, 1.36] MB | 9.94 [9.68, 10.3] MB | 1.39 MB |
+| `memory.high.overhead` | fall-power | 1.12 [0.79, 1.49] MB | 9.97 [9.64, 10.4] MB | 2.13 MB |
+| `latency.p50.overhead` | no law | | | |
+| `latency.p90.overhead` | queue | −0.039 [−0.202, 0.134] ms | 10.4 [9.39, 11.5] ms | 1.81 ms |
+| `latency.p99.overhead` | logarithm | 1.04 [0.56, 1.47] ms at 1000 | 13.7 [12.8, 14.4] ms | 3.52 ms |
+
+- **The held-out error** is the root mean square of the absolute held-out residuals. A difference can be 0 or less, thus a relative residual has no meaning.
+- **The CPU time of the runner** is 0.232 {core}·ms for each request at 100 requests each second, and 0.064 at 8000. At 8000, the bare subject uses 0.035.
+- **The memory of the runner** is approximately 1.2 MB at 100 requests each second, and approximately 10 MB from 1000 requests each second.
+- **The latency of the runner** has no interval that holds 0, except the 90th percentile at 100 requests each second.
+- **The median has no law.** In each replicate, the exponent of its best form is at the end of its search, as in the plan `rate`. The plan marks this problem as known until CAP-57.
+- **The 99th percentile starts at 1000 requests each second.** The tail count cuts the pairs at 100 and 500 requests each second. Thus its law has 53 points.
+- **The AMD EPYC 7763, 9V45 and 9V74 and the Intel Xeon Platinum 8370C have no law.** Their jobs gave 24, 16, 16 and 8 points.
+
+A test of the lab reads these files with the plan `overhead`. Each law names the subject of its base side, and its residual is absolute. Its held-out error is less than its largest value at an end of its range.
+
 ## The gate of the laws
 
 The gate tells if new measured values stay in the run ranges of their laws. A pull request that makes a subject slower or larger moves its values out of the ranges. `lawGate` gives the gate, and `lawRead` gives one read.
@@ -600,6 +623,39 @@ The sum has the laws of a linear map, and property tests hold each of them:
 - A missing law or composition, and a cycle of compositions.
 - Two records with one id.
 - A law with too few replicates for the level. Each problem of a part has the path of its term in front, for example `terms[0].write.rate`.
+
+### The compositions of the service runner
+
+The folder `compositions` holds the composition files: `compositions/<subject>/<cpu>/<measure>.composition.json`. Each term names a law file of the folder `laws`.
+
+| Composition | Its terms |
+| --- | --- |
+| `node-http/xeon-6975p-c/cpu` | The law `cpu.request` of the plan `rate`, over each class, at the total rate |
+| `node-http/xeon-6975p-c/memory` | The law `memory.high` of the plan `rate`, over the instance |
+| `node-http-service/xeon-6975p-c/cpu` | The composition `node-http/xeon-6975p-c/cpu`, and the law `cpu.request.overhead`, over each class, at the total rate |
+| `node-http-service/xeon-6975p-c/memory` | The composition `node-http/xeon-6975p-c/memory`, and the law `memory.high.overhead`, over the instance |
+
+The CPU is in `{core}`, and the memory is in MiB. A demand has one class at the rate. Each interval holds 0.95 of the replicates.
+
+| Measure | Requests each second | Layer 1 | Layer 2 | The part of the runner | Its share of layer 2 |
+| --- | --- | --- | --- | --- | --- |
+| CPU | 100 | 0.027 [0.026, 0.028] | 0.050 [0.048, 0.052] | 0.023 [0.022, 0.025] | 46 % |
+| CPU | 1000 | 0.090 [0.089, 0.092] | 0.234 [0.228, 0.241] | 0.144 [0.138, 0.149] | 61 % |
+| CPU | 2000 | 0.131 [0.129, 0.133] | 0.365 [0.360, 0.372] | 0.235 [0.229, 0.241] | 64 % |
+| CPU | 4000 | 0.189 [0.187, 0.192] | 0.553 [0.545, 0.561] | 0.364 [0.356, 0.371] | 66 % |
+| CPU | 8000 | 0.276 [0.274, 0.279] | 0.791 [0.757, 0.827] | 0.515 [0.481, 0.551] | 65 % |
+| Memory | 100 | 30.1 [30.0, 30.1] | 31.1 [30.8, 31.5] | 1.1 [0.8, 1.4] | 3 % |
+| Memory | 1000 | 30.1 [30.1, 30.2] | 40.0 [39.8, 40.3] | 9.8 [9.7, 10.2] | 25 % |
+| Memory | 2000 | 30.2 [30.2, 30.2] | 40.5 [40.3, 40.8] | 10.3 [10.1, 10.7] | 25 % |
+| Memory | 4000 | 30.3 [30.3, 30.4] | 40.8 [40.4, 41.2] | 10.5 [10.1, 10.8] | 26 % |
+| Memory | 8000 | 30.6 [30.6, 30.7] | 40.1 [39.8, 40.6] | 9.5 [9.2, 9.9] | 24 % |
+
+- **The runner uses more CPU than the server.** From 1000 requests each second, the part of the runner is approximately 1.5 to 2 times the CPU of the bare server.
+- **The CPU laws read the total rate.** The CPU time of one request falls as the load of the process increases, thus each class reads the total rate.
+- **The sum holds only over one base.** An overhead law is a difference in one job. Thus its composition adds it to the laws of its base subject, with the same conditions.
+- **The range of layer 2 is 100 to 8000 requests each second**, the range of the overhead laws. The laws of layer 1 go to 36000.
+
+A test reads each composition file with `readComposition`. The id of each composition is its path. It has a value at each end of the range of its laws, with no extrapolation. A test also holds the part of the runner above 0 at each end of the range.
 
 ## An instance type
 
