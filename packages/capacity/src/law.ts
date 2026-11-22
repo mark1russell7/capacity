@@ -171,3 +171,26 @@ export const DEFAULT_LEVEL = 0.95;
  * the interval needs one value beyond it. Thus the level 0.95 needs 40 values.
  */
 export const leastCount = (level: number): number => Math.ceil(2 / (1 - level) - 1e-9);
+
+/**
+ * This function gives the number of different draws of a bootstrap of `groups` whole groups. A run draws as many
+ * groups as the data has, with replacement, and a fit does not see their order. Thus the number is `C(2g - 1, g)`.
+ */
+export const bootstrapDraws = (groups: number): number => {
+  let draws = 1;
+  for (let i = 1; i <= groups; i++) draws = (draws * (groups - 1 + i)) / i;
+  return Math.round(draws);
+};
+
+/**
+ * This function gives the least count of groups that a bootstrap of whole groups needs for an interval of a level.
+ * A run draws `g` groups from `g` groups with replacement, and a fit does not see their order. Thus `g` groups give
+ * `C(2g - 1, g)` different draws (`bootstrapDraws`). Each different draw gives at most one different value, and the
+ * interval needs `leastCount(level)` values. Thus the level 0.95 needs 5 groups: 4 groups give only 35 different draws.
+ */
+export const leastGroups = (level: number): number => {
+  const need = leastCount(level);
+  let groups = 1;
+  while (bootstrapDraws(groups) < need) groups += 1;
+  return groups;
+};

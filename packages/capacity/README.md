@@ -118,6 +118,13 @@ A rule tells when the cost grows fast. The law obeys the rule at the knee, and n
 | --- | --- |
 | `{ kind: "rise", share }` | The first load where the value is `1 + share` times the value at the start of the search. |
 | `{ kind: "slope", factor }` | The first load where the slope is `factor` times the slope at the start of the search. |
+| `{ kind: "floor", share }` | The first load after the floor where the value is `1 + share` times the floor. The floor of a row is its least value on the grid, before its edge. |
+
+The rule `floor` is for a law that falls before it grows, for example a latency with a cold start at a low rate. The knee has the field `floor`: the `load` and the `value` of the floor of the constants.
+
+- **Each row has its own floor.** Thus the knee of a replicate is always after its floor, and the interval holds the uncertainty of the floor.
+- **A replicate with no floor above 0** has no knee. The field `noFloor` counts these replicates, and the interval leaves them out.
+- **Too many replicates with no floor** give a problem. The interval can leave out the replicates of one tail of the level, for example 25 of 1000 at the level 0.95.
 
 The search goes along the range of the variable. The options `from` and `to` change it, and the point `at` gives each other variable. The search tests a grid of `KNEE_STEPS` steps on the scale of the variable, then a bisection finds each crossing. The option `steps` changes the count.
 
@@ -135,7 +142,9 @@ The search goes along the range of the variable. The options `from` and `to` cha
 - The search range, the rule or the count of steps is not correct. A share is more than 0, and a factor is more than 1.
 - The law has too few replicates for the level.
 - The constants or a replicate give no value at the start of the search. The path names the row.
-- The rule cannot apply at the start: a rise needs a value more than 0, and a slope needs a slope more than 0.
+- The rule cannot apply at the start: a rise needs a value more than 0, and a slope needs a slope more than 0. A floor must be more than 0.
+
+`kneeRuleProblem(rule, path)` examines a rule from data, for example from a plan file. It gives the problem of the rule, or `undefined`.
 
 The search finds a pole where the value grows as a power or as a logarithm, also between two floats. At a pole, each step nearer adds as much size as the step before. Near a finite peak, each step nearer adds much less.
 
@@ -196,13 +205,14 @@ A law has 8 variables at most.
 | `constant` | `base` | |
 | `linear` | `base + slope·x` | |
 | `power` | `base + scale·x^exponent` | `exponent` |
+| `fall-power` | `base + excess / x + scale·x^exponent` | `exponent` |
 | `logarithm` | `base + scale·ln(x)` | |
 | `hinge` | `base + slope·x + bend·max(0, x − knee)` | `knee` |
 | `queue` | `base + scale·capacity / (capacity − x)` | `capacity` |
 | `scalability` | `unit·x / (1 + contention·(x − 1) + coherency·x·(x − 1))` | `contention`, `coherency` |
 | `drift` | `base + drift·x + warm·(1 − e^(−x / settle))` | `settle` |
 
-The `queue` form is the delay of a queue, and it has no finite value at its capacity. The `scalability` form is the universal scalability law of the throughput at a concurrency. The `drift` form is a measure over the age of a process: a warm-up that settles, and a steady drift.
+The `fall-power` form has a cost at a low load that falls as the load grows, and then a power of the load. The `queue` form is the delay of a queue, and it has no finite value at its capacity. The `scalability` form is the universal scalability law of the throughput at a concurrency. The `drift` form is a measure over the age of a process: a warm-up that settles, and a steady drift.
 
 Each shape constant has a grid of start values and bounds. A fit refines the constant inside its bounds:
 
@@ -247,7 +257,9 @@ if (result.tag === "ok") {
 
 - **The rank:** each form of the catalog competes. The form with the smallest root mean square of its held-out residuals wins.
 - **The groups:** by default, the points of one load are one group. The held-out fit holds out each group, and the bootstrap draws whole groups. The option `groups` gives other groups.
-- **The replicates:** each run of the bootstrap fits the winner to a resample of the groups. The default is 1000 runs. A law needs 40 replicates for the level 0.95.
+- **The groups of the bootstrap:** the option `bootstrapGroups` gives the groups that the bootstrap draws. The default is the list `groups`. A plan that fixes its loads has no random load. Thus its bootstrap draws the independent units of its data, for example whole jobs.
+- **The least count of groups:** a run draws as many groups as the data has, and a fit does not see their order. Thus `g` groups give `bootstrapDraws(g)` different draws: 35 for 4 groups. The interval of the level 0.95 needs 40 values, thus `leastGroups(0.95)` is 5. With fewer groups of the bootstrap, the fit gives an error.
+- **The replicates:** each run of the bootstrap fits the winner to a resample of the groups of the bootstrap. The default is 1000 runs. A law needs 40 replicates for the level 0.95.
 - **The losers:** the record keeps each other form with a held-out prediction at each point. The list `ranks` also keeps each form with no fit, with its reason.
 - **A relative fit:** with `residual: "relative"`, the fit uses the weights `1 / y^2`. Thus it fits the ratios, not the differences.
 - **The interval of a knee:** `constantIntervals` gives the interval of each constant from the replicates. For a hinge, this is the interval of its knee.

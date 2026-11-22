@@ -5,7 +5,7 @@ import { app, ref, type Expr } from "@mark1russell7/vex";
 import { describe, expect, it } from "vitest";
 import { checkLaw } from "./check.ts";
 import { catalogForm, constantIdsOf, formOf } from "./forms.ts";
-import { lawKnee, lawReach, type Knee, type KneeOptions, type KneeRule, type Reach } from "./knee.ts";
+import { kneeRuleProblem, lawKnee, lawReach, type Knee, type KneeOptions, type KneeRule, type Reach } from "./knee.ts";
 import type { Law, LawProblem, Variable } from "./law.ts";
 import { hinge, sampleLaw, wave } from "./sample.fixture.ts";
 
@@ -20,8 +20,18 @@ const problemOf = (result: Result<Knee, LawProblem>): LawProblem => {
 };
 
 /**
+ * Each replicate of a test law adds this share of a wave to each constant with no other spread. Thus no column
+ * of the replicates is flat, and `checkLaw` accepts the law. A flat column is a bound of a search, not a measured value.
+ */
+const SPREAD = 0.001;
+
+/** This function gives 40 replicates of an estimate: each adds the share `spread` of a wave to its constant. */
+const replicatesOf = (estimate: readonly number[], spread: readonly number[]): number[][] =>
+  Array.from({ length: 40 }, (_, row) => estimate.map((value, column) => value * (1 + (spread[column] ?? SPREAD) * wave(row, column))));
+
+/**
  * This function gives a law of one variable `rate` from a form of the catalog. Each replicate is the
- * estimate, with the share `spread` of a wave added to each named constant.
+ * estimate, with the share `spread` of a wave added to each named constant, and the share `SPREAD` to each other constant.
  */
 const lawOf = (
   formId: string,
@@ -39,8 +49,9 @@ const lawOf = (
     variables: [{ id: "rate", unit: "{request}/s", min: 0, max: 100, scale: "linear", ...variable }],
     form: formOf(form, { variable: "rate" }),
     constants: ids.map((id, index) => ({ id, value: estimate[index] as number })),
-    replicates: Array.from({ length: 40 }, (_, row) =>
-      estimate.map((value, column) => value * (1 + (spread[ids[column] as string] ?? 0) * wave(row, column))),
+    replicates: replicatesOf(
+      estimate,
+      ids.map((id) => spread[id] ?? SPREAD),
     ),
   };
 };
@@ -55,7 +66,7 @@ const programLaw = (program: Expr, constants: Readonly<Record<string, number>>, 
     variables,
     form: { id: "program", program },
     constants: ids.map((id, index) => ({ id, value: estimate[index] as number })),
-    replicates: Array.from({ length: 40 }, () => estimate),
+    replicates: replicatesOf(estimate, []),
   };
 };
 
@@ -90,9 +101,13 @@ describe("the laws of the tests", () => {
 
 describe("lawKnee", () => {
   it("finds the knee of a hinge with the rule slope", () => {
-    const found = kneeOf(lawOf("hinge", HINGE), { kind: "slope", factor: 2 });
+    const law = lawOf("hinge", HINGE);
+    const found = kneeOf(law, { kind: "slope", factor: 2 });
     expect(found.knee.value).toBeCloseTo(50, 4);
-    expect(found.knee.interval).toEqual({ low: found.knee.value, high: found.knee.value });
+    // The slope of each replicate is 4 times its first slope after its knee, thus the knee of each replicate is its constant knee.
+    const knees = law.replicates.map((row) => row[3] as number);
+    expect(found.knee.interval.low).toBeCloseTo(Math.min(50, quantile(knees, 0.025)), 4);
+    expect(found.knee.interval.high).toBeCloseTo(Math.max(50, quantile(knees, 0.975)), 4);
     expect(found.knee.outside).toBe(false);
     expect(found.edge).toEqual(NO_CROSSING);
     expect(found).toMatchObject({ variable: "rate", unit: "{request}/s", level: 0.95, search: { low: 0, high: 100 }, outside: [] });
@@ -233,6 +248,61 @@ describe("lawKnee", () => {
     expect(must(lawKnee(law, "rate", { kind: "rise", share: 0.5 })).knee.value).toBeCloseTo(2775, 6);
   });
 
+  it("finds the knee of the rule floor after the least value of a law that falls, then grows", () => {
+    // 1 + 100 / x + x has its least value, 21, at x = 10. A cold start is high, so the rule "rise" finds no knee.
+    const rate: Variable = { id: "rate", unit: "{request}/s", min: 1, max: 100, scale: "linear" };
+    const program = app("add", app("add", ref("base"), app("divide", ref("cold"), ref("rate"))), app("multiply", ref("slope"), ref("rate")));
+    const law = programLaw(program, { base: 1, cold: 100, slope: 1 }, [rate]);
+    expect(checkLaw(law)).toEqual([]);
+    expect(kneeOf(law, { kind: "rise", share: 1 }).knee).toEqual(NO_CROSSING);
+    const found = kneeOf(law, { kind: "floor", share: 1 });
+    const floor = found.floor as { load: number; value: number };
+    // The floor is the least value on the grid of 64 steps, thus near the least value of the curve.
+    expect(Math.abs(floor.load - 10)).toBeLessThan(99 / 64);
+    expect(floor.value).toBeCloseTo(1 + 100 / floor.load + floor.load, 9);
+    expect(floor.value).toBeGreaterThanOrEqual(21);
+    expect(floor.value).toBeLessThan(21.01);
+    // After the floor, 1 + 100 / x + x = 2 floor where x^2 - (2 floor - 1) x + 100 = 0.
+    const b = 2 * floor.value - 1;
+    expect(found.knee.value).toBeCloseTo((b + Math.sqrt(b * b - 400)) / 2, 6);
+    expect(found).toMatchObject({ rule: { kind: "floor", share: 1 }, edge: NO_CROSSING });
+  });
+
+  it("gives each replicate its own floor, thus no knee of a replicate is at the start of the search", () => {
+    // The floor of each row is its base at 0. A row is two times its floor where base + x = 2 base, at x = base.
+    const spread = lawOf("linear", { base: 1, slope: 1 }, {}, { base: 0.5 });
+    const found = kneeOf(spread, { kind: "floor", share: 1 });
+    expect(found.floor).toEqual({ load: 0, value: 1 });
+    expect(found.noFloor).toBe(0);
+    expect(found.knee.value).toBeCloseTo(1, 9);
+    // With the floor of the estimate as one amount, a replicate with a base above 2 has its knee at 0.
+    // A row is two times its floor where base + slope x = 2 base, at x = base / slope.
+    const knees = spread.replicates.map((row) => (row[0] as number) / (row[1] as number));
+    expect(found.knee.interval.low as number).toBeGreaterThan(0);
+    expect(found.knee.interval.low).toBeCloseTo(Math.min(1, quantile(knees, 0.025)), 6);
+    expect(found.knee.interval.high).toBeCloseTo(Math.max(1, quantile(knees, 0.975)), 6);
+  });
+
+  it("counts a replicate with no floor above 0 and leaves it out of the interval", () => {
+    // Of 80 replicates, one has the base -1: its floor is below 0. The level 0.95 can leave out 2.
+    const base = lawOf("linear", { base: 1, slope: 1 }, {}, { base: 0.5 });
+    const rows = Array.from({ length: 80 }, (_, row) => [1 + 0.5 * wave(row, 0), 1]);
+    rows[7] = [-1, 1];
+    const found = kneeOf({ ...base, replicates: rows }, { kind: "floor", share: 1 });
+    expect(found.noFloor).toBe(1);
+    const kept = rows.filter((row) => (row[0] as number) > 0).map((row) => row[0] as number);
+    expect(found.knee.interval.low).toBeCloseTo(Math.min(1, quantile(kept, 0.025)), 6);
+    expect(found.knee.interval.high).toBeCloseTo(Math.max(1, quantile(kept, 0.975)), 6);
+  });
+
+  it("takes the floor before the edge of a law", () => {
+    // Past its capacity, 100, the queue has values below 0. They are not the floor.
+    const found = kneeOf(lawOf("queue", QUEUE, QUEUE_RANGE), { kind: "floor", share: 1 }, { to: 150 });
+    expect(found.floor).toEqual({ load: 1, value: 0.5 + 100 / 99 });
+    expect(found.knee.value).toBeCloseTo(queueRise(1), 6);
+    expect(found.edge.value).toBeCloseTo(100, 9);
+  });
+
   it("holds the other variables at the point at", () => {
     const law = sampleLaw();
     const sized: Law = {
@@ -240,7 +310,7 @@ describe("lawKnee", () => {
       variables: [...law.variables, { id: "size", unit: "B", min: 0, max: 65_536, scale: "linear" }],
       form: { id: "hinge-size", program: app("add", hinge, app("multiply", ref("c4"), ref("size"))) },
       constants: [...law.constants, { id: "c4", value: 1e-6 }],
-      replicates: law.replicates.map((row) => [...row, 1e-6]),
+      replicates: law.replicates.map((row, index) => [...row, 1e-6 * (1 + 0.1 * wave(index, 4))]),
     };
     expect(checkLaw(sized)).toEqual([]);
     const found = must(lawKnee(sized, "rate", { kind: "slope", factor: 2 }, { at: { size: 1024 } }));
@@ -271,7 +341,33 @@ describe("the problems of lawKnee", () => {
     expect(problemOf(lawKnee(law, "rate", { kind: "rise", share: 0 }))).toMatchObject({ code: "knee", path: "rule.share" });
     expect(problemOf(lawKnee(law, "rate", { kind: "rise", share: Number.NaN }))).toMatchObject({ code: "knee", path: "rule.share" });
     expect(problemOf(lawKnee(law, "rate", { kind: "slope", factor: 1 }))).toMatchObject({ code: "knee", path: "rule.factor" });
+    expect(problemOf(lawKnee(law, "rate", { kind: "floor", share: -1 }))).toMatchObject({ code: "knee", path: "rule.share" });
     expect(problemOf(lawKnee(law, "rate", slope, { level: 0.99 }))).toMatchObject({ code: "level", path: "replicates" });
+  });
+
+  it("names a rule from data with a bad shape", () => {
+    expect(kneeRuleProblem({ kind: "floor", share: 1 })).toBeUndefined();
+    expect(kneeRuleProblem({ kind: "slope", factor: 2 }, "knee")).toBeUndefined();
+    expect(kneeRuleProblem([], "knee")).toMatchObject({ code: "knee", path: "knee" });
+    expect(kneeRuleProblem(null)).toMatchObject({ code: "knee", path: "rule" });
+    expect(kneeRuleProblem({ kind: "peak" }, "knee")).toMatchObject({ code: "knee", path: "knee.kind" });
+    expect(kneeRuleProblem({ kind: "rise", share: "1" }, "knee")).toMatchObject({ code: "knee", path: "knee.share" });
+    expect(kneeRuleProblem({ kind: "slope" })).toMatchObject({ code: "knee", path: "rule.factor" });
+  });
+
+  it("names a floor at 0 or below, or a law with no value at the start of the floor search", () => {
+    const negative = lawOf("linear", { base: -1, slope: 1 });
+    expect(problemOf(lawKnee(negative, "rate", { kind: "floor", share: 1 }))).toMatchObject({ code: "knee", path: "constants" });
+    // Of 40 replicates, many have a base of 0 or less. The level 0.95 needs all 40, thus it can leave out none.
+    const spread = lawOf("linear", { base: 0.5, slope: 1 }, {}, { base: 3 });
+    const count = spread.replicates.filter((row) => (row[0] as number) <= 0).length;
+    expect(count).toBeGreaterThan(0);
+    expect(problemOf(lawKnee(spread, "rate", { kind: "floor", share: 1 }))).toEqual({
+      code: "knee",
+      path: "replicates",
+      message: `The rule "floor" needs a floor above 0. ${count} of 40 replicates have a floor of 0 or less. The interval of the level 0.95 can leave out at most 0.`,
+    });
+    expect(problemOf(lawKnee(lawOf("logarithm", { base: 1, scale: 1 }), "rate", { kind: "floor", share: 1 }))).toMatchObject({ code: "value", path: "constants" });
   });
 
   it("names the row with no value or no cheap region at the start of the search", () => {
@@ -293,14 +389,17 @@ describe("the problems of lawKnee", () => {
 const startMemory: Expr = app("add", ref("base"), app("add", app("multiply", ref("perDay"), ref("days")), app("multiply", ref("perReport"), ref("reports"))));
 const MEMORY = { base: 200e6, perDay: 40e6, perReport: 50e3 };
 
-/** This function gives a law of the start memory in bytes. The cost of each day of each replicate is in 10 % of the estimate. */
+/**
+ * This function gives a law of the start memory in bytes. The cost of each day of each replicate is in 10 % of the
+ * estimate. The other constants of each replicate are in `SPREAD` of the estimate.
+ */
 const memoryLaw = (): Law => ({
   ...programLaw(startMemory, MEMORY, [
     { id: "days", unit: "d", min: 0, max: 30, scale: "linear" },
     { id: "reports", unit: "{report}", min: 0, max: 20_000, scale: "linear" },
   ]),
   measure: { id: "memory", unit: "B" },
-  replicates: Array.from({ length: 40 }, (_, row) => [MEMORY.base, MEMORY.perDay * (1 + 0.1 * wave(row, 1)), MEMORY.perReport]),
+  replicates: replicatesOf([MEMORY.base, MEMORY.perDay, MEMORY.perReport], [SPREAD, 0.1, SPREAD]),
 });
 
 /** The amount of a limit of 1 GiB with a headroom of 10 %, in bytes. */
@@ -322,8 +421,8 @@ describe("lawReach", () => {
     expect(found.crossing.value).toBeCloseTo(free / MEMORY.perDay, 6);
     expect(found).toMatchObject({ variable: "days", unit: "d", amount: AMOUNT, level: 0.95, search: { low: 0, high: 30 }, outside: [] });
     expect(found.edge).toEqual(NO_CROSSING);
-    // The interval comes from the cost of each day of the replicates: a larger cost gives a smaller age.
-    const ages = law.replicates.map((row) => free / (row[1] as number));
+    // The interval comes from the age of each replicate: a larger cost of each day gives a smaller age.
+    const ages = law.replicates.map(([base, perDay, perReport]) => (AMOUNT - (base as number) - (perReport as number) * 2000) / (perDay as number));
     const { low, high } = found.crossing.interval;
     expect(low as number).toBeLessThan(found.crossing.value as number);
     expect(high as number).toBeGreaterThan(found.crossing.value as number);

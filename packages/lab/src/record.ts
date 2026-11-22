@@ -96,6 +96,19 @@ export type RunMeasure = keyof typeof RUN_MEASURES;
 /** A load measure is the name of a measure of the driver. */
 export type LoadMeasure = keyof typeof LOAD_MEASURES;
 
+/** A quantile measure is the name of a quantile measure of the driver. */
+export type QuantileMeasure = "latency.p50" | "latency.p90" | "latency.p99";
+
+/**
+ * These levels are the levels of the quantile measures of the driver, by name. The quantile of a run
+ * comes from each arrival of the run (`planned`), with the nearest rank.
+ */
+export const QUANTILE_MEASURES: Readonly<Record<QuantileMeasure, number>> = {
+  "latency.p50": 0.5,
+  "latency.p90": 0.9,
+  "latency.p99": 0.99,
+} satisfies Record<QuantileMeasure & LoadMeasure, number>;
+
 /** A cpuset measure is the name of a measure of the CPUs of a CPU set. */
 export type CpusetMeasure = keyof typeof CPUSET_MEASURES;
 
@@ -173,9 +186,9 @@ export const loadMeasures = (load: RunLoad | null): Measures<LoadMeasure> => {
     failed: count(load.failed ?? 0),
     unsent: count(load.unsent),
     unfinished: count(load.unfinished),
-    "latency.p50": late(0.5),
-    "latency.p90": late(0.9),
-    "latency.p99": late(0.99),
+    "latency.p50": late(QUANTILE_MEASURES["latency.p50"]),
+    "latency.p90": late(QUANTILE_MEASURES["latency.p90"]),
+    "latency.p99": late(QUANTILE_MEASURES["latency.p99"]),
     "latency.max": late(1),
     // a reduce, not a spread: a run of 600 s at 10000 requests each second has 6 million lags
     "lag.max": load.lag.length === 0 ? null : quantity(load.lag.reduce((most, lag) => Math.max(most, lag), Number.NEGATIVE_INFINITY), "ms"),

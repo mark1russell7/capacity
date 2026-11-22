@@ -172,7 +172,7 @@ The plan runs each night, not on each pull request. Its time limit is 54 minutes
 
 ### The request rate
 
-The plan `rate` sends the bare request to the bare subject at 25 rates, from 100 to 36000 requests each second. The subject has one core and 512 MiB. The points of the laws of the request rate come from its records (CAP-20). Its law set tells the laws of its records (refer to [The laws](#the-laws)). Its six law files are in `packages/capacity/laws` (CAP-17). Their intervals and their knees are CAP-53.
+The plan `rate` sends the bare request to the bare subject at 25 rates, from 100 to 36000 requests each second. The subject has one core and 512 MiB. The points of the laws of the request rate come from its records (CAP-20). Its law set tells the laws of its records (refer to [The laws](#the-laws)). Its six law files are in `packages/capacity/laws` (CAP-17). The summary of the fit gives the interval of each constant, each value at the ends of a range and each knee (CAP-53).
 
 | Part | The value | Why |
 | --- | --- | --- |
@@ -252,17 +252,60 @@ A plan with the field `laws` gives laws from its records. The law set tells the 
 "laws": {
   "class": "rate",
   "variable": { "id": "rate", "unit": "{request}/s", "scale": "log" },
-  "measures": [{ "id": "cpu.request", "title": "The CPU time of one request", "residual": "relative", "forms": ["linear", "hinge"] }]
+  "measures": [
+    { "id": "cpu.request", "title": "The CPU time of one request", "residual": "relative", "forms": ["linear", "hinge"] },
+    { "id": "latency.p50", "title": "The median latency of a request", "residual": "relative", "served": 0.97, "knee": { "kind": "floor", "share": 1 } }
+  ]
 }
 ```
 
 - **The check of the set.** `lawSetProblems` examines the set with the plan. Each case must be a case of load of the class of the set. The demand of each case must give a point of the variable. Each measure must have a noise floor (`FLOOR_MEASURES`).
 - **One law for each CPU model.** The id of a law is `<subject>/<plan>/<cpu>/<measure>`, for example `node-http/rate/epyc-7763/cpu.request`. `CPU_IDS` gives the id of each CPU model of the runners. A CPU model with no id gives a problem, not a law.
-- **The points.** Each case of each job gives one point: the median of its runs. A law needs 40 points or more (`leastCount` of the level 0.95). Thus a plan of 25 cases needs two jobs or more on each CPU model. A CPU model with fewer points gives no law, and the summary tells it. Dispatch the plan with `-f runs='[1,2,3,4,5]'`.
+- **The points.** Each case of each job gives one point: the median of its runs. A law needs 40 points or more (`leastCount` of the level 0.95). It also needs 5 jobs or more on the CPU model (`leastGroups` of the level 0.95), because the bootstrap draws whole jobs. A CPU model with fewer points or jobs gives no law, and the summary tells it. Dispatch the plan with `-f runs='[1,2,3,4,5]'` or more runs.
 - **The jobs.** A job with no CI run, with a problem in its verdict, or with records of two CPU models gives no point. The summary tells each skipped job.
 - **The conditions.** The facts that do not change between the points are the conditions of the law (`conditionsOf`). They are the class, the CPU model, the limits, the duration and the arrivals. The connections and the version of the harness are conditions too. A case with other facts gives a problem.
 - **The noise.** Each law gets the floor of its measure from the jobs of the check `floor` on the same CPU model. With no floor on that CPU model, the law gets the largest floor of the jobs.
 - **The fit.** `fitLaw` of `@mark1russell7/capacity` fits each form of the measure. The law keeps each form that lost, with its error, in `fit.losers`. `checkLaw` examines each law before the command writes it.
+- **The bootstrap draws jobs.** The plan fixes its rates, thus a rate is not a random unit. The independent unit is the job: one runner machine that measures each rate. Each run of the bootstrap draws whole jobs (`bootstrapGroups`). Thus each replicate has each rate, and its interval has the variation between the machines. The held-out fit holds out whole rates, because it ranks the shape of each form.
+- **The served share.** A measure with the field `served` keeps only the points where the subject keeps up with the offered rate. The range of the law is the range of these points, and the law has the condition `served`.
+- **The tail count.** A quantile measure with the field `tail` keeps only the points with enough arrivals for its quantile. The law has the condition `tail`.
+- **The knee.** A measure with the field `knee` gives the knee of each law in its range, with `lawKnee` of `@mark1russell7/capacity`. A search that cannot apply gives a problem, and the law stays.
+
+### The served share
+
+A case keeps up when the subject serves the share `served` of the offered rate or more. `servedShare` gives the least share that the records show:
+
+- Each planned time of a request is in the duration `T` of a run.
+- Each reply comes at most `latency.max` after its planned time.
+- Thus the subject serves the requests of `T` in `T + latency.max` or less. The share is `T / (T + latency.max)` or more.
+
+The latency is the median of the runs of the case. The plan `rate` gives the share 0.97 to its three latency laws. With runs of 1 s, a case keeps up when its `latency.max` is 30.9 ms or less.
+
+- **Why a cut.** Past the limit of the core, a queue grows in the driver for the duration of the run. Then the latency tells the duration of the case, not a property of the subject. One law of a smooth form cannot fit both regions.
+- **The other laws.** The laws of the CPU time and of the memory have good fits on all of the range. Thus their measures have no field `served`.
+- **Too few points.** With fewer than 40 points that keep up, the law of the measure goes into the list of skipped laws.
+
+### The tail count
+
+The quantile of a run is a rank of its arrivals. With few arrivals, a high quantile is the latency of a few slow requests, not a property of the subject. The field `tail` of a quantile measure gives the least count `k` of requests in the tail of the quantile.
+
+- **The rule.** A quantile `q` needs `k / (1 - q)` arrivals or more in each run (`tailNeed`). The run of a case with the fewest arrivals decides.
+- **The count of the plan `rate`.** The plan gives the count 10 to its three latency laws. Thus the median needs 20 arrivals, the 90th percentile needs 100, and the 99th percentile needs 1000.
+- **The cut.** A point with fewer arrivals stays out of the law, and the summary tells it. With fewer than 40 points in the range, the law goes into the list of skipped laws.
+- **The cut on the Intel Xeon 6975P-C.** Each run has 111 arrivals at 100 requests each second and 295 at 300. At 1000, each run has 1000 or more. Thus the count cuts the rates 100 and 300 from the law of the 99th percentile. It cuts no point from the laws of the median and of the 90th percentile.
+
+### The knee of a latency
+
+The knee of a latency is the rate where the latency leaves its floor. The plan `rate` gives the rule `{ "kind": "floor", "share": 1 }` to its three latency laws: the first rate where the latency is two times its floor.
+
+- **Why the floor, not the start.** At 100 requests each second, the median latency is 0.35 ms. From 1000 to 12000, it is approximately 0.13 ms. Thus the start value is not the floor.
+- **Why a floor for each replicate.** The knee of a replicate is after its own floor. With the floor of the constants as one amount, a replicate with a high start had its knee at 100, the start of the range. That is not a knee.
+- **The fall at a low rate.** The median goes from 0.354 ms at 100 to 0.140 ms at 2000. The 90th percentile goes from 0.511 ms to 0.231 ms. The tail count cuts no point of these laws, thus the fall is not an effect of the estimate. It is a cost of the subject at a low rate.
+- **The cause of the fall.** The form `fall-power` gives the fall. The records do not tell its cause. Idle cores and cold caches are candidates.
+- **The 99th percentile does not fall.** It goes up from 1.11 ms at 100. The tail count cuts the rates 100 and 300, thus its law starts at 1000.
+- **Why the tail leaves first.** On the Intel Xeon 6975P-C, the 90th and the 99th percentiles are two times their floor between 3000 and 4000. The median is two times its floor near 16000. A delay that stops a share of the requests can cause this, for example a stop of the event loop. A quantile `p` leaves its floor when that share is more than `1 - p`. The records have no measure of garbage collection, thus this cause is not certain.
+- **Each replicate has each rate.** The fall of the 90th percentile rests on the two lowest rates, 100 and 300. A bootstrap of whole rates left out the rate 100 in approximately one third of its replicates. These replicates extrapolated the fall, and 11 of 200 had a value of 0 or less at a low rate. The bootstrap draws whole jobs, thus each replicate has each rate. On the Intel Xeon 6975P-C, no replicate of the three laws has a floor of 0 or less.
+- **No law of the median.** The forms `power` and `fall-power` fit the median best. In each replicate, their exponent is 4: the end of the search of a grid that ends at 3. Thus the interval of the exponent has a width of 0, and `checkLaw` refuses the law. CAP-57 gives a problem for a shape at the edge of its search. Then the next form wins.
 
 ### The command and the workflow
 
@@ -277,6 +320,7 @@ gh workflow run laws.yml -R mark1russell7/capacity -f runs='<run of the plan rat
 - `node src/laws.main.ts fit --records <folder> --out <folder>` reads each manifest `timed.json` in the folder and in its subfolders.
 - It writes each law into `<out>/<id>.law.json`, then it reads the file again with `readLaw`.
 - A problem, or no law, gives the exit code 1. The summary of the job tells each law, each problem and each skipped job.
+- The summary gives the interval of each constant, the range of each law, its values at the ends of the range and its knee. Each interval holds 0.95 of the replicates. It also tells each point that a law leaves out, with its `latency.max` and its share.
 - The workflow uploads the files as the artifact `laws-<run>`. A pull request puts them into the repository.
 
 ## The start cases
