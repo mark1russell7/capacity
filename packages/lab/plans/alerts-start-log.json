@@ -1,0 +1,314 @@
+{
+  "format": "capacity-plan/1",
+  "id": "alerts-start-log",
+  "title": "The start of alerts from its contract at each rung of its log, from 2 MiB to the largest log of the contract",
+  "check": null,
+  "triggers": [],
+  "jobs": 5,
+  "cases": [
+    {
+      "format": "capacity-start/1",
+      "id": "alerts-start-log/ladder",
+      "title": "The start of alerts at each rung of its log. The log is the file runtime.sqlite at the start.",
+      "subject": "alerts-runtime",
+      "app": "https://github.com/metrograph-labs/alerts.git",
+      "arms": [
+        {
+          "id": "main",
+          "commit": "4dc4ccda183fa11616c97c8a6bf2170a263fcf93"
+        }
+      ],
+      "seeder": "4dc4ccda183fa11616c97c8a6bf2170a263fcf93",
+      "seed": "al126",
+      "rounds": 1,
+      "watch": {
+        "value": 60,
+        "unit": "s"
+      },
+      "probe": {
+        "value": 500,
+        "unit": "ms"
+      },
+      "target": {
+        "image": "node:24.21.0-bookworm-slim",
+        "node": "v24.21.0",
+        "memory": {
+          "value": 1011425280,
+          "unit": "B"
+        },
+        "swap": {
+          "value": 2147483648,
+          "unit": "B"
+        },
+        "cpus": 2,
+        "heapLimit": {
+          "value": 556269568,
+          "unit": "B"
+        }
+      },
+      "limit": {
+        "value": 240,
+        "unit": "s"
+      },
+      "windows": [
+        {
+          "value": 90,
+          "unit": "s"
+        }
+      ],
+      "observed": [],
+      "points": [
+        {
+          "id": "log-2",
+          "at": {
+            "log": {
+              "value": 2097152,
+              "unit": "B"
+            },
+            "feeds": {
+              "value": 10,
+              "unit": "{feed}"
+            },
+            "persons": {
+              "value": 10,
+              "unit": "{person}"
+            },
+            "incidents": {
+              "value": 10,
+              "unit": "{incident}"
+            }
+          }
+        },
+        {
+          "id": "log-4",
+          "at": {
+            "log": {
+              "value": 4194304,
+              "unit": "B"
+            },
+            "feeds": {
+              "value": 10,
+              "unit": "{feed}"
+            },
+            "persons": {
+              "value": 10,
+              "unit": "{person}"
+            },
+            "incidents": {
+              "value": 10,
+              "unit": "{incident}"
+            }
+          }
+        },
+        {
+          "id": "log-8",
+          "at": {
+            "log": {
+              "value": 8388608,
+              "unit": "B"
+            },
+            "feeds": {
+              "value": 10,
+              "unit": "{feed}"
+            },
+            "persons": {
+              "value": 10,
+              "unit": "{person}"
+            },
+            "incidents": {
+              "value": 10,
+              "unit": "{incident}"
+            }
+          }
+        },
+        {
+          "id": "log-16",
+          "at": {
+            "log": {
+              "value": 16777216,
+              "unit": "B"
+            },
+            "feeds": {
+              "value": 10,
+              "unit": "{feed}"
+            },
+            "persons": {
+              "value": 10,
+              "unit": "{person}"
+            },
+            "incidents": {
+              "value": 10,
+              "unit": "{incident}"
+            }
+          }
+        },
+        {
+          "id": "log-32",
+          "at": {
+            "log": {
+              "value": 33554432,
+              "unit": "B"
+            },
+            "feeds": {
+              "value": 10,
+              "unit": "{feed}"
+            },
+            "persons": {
+              "value": 10,
+              "unit": "{person}"
+            },
+            "incidents": {
+              "value": 10,
+              "unit": "{incident}"
+            }
+          }
+        },
+        {
+          "id": "log-64",
+          "at": {
+            "log": {
+              "value": 67108864,
+              "unit": "B"
+            },
+            "feeds": {
+              "value": 10,
+              "unit": "{feed}"
+            },
+            "persons": {
+              "value": 10,
+              "unit": "{person}"
+            },
+            "incidents": {
+              "value": 10,
+              "unit": "{incident}"
+            }
+          }
+        },
+        {
+          "id": "log-128",
+          "at": {
+            "log": {
+              "value": 134217728,
+              "unit": "B"
+            },
+            "feeds": {
+              "value": 10,
+              "unit": "{feed}"
+            },
+            "persons": {
+              "value": 10,
+              "unit": "{person}"
+            },
+            "incidents": {
+              "value": 10,
+              "unit": "{incident}"
+            }
+          }
+        },
+        {
+          "id": "log-256",
+          "at": {
+            "log": {
+              "value": 268435456,
+              "unit": "B"
+            },
+            "feeds": {
+              "value": 10,
+              "unit": "{feed}"
+            },
+            "persons": {
+              "value": 10,
+              "unit": "{person}"
+            },
+            "incidents": {
+              "value": 10,
+              "unit": "{incident}"
+            }
+          }
+        },
+        {
+          "id": "log-max",
+          "at": {
+            "log": {
+              "value": 400000000,
+              "unit": "B"
+            },
+            "feeds": {
+              "value": 10,
+              "unit": "{feed}"
+            },
+            "persons": {
+              "value": 10,
+              "unit": "{person}"
+            },
+            "incidents": {
+              "value": 10,
+              "unit": "{incident}"
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "startLaws": {
+    "variable": {
+      "id": "log",
+      "unit": "MiB",
+      "scale": "log"
+    },
+    "measures": [
+      {
+        "id": "ready",
+        "law": "ready",
+        "title": "The time from the start of the process to the ready line",
+        "residual": "relative",
+        "forms": [
+          "constant",
+          "linear",
+          "power",
+          "logarithm",
+          "hinge"
+        ]
+      },
+      {
+        "id": "peak",
+        "law": "peak",
+        "title": "The highest memory of the process from its start to ready",
+        "residual": "relative",
+        "forms": [
+          "constant",
+          "linear",
+          "power",
+          "logarithm",
+          "hinge"
+        ]
+      },
+      {
+        "id": "heap",
+        "law": "heap",
+        "title": "The used heap at ready",
+        "residual": "relative",
+        "forms": [
+          "constant",
+          "linear",
+          "power",
+          "logarithm",
+          "hinge"
+        ]
+      },
+      {
+        "id": "watchPeak",
+        "law": "watch-peak",
+        "title": "The highest memory of the process in the watch after ready",
+        "residual": "relative",
+        "forms": [
+          "constant",
+          "linear",
+          "power",
+          "logarithm",
+          "hinge"
+        ]
+      }
+    ]
+  }
+}

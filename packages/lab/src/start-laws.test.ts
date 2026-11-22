@@ -9,19 +9,21 @@ import { START_CONDITIONS, startLawSetProblems, startLawsOf, type StartLawSet } 
 import { START_RECORD_FORMAT, type StartReading, type StartRecord } from "./start-measure.ts";
 import type { StartCase } from "./start.ts";
 
-// The start records of the tests. Each job starts each arm of the case of the log at each of its 6
+// The start records of the tests. Each job starts each arm of the case of the log at each of its 9
 // points, in 2 rounds. The time to ready is 100 ms + about 3 ms for each MiB of the log. The slope of each
 // arm changes a little from job to job, thus the bootstrap of whole jobs gives an interval of the slope.
 // The A/A copy of the base has the slope of the base, with a different small noise. Thus the laws are
 // linear, and the noise floor is small.
 
 const PLANS = fileURLToPath(new URL("../plans/", import.meta.url));
-const CASE = { ...(readPlans(PLANS).plans.find((each) => each.id === "alerts-start")!.cases[0] as StartCase), rounds: 2 };
+// The case is the log ladder of the plans, with two arms of its own. Thus a law of each arm and the A/A pair of the base are in the tests.
+const LADDER = readPlans(PLANS).plans.find((each) => each.id === "alerts-start-log")!.cases[0] as StartCase;
+const CASE: StartCase = { ...LADDER, arms: [{ id: "cloud", commit: "1".repeat(40) }, { id: "new", commit: "2".repeat(40) }], rounds: 2 };
 const SET: StartLawSet = {
   variable: { id: "log", unit: "MiB", scale: "log" },
   measures: [{ id: "ready", law: "ready", title: "The time to ready", residual: "absolute", forms: ["constant", "linear"] }],
 };
-const PLAN = { id: "alerts-start", startLaws: SET };
+const PLAN = { id: "alerts-start-log", startLaws: SET };
 const OPTIONS = { runs: 40, seed: 1 };
 const ARMS = ["cloud", "new", "cloud~aa"] as const;
 
@@ -72,31 +74,32 @@ describe("the laws of the start records", () => {
   it("gives one law for each arm and each kind of start, with the conditions of the records", () => {
     const result = startLawsOf(PLAN, jobsOf(5), OPTIONS);
     expect(result.problems).toEqual([]);
-    expect(result.laws.map(({ law }) => law.id)).toEqual([`alerts/alerts-start/${MODEL}/cloud/first/ready`, `alerts/alerts-start/${MODEL}/new/first/ready`]);
+    expect(result.laws.map(({ law }) => law.id)).toEqual([`alerts-runtime/alerts-start-log/${MODEL}/cloud/first/ready`, `alerts-runtime/alerts-start-log/${MODEL}/new/first/ready`]);
     for (const { law } of result.laws) {
       expect(law.form.id).toBe("linear");
       expect(law.measure).toEqual({ id: "ready", unit: "ms" });
-      expect(law.variables[0]).toMatchObject({ id: "log", unit: "MiB", scale: "log", min: 16, max: 512 });
+      // the range of the law is the range of the rungs: 2 MiB to the largest log of the contract, 400,000,000 B
+      expect(law.variables[0]).toMatchObject({ id: "log", unit: "MiB", scale: "log", min: 2, max: 400_000_000 / 2 ** 20 });
       expect(Object.keys(law.conditions)).toEqual(expect.arrayContaining([...START_CONDITIONS]));
       expect(law.conditions).toMatchObject({ "cpu.model": EPYC, start: "first", seeder: CASE.seeder, watch: CASE.watch });
     }
   });
 
   it("gives a problem for a plan with no start law set, and no law for too few jobs", () => {
-    expect(startLawsOf({ id: "alerts-start" }, jobsOf(5), OPTIONS).problems.map((each) => each.code)).toEqual(["plan"]);
+    expect(startLawsOf({ id: "alerts-start-log" }, jobsOf(5), OPTIONS).problems.map((each) => each.code)).toEqual(["plan"]);
     const few = startLawsOf(PLAN, jobsOf(4), OPTIONS);
     expect(few.laws).toEqual([]);
-    expect(few.skipped.map((each) => each.path)).toEqual([`alerts/alerts-start/${MODEL}/cloud/first`, `alerts/alerts-start/${MODEL}/new/first`]);
+    expect(few.skipped.map((each) => each.path)).toEqual([`alerts-runtime/alerts-start-log/${MODEL}/cloud/first`, `alerts-runtime/alerts-start-log/${MODEL}/new/first`]);
   });
 
   it("skips a job of another plan, and tells each failure of a start", () => {
     const other = { ...jobsOf(1)[0]!, timed: timedOf("alerts-start-bytes-mean", runOf(99), EPYC, "2026-11-22T08:00:00Z") };
     const failed = jobsOf(5, EPYC, (record, job) =>
-      job === 0 ? { ...record, failures: [{ arm: "new", case: "log-512", round: 1, reason: "passed the memory limit of its container.", kind: "memory" }] } : record,
+      job === 0 ? { ...record, failures: [{ arm: "new", case: "log-max", round: 1, reason: "passed the memory limit of its container.", kind: "memory" }] } : record,
     );
     const result = startLawsOf(PLAN, [...failed, other], OPTIONS);
     expect(result.skipped.map((each) => each.code)).toEqual(["job", "case"]);
-    expect(result.skipped[1]?.path).toBe(`alerts/alerts-start/${MODEL}/new/first`);
+    expect(result.skipped[1]?.path).toBe(`alerts-runtime/alerts-start-log/${MODEL}/new/first`);
     expect(result.laws).toHaveLength(2);
   });
 
@@ -147,20 +150,21 @@ describe("the problems of a start law set", () => {
 
 describe("the plans of the levels of alerts", () => {
   const plans = readPlans(PLANS);
-  const LEVELS = ["feeds", "persons", "incidents"] as const;
+  // Each ladder and the id of its base point. The log ladder of CAP-62 has the base point of the level ladders of CAP-35.
+  const LADDERS = [["feeds", "feeds-10"], ["persons", "persons-10"], ["incidents", "incidents-10"], ["log", "log-16"]] as const;
 
-  it("give one ladder of 9 rungs for each level, with each other variable at the base point, and no problem", () => {
+  it("give one ladder of 9 rungs for each level and for the log, with each other variable at the base point, and no problem", () => {
     expect(plans.problems).toEqual([]);
-    const bases = LEVELS.map((level) => {
+    const bases = LADDERS.map(([level, base]) => {
       const plan = plans.plans.find((each) => each.id === `alerts-start-${level}`);
       expect(plan?.startLaws?.variable.id).toBe(level);
       expect(plan?.cases).toHaveLength(1);
       const value = plan?.cases[0] as StartCase;
       expect(value.points).toHaveLength(9);
       expect(new Set(value.points.map((each) => valueIn(each.at[level]!, plan!.startLaws!.variable.unit))).size).toBe(9);
-      return value.points.find((each) => each.id === `${level}-10`);
+      return value.points.find((each) => each.id === base);
     });
-    // the three ladders meet at one base point, thus their readings there can be compared
+    // the four ladders meet at one base point, thus their readings there can be compared
     expect(bases.every((each) => each !== undefined)).toBe(true);
     expect(new Set(bases.map((each) => JSON.stringify(each?.at))).size).toBe(1);
   });

@@ -95,8 +95,8 @@ describe("a timed run of a plan", () => {
 
   it("measures a start case with the option start in the run of the job, and judges each start record", async () => {
     out = mkdtempSync(join(tmpdir(), "capacity-timed-"));
-    const value = readPlans(fileURLToPath(new URL("../plans/", import.meta.url))).plans.find((each) => each.id === "alerts-start")!.cases[0] as StartCase;
-    const plan: Plan = { ...CONTROL, id: "alerts-start", check: null, cases: [value] };
+    const value = readPlans(fileURLToPath(new URL("../plans/", import.meta.url))).plans.find((each) => each.id === "alerts-start-bytes-mean")!.cases[0] as StartCase;
+    const plan: Plan = { ...CONTROL, id: "alerts-start-bytes-mean", check: null, cases: [value] };
     const machine = { cpu: "Test CPU", cores: 4, kernel: "6.8.0", architecture: "x64", node: "v26.13.1", memory: { value: 16, unit: "GiB" } };
     const env = { cpu: "Test CPU", cores: 4, os: "linux", arch: "x64", node: "v26.13.1" };
     const record: StartRecord = {
