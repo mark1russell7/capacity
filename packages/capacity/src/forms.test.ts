@@ -11,6 +11,7 @@ import {
   formValues,
   gridOf,
   programOf,
+  separableOf,
   slopeOf,
   startOf,
   type CatalogForm,
@@ -202,6 +203,40 @@ const start = (catalog: CatalogForm, points: Points) => {
   return result.value;
 };
 
+describe("separableOf", () => {
+  it("gives a column for each term and a shape for each shape constant", () => {
+    const model = separableOf(form("hinge"), XS);
+    expect(model.terms).toEqual(["base", "slope", "bend"]);
+    expect(model.shapes.map((shape) => shape.id)).toEqual(["knee"]);
+    expect(model.shapes[0]!.candidates).toEqual(gridOf({ kind: "inside" }, XS));
+    expect(model.design([21], [13, 34])).toEqual([
+      [1, 13, 0],
+      [1, 34, 13],
+    ]);
+  });
+
+  it("gives no design when a basis has no finite value at a point", () => {
+    expect(separableOf(form("logarithm"), XS).design([], [0, 1])).toBeNull();
+    expect(separableOf(form("queue"), XS).design([34], [34])).toBeNull();
+  });
+
+  it("starts each shape constant inside its bounds", () => {
+    fc.assert(
+      fc.property(fc.uniqueArray(fc.double({ min: 0.5, max: 1e6, noNaN: true }), { minLength: 3, maxLength: 30 }), (xs) => {
+        for (const catalog of FORMS) {
+          for (const shape of separableOf(catalog, xs).shapes) {
+            for (const candidate of shape.candidates) {
+              expect(candidate).toBeGreaterThanOrEqual(shape.min ?? Number.NEGATIVE_INFINITY);
+              expect(candidate).toBeLessThanOrEqual(shape.max ?? Number.POSITIVE_INFINITY);
+            }
+          }
+        }
+      }),
+      { numRuns: 60 },
+    );
+  });
+});
+
 describe("startOf", () => {
   it.each(FORMS.map((each) => [each.id, each] as const))("finds the constants of the form %s from its exact values", (_, catalog) => {
     const truth = TRUE[catalog.id]!;
@@ -211,12 +246,24 @@ describe("startOf", () => {
     expect(found.rss).toBeLessThan(1e-12);
   });
 
-  it("puts the knee of the hinge at a value of the variable or at a middle", () => {
+  it("refines the knee of the hinge between the values of its grid", () => {
     const found = start(form("hinge"), { x: XS, y: XS.map((x) => (x < 30 ? 1 : 1 + 2 * (x - 30))) });
     const knee = found.constants.find((constant) => constant.id === "knee")!.value;
-    expect(gridOf({ kind: "inside" }, XS)).toContain(knee);
-    expect(knee).toBeGreaterThanOrEqual(21);
-    expect(knee).toBeLessThanOrEqual(34);
+    // 30 is not on the grid: the grid has 21, 27.5 and 34 near it
+    expect(gridOf({ kind: "inside" }, XS)).not.toContain(30);
+    expect(knee).toBeCloseTo(30, 6);
+    expect(found.rss).toBeLessThan(1e-12);
+  });
+
+  it("refines the capacity of a queue between the values of its grid, past the largest load", () => {
+    const truth = { base: 3, scale: 2, capacity: 250 };
+    const found = start(form("queue"), { x: XS, y: values(form("queue"), XS, truth) });
+    for (const constant of found.constants) expect(constant.value).toBeCloseTo(truth[constant.id as keyof typeof truth], 4);
+  });
+
+  it("refuses a form with no start value of a shape constant", () => {
+    const result = startOf(form("queue"), { x: [0, 0, 0, 0], y: [1, 2, 3, 4] });
+    expect(result.tag === "err" && result.error).toContain('shape constant "capacity"');
   });
 
   it("refuses points that a fit cannot use", () => {
@@ -229,7 +276,8 @@ describe("startOf", () => {
   });
 
   // A form that holds another form as a special case fits at least as well. Least squares finds the
-  // best constants of the terms, and the grid of each larger form holds the smaller form.
+  // best constants of the terms, the grid of each larger form holds the smaller form, and the refine
+  // does not increase the sum of the squared residuals.
   it("orders the residuals of nested forms", () => {
     const nested: readonly (readonly [string, string])[] = [
       ["linear", "constant"],

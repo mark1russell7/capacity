@@ -1,5 +1,5 @@
 import { err, ok, type Result } from "@mark1russell7/optional";
-import { leastSquares } from "@mark1russell7/rigor-statistics";
+import { fitSeparable, SEPARABLE_MAX_COMBINATIONS, type SeparableFit, type SeparableModel } from "@mark1russell7/rigor-statistics";
 import { app, let_, lit, ref, v, type Expr } from "@mark1russell7/vex";
 import type { Constant, Form } from "./law.ts";
 import { valuesOf } from "./program.ts";
@@ -30,10 +30,23 @@ export type Grid =
   | { readonly kind: "inside" }
   | { readonly kind: "scaled"; readonly factors: readonly number[]; readonly power: number };
 
-/** A shape constant changes the shape of a form, not its size. A fit starts it at each value of its grid. */
+/**
+ * The bounds tell where the refine of a fit can move a shape constant. They come from the points of the fit.
+ *
+ * - `range` is from the least value of the variable to its largest value. A knee is inside the range.
+ * - `size` is from the largest size of the variable up. The capacity of a queue is past each load.
+ * - `least` is from `value` up.
+ */
+export type Bounds = { readonly kind: "range" } | { readonly kind: "size" } | { readonly kind: "least"; readonly value: number };
+
+/**
+ * A shape constant changes the shape of a form, not its size. A fit starts it at each value of its grid. Then the fit
+ * refines it inside its bounds. A shape with no bounds has no limit.
+ */
 export interface Shape {
   readonly id: string;
   readonly grid: Grid;
+  readonly bounds?: Bounds;
 }
 
 /**
@@ -77,6 +90,7 @@ const over = (a: Expr, b: Expr): Expr => app("divide", a, b);
 const less = (a: Expr, b: Expr): Expr => app("subtract", a, b);
 const square = (a: Expr): Expr => app("pow", a, lit(2));
 const scaled = (factors: readonly number[], power: number): Grid => ({ kind: "scaled", factors, power });
+const positive: Bounds = { kind: "least", value: 0 };
 
 /** The base term: a constant amount. Its slope is 0. */
 const base: Term = { constant: "base", basis: one, slope: zero };
@@ -133,7 +147,7 @@ export const FORMS: readonly CatalogForm[] = [
         slope: app("if", app("gt", x, v("knee")), one, zero),
       },
     ],
-    shapes: [{ id: "knee", grid: { kind: "inside" } }],
+    shapes: [{ id: "knee", grid: { kind: "inside" }, bounds: { kind: "range" } }],
   },
   {
     id: "queue",
@@ -146,7 +160,7 @@ export const FORMS: readonly CatalogForm[] = [
         slope: over(v("capacity"), square(less(v("capacity"), x))),
       },
     ],
-    shapes: [{ id: "capacity", grid: scaled([1.02, 1.05, 1.1, 1.2, 1.5, 2, 3, 5, 10], 1) }],
+    shapes: [{ id: "capacity", grid: scaled([1.02, 1.05, 1.1, 1.2, 1.5, 2, 3, 5, 10], 1), bounds: { kind: "size" } }],
   },
   {
     id: "scalability",
@@ -160,8 +174,8 @@ export const FORMS: readonly CatalogForm[] = [
       },
     ],
     shapes: [
-      { id: "contention", grid: scaled([0, 0.01, 0.03, 0.1, 0.2, 0.4, 0.7], 0) },
-      { id: "coherency", grid: scaled([0, 0.1, 0.3, 1, 3, 10], -2) },
+      { id: "contention", grid: scaled([0, 0.01, 0.03, 0.1, 0.2, 0.4, 0.7], 0), bounds: positive },
+      { id: "coherency", grid: scaled([0, 0.1, 0.3, 1, 3, 10], -2), bounds: positive },
     ],
   },
   {
@@ -176,7 +190,7 @@ export const FORMS: readonly CatalogForm[] = [
         slope: over(app("exp", app("negate", over(x, v("settle")))), v("settle")),
       },
     ],
-    shapes: [{ id: "settle", grid: scaled([0.01, 0.03, 0.1, 0.3, 1, 3], 1) }],
+    shapes: [{ id: "settle", grid: scaled([0.01, 0.03, 0.1, 0.3, 1, 3], 1), bounds: positive }],
   },
 ];
 
@@ -231,10 +245,13 @@ export const formSlopes = (
   constants: Readonly<Record<string, number>>,
 ): Result<readonly number[], string> => valuesOf(slopeOf(form, { variable: FORM_VARIABLE }), records(xs, constants));
 
+/** This function gives the largest size of the values of a variable. */
+const sizeOf = (xs: readonly number[]): number => xs.reduce((most, value) => Math.max(most, Math.abs(value)), 0);
+
 /** This function gives the candidates of a grid for the values of a variable. */
 export const gridOf = (grid: Grid, xs: readonly number[]): readonly number[] => {
   if (grid.kind === "scaled") {
-    const size = xs.reduce((most, value) => Math.max(most, Math.abs(value)), 0);
+    const size = sizeOf(xs);
     return grid.power === 0 ? grid.factors : size === 0 ? [] : grid.factors.map((factor) => factor * size ** grid.power);
   }
   const distinct = [...new Set(xs)].sort((a, b) => a - b);
@@ -244,46 +261,83 @@ export const gridOf = (grid: Grid, xs: readonly number[]): readonly number[] => 
   return [...distinct, ...middles].filter((value) => value > low && value < high).sort((a, b) => a - b);
 };
 
-/** This function gives each combination of one value from each list, in order. */
-const combinations = (lists: readonly (readonly number[])[]): readonly (readonly number[])[] =>
-  lists.reduce<readonly (readonly number[])[]>((done, list) => done.flatMap((head) => list.map((value) => [...head, value])), [[]]);
+/** This function gives the bounds of the refine of a shape constant for the values of a variable. */
+const boundsOf = (bounds: Bounds | undefined, xs: readonly number[]): { readonly min?: number; readonly max?: number } => {
+  if (bounds === undefined) return {};
+  if (bounds.kind === "least") return { min: bounds.value };
+  if (bounds.kind === "size") return { min: sizeOf(xs) };
+  return {
+    min: xs.reduce((least, value) => Math.min(least, value), Number.POSITIVE_INFINITY),
+    max: xs.reduce((most, value) => Math.max(most, value), Number.NEGATIVE_INFINITY),
+  };
+};
 
 /**
- * This function gives the start values of the constants of a form for a fit to some points.
+ * This function gives a form of the catalog as a separable model of `@mark1russell7/rigor-statistics`. Each term is
+ * one column of the design: the basis of the term at each point. The candidates and the bounds of each shape constant
+ * come from the values `xs` of the variable. The design is null when a basis has no finite value at a point.
+ */
+export const separableOf = (form: CatalogForm, xs: readonly number[]): SeparableModel<number> => {
+  const ids = form.shapes.map((shape) => shape.id);
+  // a basis reads the variable and the shape constants, not the constants of the terms
+  const bases = form.terms.map((term) => bind(ids, { variable: FORM_VARIABLE }, term.basis));
+  return {
+    terms: form.terms.map((term) => term.constant),
+    shapes: form.shapes.map((shape) => ({ id: shape.id, candidates: gridOf(shape.grid, xs), ...boundsOf(shape.bounds, xs) })),
+    design: (values, points) => {
+      const at = Object.fromEntries(ids.map((id, index) => [id, values[index] as number]));
+      const columns: (readonly number[])[] = [];
+      for (const basis of bases) {
+        const column = valuesOf(basis, records(points, at));
+        if (column.tag === "err") return null;
+        columns.push(column.value);
+      }
+      return points.map((_, row) => columns.map((column) => column[row] as number));
+    },
+  };
+};
+
+/** This function gives the constants of a form from a separable fit: the constant of each term, then each shape constant. */
+export const constantsOf = (form: CatalogForm, fit: Pick<SeparableFit, "coefficients" | "shapes">): readonly Constant[] => [
+  ...form.terms.map((term, index) => ({ id: term.constant, value: fit.coefficients[index] as number })),
+  ...form.shapes.map((shape, index) => ({ id: shape.id, value: fit.shapes[index] as number })),
+];
+
+/** This function gives the text of the first fault of the points of a fit, or undefined. */
+export const pointsProblem = (points: Points): string | undefined => {
+  if (points.x.length === 0) return "The fit has no points.";
+  if (points.x.length !== points.y.length) return `The points have ${points.x.length} values of x and ${points.y.length} values of y.`;
+  if (![...points.x, ...points.y].every(Number.isFinite)) return "A point has a value that is not a finite number.";
+  return undefined;
+};
+
+/** This function gives the text of the reason that the model of a form has no start, or undefined. */
+export const modelProblem = (form: CatalogForm, model: SeparableModel<number>): string | undefined => {
+  const empty = model.shapes.find((shape) => shape.candidates.length === 0);
+  if (empty !== undefined) return `The form "${form.id}" has no start value of its shape constant "${empty.id}" for these points.`;
+  const count = model.shapes.reduce((product, shape) => product * new Set(shape.candidates).size, 1);
+  if (count > SEPARABLE_MAX_COMBINATIONS) {
+    return `The form "${form.id}" has ${count} combinations of start values. The limit is ${SEPARABLE_MAX_COMBINATIONS}.`;
+  }
+  return undefined;
+};
+
+/**
+ * This function gives the least-squares fit of a form to some points, as the start values of its constants.
  *
- * For each combination of the grids of the shape constants, the least-squares fit gives the
- * constants of the terms. The start is the combination with the smallest sum of squared residuals.
- * A form with no shape constant has one combination, thus its start is its least-squares fit.
+ * The fit is `fitSeparable` of `@mark1russell7/rigor-statistics`. For each combination of the grids of the shape
+ * constants, the least-squares fit gives the constants of the terms. Then a golden-section search refines each shape
+ * constant inside its bounds. A form with no shape constant has one combination, thus its start is its least-squares fit.
  *
  * The function gives an error when no combination has a fit, for example with fewer points than terms.
  */
 export const startOf = (form: CatalogForm, points: Points): Result<Start, string> => {
-  if (points.x.length === 0) return err("The fit has no points.");
-  if (points.x.length !== points.y.length) return err(`The points have ${points.x.length} values of x and ${points.y.length} values of y.`);
-  if (![...points.x, ...points.y].every(Number.isFinite)) return err("A point has a value that is not a finite number.");
-  const shapes = form.shapes.map((shape) => shape.id);
-  let best: Start | undefined;
-  for (const values of combinations(form.shapes.map((shape) => gridOf(shape.grid, points.x)))) {
-    const at = Object.fromEntries(shapes.map((id, index) => [id, values[index] as number]));
-    const columns: (readonly number[])[] = [];
-    for (const term of form.terms) {
-      // a basis reads the variable and the shape constants, not the constants of the terms
-      const column = valuesOf(bind(shapes, { variable: FORM_VARIABLE }, term.basis), records(points.x, at));
-      if (column.tag === "err") break;
-      columns.push(column.value);
-    }
-    if (columns.length < form.terms.length) continue;
-    const rows = points.x.map((_, row) => columns.map((column) => column[row] as number));
-    const fit = leastSquares(rows, points.y, { intercept: false });
-    if (!fit.coefficients.every(Number.isFinite)) continue;
-    const rss = rows.reduce((sum, row, index) => {
-      const residual = (points.y[index] as number) - row.reduce((value, cell, column) => value + cell * (fit.coefficients[column] as number), 0);
-      return sum + residual * residual;
-    }, 0);
-    if (best === undefined || rss < best.rss) {
-      const linear = form.terms.map((term, index) => ({ id: term.constant, value: fit.coefficients[index] as number }));
-      best = { constants: [...linear, ...shapes.map((id) => ({ id, value: at[id] as number }))], rss };
-    }
-  }
-  return best === undefined ? err(`The form "${form.id}" has no least-squares fit to ${points.x.length} points.`) : ok(best);
+  const fault = pointsProblem(points);
+  if (fault !== undefined) return err(fault);
+  const model = separableOf(form, points.x);
+  const reason = modelProblem(form, model);
+  if (reason !== undefined) return err(reason);
+  const fit = fitSeparable(model, points.x, points.y);
+  if (fit === null) return err(`The form "${form.id}" has no least-squares fit to ${points.x.length} points.`);
+  return ok({ constants: constantsOf(form, fit), rss: fit.rss });
 };

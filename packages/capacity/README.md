@@ -8,7 +8,7 @@ This package has the performance and capacity models. A law gives one measure of
 
 | Entry | What it has |
 | --- | --- |
-| `@mark1russell7/capacity` | The records of a law, a workload, a composition, an instance type and a limit set, with their checks. It also has the value of a law and of a composition, the catalog of forms, the algebra of demands and the use of a limit. A browser can import it. |
+| `@mark1russell7/capacity` | The records of a law, a workload, a composition, an instance type and a limit set, with their checks. It also has the value of a law and of a composition, the catalog of forms, the fit of a law, the algebra of demands and the use of a limit. A browser can import it. |
 | `@mark1russell7/capacity/schema` | The schema of each file, with `readLaw`, `readWorkload`, `readComposition`, `readInstance` and `readLimits`. This entry needs `zod`. |
 
 The package holds the models and the rules. It measures nothing, and it reads no file.
@@ -204,6 +204,13 @@ A law has 8 variables at most.
 
 The `queue` form is the delay of a queue, and it has no finite value at its capacity. The `scalability` form is the universal scalability law of the throughput at a concurrency. The `drift` form is a measure over the age of a process: a warm-up that settles, and a steady drift.
 
+Each shape constant has a grid of start values and bounds. A fit refines the constant inside its bounds:
+
+- The `knee` is inside the range of the variable.
+- The `capacity` is past the largest load.
+- The `contention`, the `coherency` and the `settle` time are 0 or more.
+- The `exponent` has no bounds.
+
 ```ts
 import { catalogForm, formOf, slopeOf, startOf } from "@mark1russell7/capacity";
 
@@ -219,11 +226,33 @@ if (hinge !== undefined) {
 
 - `formOf` and `programOf` give the program of the value. `slopeOf` gives the program of the slope: the change of the value for each unit of the variable. A test compares each slope with a central difference of the value.
 - `formValues` and `formSlopes` evaluate the two programs at some values of the variable.
-- `startOf` gives the start values of a fit. For each value on the grid of each shape constant, `leastSquares` of `@mark1russell7/rigor-statistics` fits the constants of the terms. The start keeps the grid value with the smallest sum of squared residuals.
+- `startOf` gives the least-squares fit of one form. It is `fitSeparable` of `@mark1russell7/rigor-statistics`. At each value on the grid of each shape constant, least squares fits the constants of the terms. Then a golden-section search refines each shape constant inside its bounds.
+- `separableOf` gives a form as a separable model of `@mark1russell7/rigor-statistics`. Its design has one column for each term.
 
-A form that holds another form as a special case fits at least as well. For example, a hinge with `bend` 0 is a line. Thus the sum of the squared residuals of a hinge start is not larger than that of the line. A property test holds this order for six pairs of forms.
+A form that holds another form as a special case fits at least as well. For example, a hinge with `bend` 0 is a line. Thus the sum of the squared residuals of a hinge start is not larger than that of the line. The refine does not increase the sum. A property test holds this order for six pairs of forms.
 
-The fit of all the constants together, with intervals, is CAP-14 in `@mark1russell7/rigor-statistics`. The start values are its first point.
+## The fit of a law
+
+`fitLaw` fits a law of one variable to its points. It gives the form, the constants, the replicates and the record of the fit of a law.
+
+```ts
+import { fitLaw } from "@mark1russell7/capacity";
+
+const result = fitLaw({ x: rates, y: costs }, { binding: { variable: "rate" }, residual: "relative" });
+if (result.tag === "ok") {
+  const { form, constants, replicates, fit, ranks } = result.value;
+  // ranks: each form that competed, best first, with the error of its held-out residuals
+}
+```
+
+- **The rank:** each form of the catalog competes. The form with the smallest root mean square of its held-out residuals wins.
+- **The groups:** by default, the points of one load are one group. The held-out fit holds out each group, and the bootstrap draws whole groups. The option `groups` gives other groups.
+- **The replicates:** each run of the bootstrap fits the winner to a resample of the groups. The default is 1000 runs. A law needs 40 replicates for the level 0.95.
+- **The losers:** the record keeps each other form with a held-out prediction at each point. The list `ranks` also keeps each form with no fit, with its reason.
+- **A relative fit:** with `residual: "relative"`, the fit uses the weights `1 / y^2`. Thus it fits the ratios, not the differences.
+- **The interval of a knee:** `constantIntervals` gives the interval of each constant from the replicates. For a hinge, this is the interval of its knee.
+
+A test fits a hinge with its knee between two loads. The interval of the knee holds the true knee, and `checkLaw` finds no problem in the law.
 
 ## A workload
 
@@ -569,7 +598,7 @@ A limit set with no limit is correct. `instanceProblems(instance)` and `limitPro
 | Part | Home |
 | --- | --- |
 | Units and amounts | `@mark1russell7/quantity` |
-| Quantiles and least squares | `@mark1russell7/rigor-statistics` |
+| Quantiles, least squares, and the fit of a separable model with its bootstrap and held-out ranks | `@mark1russell7/rigor-statistics` |
 | Programs and their evaluation | `@mark1russell7/vex` and `@mark1russell7/vex-domains` |
 | A value or an error | `@mark1russell7/optional` |
 | The property tests of the algebra | `@mark1russell7/rigor-testkit` on `fast-check` |

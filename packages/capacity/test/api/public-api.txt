@@ -9,6 +9,7 @@
 type AmountCeiling: build/instance.chunk.d.ts#AmountCeiling
 type Amounts: build/instance.chunk.d.ts#Amounts
 type Binding: build/index.d.ts#Binding
+type Bounds: build/index.d.ts#Bounds
 COMPOSITION_FORMAT: build/instance.chunk.d.ts#COMPOSITION_FORMAT
 type Catalog: build/instance.chunk.d.ts#Catalog
 type CatalogForm: build/index.d.ts#CatalogForm
@@ -31,6 +32,7 @@ FORM_VARIABLE: build/index.d.ts#FORM_VARIABLE
 type Fit: build/instance.chunk.d.ts#Fit
 type FitError: build/instance.chunk.d.ts#FitError
 type Form: build/instance.chunk.d.ts#Form
+type FormRank: build/index.d.ts#FormRank
 type Grid: build/index.d.ts#Grid
 INSTANCE_FORMAT: build/instance.chunk.d.ts#INSTANCE_FORMAT
 type Instance: build/instance.chunk.d.ts#Instance
@@ -44,6 +46,8 @@ type KneeRule: build/index.d.ts#KneeRule
 LAW_FORMAT: build/instance.chunk.d.ts#LAW_FORMAT
 LIMITS_FORMAT: build/instance.chunk.d.ts#LIMITS_FORMAT
 type Law: build/instance.chunk.d.ts#Law
+type LawFit: build/index.d.ts#LawFit
+type LawFitOptions: build/index.d.ts#LawFitOptions
 type LawPart: build/instance.chunk.d.ts#LawPart
 type LawProblem: build/instance.chunk.d.ts#LawProblem
 type LawTerm: build/instance.chunk.d.ts#LawTerm
@@ -105,6 +109,7 @@ compositionValue: build/instance.chunk.d.ts#compositionValue
 constantIdsOf: build/index.d.ts#constantIdsOf
 constantIntervals: build/instance.chunk.d.ts#constantIntervals
 demandProblems: build/index.d.ts#demandProblems
+fitLaw: build/index.d.ts#fitLaw
 formOf: build/index.d.ts#formOf
 formSlopes: build/index.d.ts#formSlopes
 formValues: build/index.d.ts#formValues
@@ -125,6 +130,7 @@ mergeDemands: build/instance.chunk.d.ts#mergeDemands
 observedWorkload: build/index.d.ts#observedWorkload
 programOf: build/index.d.ts#programOf
 scaleDemand: build/instance.chunk.d.ts#scaleDemand
+separableOf: build/index.d.ts#separableOf
 shareOf: build/instance.chunk.d.ts#shareOf
 slopeOf: build/index.d.ts#slopeOf
 startOf: build/index.d.ts#startOf
@@ -152,6 +158,16 @@ interface Binding {
   readonly constants?: Readonly<Record<string, string>>;
 }
 
+### build/index.d.ts#Bounds
+type Bounds = {
+  readonly kind: "range";
+} | {
+  readonly kind: "size";
+} | {
+  readonly kind: "least";
+  readonly value: number;
+};
+
 ### build/index.d.ts#CatalogForm
 interface CatalogForm {
   readonly id: string;
@@ -172,6 +188,14 @@ export declare const FORMS: readonly CatalogForm[];
 
 ### build/index.d.ts#FORM_VARIABLE
 export declare const FORM_VARIABLE = "x";
+
+### build/index.d.ts#FormRank
+interface FormRank {
+  readonly form: string;
+  readonly error: FitError;
+  readonly missing: number;
+  readonly reason?: string;
+}
 
 ### build/index.d.ts#Grid
 type Grid = {
@@ -213,6 +237,21 @@ type KneeRule = {
   readonly kind: "slope";
   readonly factor: number;
 };
+
+### build/index.d.ts#LawFit
+interface LawFit extends Pick<Law, "form" | "constants" | "replicates" | "fit"> {
+  readonly ranks: readonly FormRank[];
+}
+
+### build/index.d.ts#LawFitOptions
+interface LawFitOptions {
+  readonly forms?: readonly CatalogForm[];
+  readonly binding?: Binding;
+  readonly residual?: ResidualKind;
+  readonly groups?: readonly SeparableGroup[];
+  readonly runs?: number;
+  readonly seed?: number;
+}
 
 ### build/index.d.ts#LimitUse
 interface LimitUse {
@@ -271,6 +310,7 @@ export declare const SLUG: RegExp;
 interface Shape {
   readonly id: string;
   readonly grid: Grid;
+  readonly bounds?: Bounds;
 }
 
 ### build/index.d.ts#Start
@@ -313,6 +353,9 @@ export declare const constantIdsOf: (form: CatalogForm) => readonly string[];
 ### build/index.d.ts#demandProblems
 export declare const demandProblems: (demand: Demand) => readonly WorkloadProblem[];
 
+### build/index.d.ts#fitLaw
+export declare const fitLaw: (points: Points, options?: LawFitOptions) => Result<LawFit, string>;
+
 ### build/index.d.ts#formOf
 export declare const formOf: (form: CatalogForm, binding: Binding) => Form;
 
@@ -351,6 +394,9 @@ export declare const observedWorkload: (observation: Observation, name: Workload
 
 ### build/index.d.ts#programOf
 export declare const programOf: (form: CatalogForm, binding: Binding) => Expr;
+
+### build/index.d.ts#separableOf
+export declare const separableOf: (form: CatalogForm, xs: readonly number[]) => SeparableModel<number>;
 
 ### build/index.d.ts#slopeOf
 export declare const slopeOf: (form: CatalogForm, binding: Binding) => Expr;
