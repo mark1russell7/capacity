@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import { START_FORMAT, type StartCase } from "./start.ts";
 
 /** This folder is the tree of the app of the tests: a contract, a `package.json`, a seed and an app. */
-export const FIXTURE = fileURLToPath(new URL("../test/fixtures/app-tree/", import.meta.url));
+export const FIXTURE: string = fileURLToPath(new URL("../test/fixtures/app-tree/", import.meta.url));
 
 const A = "a".repeat(40);
 const B = "b".repeat(40);
