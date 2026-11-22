@@ -348,7 +348,9 @@ A gate plan measures the subject again at some points of the laws of another pla
 - **The outcome.** `lawGate` of `@mark1russell7/capacity` counts the reads above and below the run range in each job. A side needs 2 jobs or more, and Holm corrects the family. A gate with too few reads gives "no read". No read is not a pass.
 - **The proof.** A case can add a CPU time to each request (`cost`, in us). A plan with a cost expects a block (`expectedOf`). Each other gate plan expects a pass.
 
-The plans `gate-rate` and `gate-rate-cost` measure 4 rates of the plan `rate` from 300 to 3000 requests each second, in 6 jobs each night. The second plan adds 100 us to each request, thus its gate must block. Thus each night shows that the gate can block, and that the subject agrees with its laws.
+The plans `gate-rate` and `gate-rate-cost` measure 4 rates of the plan `rate` from 300 to 3000 requests each second, in 12 jobs each night. The second plan adds 100 us to each request, thus its gate must block. Thus each night shows that the gate can block, and that the subject agrees with its laws.
+
+The count of jobs comes from the share of the CPU model of the laws. In the first run of the two plans, 5 of 12 jobs had the Intel Xeon 6975P-C. With 6 jobs, a night at that share gives no read of a plan 1 time in 5. With 12 jobs, the chance is less than 2 in 100. The item CAP-60 calculates the count of jobs from the share of each CPU model in the runs.
 
 The job `gate` of the workflow `lab.yml` starts after the jobs of the plans. It downloads the artifacts `lab-gate-*`, then it starts the command:
 

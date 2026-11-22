@@ -60,11 +60,11 @@ describe("the plan files of the lab", () => {
     expect(planMinutes(floor!)).toBe(SETUP_MINUTES + Math.ceil((10 * 4 * 50) / 60));
   });
 
-  it("have the two gate plans of the laws of the request rate, in 6 jobs each night: the second adds a cost and must block", () => {
+  it("have the two gate plans of the laws of the request rate, in 12 jobs each night: the second adds a cost and must block", () => {
     const { plans } = readPlans(PLANS);
     const [pass, block] = ["gate-rate", "gate-rate-cost"].map((id) => plans.find((each) => each.id === id)!);
     for (const each of [pass!, block!]) {
-      expect([each.check, each.gate, each.jobs, each.triggers]).toEqual(["gate", { laws: "rate" }, 6, ["schedule"]]);
+      expect([each.check, each.gate, each.jobs, each.triggers]).toEqual(["gate", { laws: "rate" }, 12, ["schedule"]]);
       expect(each.cases.map((value) => value.id)).toEqual([...FLOOR_IDS, "rate/300", "rate/1000", "rate/2000", "rate/3000"]);
       expect(gatePlanProblems(each, plans)).toEqual([]);
     }
