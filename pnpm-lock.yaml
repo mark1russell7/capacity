@@ -287,6 +287,9 @@ importers:
       '@mark1russell7/rigor-chaos':
         specifier: ^0.3.4
         version: 0.3.4
+      '@mark1russell7/rigor-generators':
+        specifier: ^0.2.0
+        version: 0.2.0
       '@mark1russell7/rigor-statistics':
         specifier: ^0.2.12
         version: 0.2.12

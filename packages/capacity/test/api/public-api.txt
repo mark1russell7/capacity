@@ -64,6 +64,7 @@ type Loser: build/instance.chunk.d.ts#Loser
 MAX_VARIABLES: build/instance.chunk.d.ts#MAX_VARIABLES
 type Measure: build/instance.chunk.d.ts#Measure
 type MetricsSource: build/instance.chunk.d.ts#MetricsSource
+NAME: build/index.d.ts#NAME
 NO_DEMAND: build/instance.chunk.d.ts#NO_DEMAND
 type NestedPart: build/instance.chunk.d.ts#NestedPart
 type NestedTerm: build/instance.chunk.d.ts#NestedTerm
@@ -74,6 +75,7 @@ type OpenRange: build/index.d.ts#OpenRange
 type Over: build/instance.chunk.d.ts#Over
 type PartValue: build/instance.chunk.d.ts#PartValue
 type PlanSource: build/instance.chunk.d.ts#PlanSource
+type PointLaw: build/instance.chunk.d.ts#PointLaw
 type PointOptions: build/instance.chunk.d.ts#PointOptions
 type Points: build/index.d.ts#Points
 type Problem: build/instance.chunk.d.ts#Problem
@@ -262,6 +264,9 @@ interface LimitUse {
   readonly use: number;
   readonly holds: boolean;
 }
+
+### build/index.d.ts#NAME
+export declare const NAME: RegExp;
 
 ### build/index.d.ts#Observation
 interface Observation {
@@ -676,6 +681,11 @@ interface PlanSource {
   readonly note: string;
 }
 
+### build/instance.chunk.d.ts#PointLaw
+interface PointLaw extends Pick<Law, "id"> {
+  readonly variables: readonly Pick<Variable, "id" | "unit">[];
+}
+
 ### build/instance.chunk.d.ts#PointOptions
 interface PointOptions {
   readonly load?: Load;
@@ -773,7 +783,7 @@ declare const compositionValue: (composition: Composition, catalog: Catalog, dem
 declare const constantIntervals: (law: Law, options?: LevelOptions) => Result<readonly ConstantInterval[], LawProblem>;
 
 ### build/instance.chunk.d.ts#instancePointOf
-declare const instancePointOf: (demand: Demand, law: Law, given?: Amounts) => Result<LoadPoint, WorkloadProblem>;
+declare const instancePointOf: (demand: Demand, law: PointLaw, given?: Amounts) => Result<LoadPoint, WorkloadProblem>;
 
 ### build/instance.chunk.d.ts#isLawTerm
 declare const isLawTerm: (term: CompositionTerm) => term is LawTerm;
@@ -785,7 +795,7 @@ declare const lawValue: (law: Law, point: LoadPoint, options?: LevelOptions) => 
 declare const leastCount: (level: number) => number;
 
 ### build/instance.chunk.d.ts#loadPointOf
-declare const loadPointOf: (demand: Demand, id: string, law: Law, given?: Amounts, options?: PointOptions) => Result<LoadPoint, WorkloadProblem>;
+declare const loadPointOf: (demand: Demand, id: string, law: PointLaw, given?: Amounts, options?: PointOptions) => Result<LoadPoint, WorkloadProblem>;
 
 ### build/instance.chunk.d.ts#mergeDemands
 declare const mergeDemands: (first: Demand, second: Demand) => Result<Demand, WorkloadProblem>;

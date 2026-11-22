@@ -7,6 +7,7 @@ import { errorMessage } from "@mark1russell7/text";
 import { caseProblems, type Case } from "./case.ts";
 import { windowOf } from "./cell.ts";
 import { CHECKS } from "./check.ts";
+import { lawSetProblems, type LawSet } from "./laws.ts";
 import { isStartCase, startCaseProblems, startWindowOf, type StartCase } from "./start.ts";
 
 /** This text is the format of a plan file. */
@@ -43,6 +44,8 @@ export const MAX_JOBS = 256;
  * The cases of one plan share one runner, thus one CPU model. Thus a check can compare two cases of
  * a plan, and the points of a law come from one machine. A case is a case of load (`capacity-case/1`)
  * or a start case (`capacity-start/1`). A check judges only the cases of load.
+ *
+ * The field `laws` tells the laws that the records of the plan give (`lawsOf`). A plan with no law set gives no law.
  */
 export interface Plan {
   readonly format: typeof PLAN_FORMAT;
@@ -53,10 +56,11 @@ export interface Plan {
   /** These triggers are the events that start the plan with no selection by hand. */
   readonly triggers: readonly PlanTrigger[];
   readonly cases: readonly (Case | StartCase)[];
+  readonly laws?: LawSet;
 }
 
 /** A plan problem code names the part of a plan that is not correct. */
-export type PlanProblemCode = "shape" | "format" | "id" | "check" | "trigger" | "case" | "time";
+export type PlanProblemCode = "shape" | "format" | "id" | "check" | "trigger" | "case" | "time" | "laws";
 
 /** A plan problem tells what is not correct, and where: `path` is the path of the field in the plan. */
 export type PlanProblem = Problem<PlanProblemCode>;
@@ -79,7 +83,7 @@ export const planMinutes = (plan: Plan): number => {
  *
  * It examines the format, the id, the title, the check and the triggers. It examines each case with
  * `caseProblems`, or a start case with `startCaseProblems`. The ids of the cases must differ. Then the time limit of the job of the plan
- * (`planMinutes`) must be `MAX_JOB_MINUTES` or less.
+ * (`planMinutes`) must be `MAX_JOB_MINUTES` or less. A plan with correct cases and a law set gets the problems of `lawSetProblems`.
  */
 export const planProblems = (plan: Plan): readonly PlanProblem[] => {
   if (!isRecord(plan)) return [problem("shape", "", "The plan is not a record.")];
@@ -113,6 +117,7 @@ export const planProblems = (plan: Plan): readonly PlanProblem[] => {
       ids.add(id);
     }
   });
+  if (problems.length === 0 && plan.laws !== undefined) problems.push(...lawSetProblems(plan.laws, plan.cases));
   if (problems.length === 0 && planMinutes(plan) > MAX_JOB_MINUTES) {
     problems.push(problem("time", "cases", `The job of the plan needs ${planMinutes(plan)} minutes. A job has at most ${MAX_JOB_MINUTES}. Put some cases in a second plan.`));
   }
