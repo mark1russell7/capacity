@@ -59,7 +59,7 @@ export const runParts = (argv: readonly string[]): RunParts => {
   return at === -1 ? { options: rest, script: undefined, args: [] } : { options: rest.slice(0, at), script: rest[at], args: rest.slice(at + 1) };
 };
 
-/** This function gives the values of the placeholders `{variable.<id>}` of a point: each amount in the unit of its store variable. */
+/** This function gives the values of the placeholders `{variable.<id>}` of a point: each amount in the unit of its variable. */
 export const variableValues = (app: AppContract, point: StartPoint): Readonly<Record<string, string>> =>
   Object.fromEntries(
     Object.entries(appVariables(app).variables).flatMap(([id, variable]) => {
@@ -113,10 +113,21 @@ export const readTreeApp = (tree: string, dir: string): TreeApp => {
   return { tree, app: read.value, engines };
 };
 
-/** This function gives the store variables of a contract by their ids, with their units and their ranges. */
-export const appVariables = (app: AppContract): StartVariables => ({
-  variables: Object.fromEntries(app.variables.filter((each) => each.kind === "store").map((each): [string, StartVariable] => [each.id, { unit: each.unit, min: each.min, max: each.max }])),
-});
+/**
+ * This function gives the variables of the points of an app case by their ids, with their units and their ranges. They are
+ * the store variables of the contract, and the level variables that its seed holds, for example the routes of a configuration.
+ */
+export const appVariables = (app: AppContract): StartVariables => {
+  const seeded = new Set(app.start.seed === undefined ? [] : commandPlaceholders(app.start.seed));
+  const named = app.variables.filter((each) => each.kind === "store" || (each.kind === "level" && seeded.has(`variable.${each.id}`)));
+  return { variables: Object.fromEntries(named.map((each): [string, StartVariable] => [each.id, { unit: each.unit, min: each.min, max: each.max }])) };
+};
+
+/** This function gives the amounts of a point for the level variables of `appVariables`. The point sets them, and the seed does not measure them. */
+export const levelsOf = (app: AppContract, point: StartPoint): Readonly<Record<string, Quantity>> => {
+  const levels = new Set(app.variables.filter((each) => each.kind === "level").map((each) => each.id));
+  return Object.fromEntries(Object.keys(appVariables(app).variables).flatMap((id) => (levels.has(id) && point.at[id] !== undefined ? [[id, point.at[id]]] : [])));
+};
 
 const problem = (code: StartProblem["code"], path: string, message: string): StartProblem => ({ code, path, message });
 
@@ -143,7 +154,8 @@ const runProblems = (tree: string, app: AppContract): readonly StartProblem[] =>
  * - The run starts `node`, because the program `app-start` imports the script of the run in its own process.
  * - The run has a script, and its options of Node hold no placeholder.
  * - The contract has no outside service. The lab does not start the fakes of services yet (CAP-64).
- * - The store variables of each contract are the variables of the points. Each amount is in the range of each contract.
+ * - The variables of the points are the store variables of each contract, and the level variables of its seed.
+ * - Each amount of a point is in the range of each contract.
  * - The Node of the target is in the range `engines.node` of each tree that has the field.
  */
 export const appCaseProblems = (value: StartCase, trees: readonly TreeApp[]): readonly StartProblem[] => {
@@ -165,12 +177,12 @@ export const appCaseProblems = (value: StartCase, trees: readonly TreeApp[]): re
     value.points.forEach((point, index) => {
       const path = `points[${index}].at`;
       for (const name of Object.keys(variables).filter((each) => !Object.hasOwn(point.at, each))) {
-        problems.push(problem("point", path, `The point does not name the store variable "${name}" of the contract of the tree "${tree}".`));
+        problems.push(problem("point", path, `The point does not name the variable "${name}" of the contract of the tree "${tree}".`));
       }
       for (const [name, amount] of Object.entries(point.at)) {
         const variable = Object.hasOwn(variables, name) ? variables[name] : undefined;
         if (variable === undefined) {
-          problems.push(problem("point", `${path}.${name}`, `${of} has no store variable "${name}".`));
+          problems.push(problem("point", `${path}.${name}`, `${of} has no store variable "${name}", and its seed holds no level variable "${name}".`));
         } else if (!isQuantity(amount) || !convertible(amount.unit, variable.unit)) {
           problems.push(problem("point", `${path}.${name}`, `"${name}" is not an amount in a unit that converts to "${variable.unit}".`));
         } else {
@@ -222,7 +234,8 @@ export const seedAmountsOf = (stdout: string, app: AppContract): Readonly<Record
   const amounts = isRecord(line) ? line["amounts"] : undefined;
   if (!isRecord(amounts)) throw new Error(`The last line of the seed of "${app.id}" has no record "amounts".`);
   const out: Record<string, Quantity> = {};
-  for (const [id, variable] of Object.entries(appVariables(app).variables)) {
+  for (const variable of app.variables.filter((each) => each.kind === "store")) {
+    const { id } = variable;
     const amount = amounts[id];
     if (typeof amount !== "number" || !Number.isFinite(amount) || amount < 0) throw new Error(`The seed of "${app.id}" gave no amount of 0 or more for the store variable "${id}".`);
     out[id] = quantity(amount, variable.unit);

@@ -12,6 +12,7 @@ import {
   appVariables,
   fillCommand,
   hostCommand,
+  levelsOf,
   readTreeApp,
   runParts,
   seedAmountsOf,
@@ -103,6 +104,23 @@ describe("appCaseProblems", () => {
     expect(at([{ id: "more", at: { log: { value: 1, unit: "KiB" }, shapes: { value: 1, unit: "KiB" } } }])).toEqual(["point points[0].at.shapes"]);
     expect(at([{ id: "big", at: { log: { value: 2, unit: "MiB" } } }])).toEqual(["point points[0].at.log"]);
     expect(at([{ id: "count", at: { log: { value: 2, unit: "s" } } }])).toEqual(["point points[0].at.log"]);
+  });
+
+  it("gives the points the level variables of the seed, and gives the amounts of the seed only the store variables", () => {
+    const { app } = tree();
+    const level = (id: string) => ({ id, title: `The ${id} of the configuration`, kind: "level", unit: "{route}", min: 1, max: 100, scale: "log" }) as const;
+    const seed = { ...app.start.seed!, argv: [...app.start.seed!.argv, "--routes", "{variable.routes}"] };
+    const leveled = changed({ variables: [...app.variables, level("routes"), level("quiet")], start: { ...app.start, seed } });
+    expect(appVariables(leveled.app)).toEqual({ variables: { log: { unit: "B", min: 0, max: 1048576 }, routes: { unit: "{route}", min: 1, max: 100 } } });
+    const point = { id: "routed", at: { log: { value: 1, unit: "KiB" }, routes: { value: 10, unit: "{route}" } } };
+    expect(variableValues(leveled.app, point)).toEqual({ "variable.log": "1024", "variable.routes": "10" });
+    expect(levelsOf(leveled.app, point)).toEqual({ routes: { value: 10, unit: "{route}" } });
+    expect(seedAmountsOf('{"amounts":{"log":1024}}', leveled.app)).toEqual({ log: { value: 1024, unit: "B" } });
+    const at = (points: StartCase["points"]): readonly string[] => codes(appCaseProblems({ ...APP_CASE, points }, [leveled]));
+    expect(at([point])).toEqual([]);
+    expect(at([{ id: "unrouted", at: { log: { value: 1, unit: "KiB" } } }])).toEqual(["point points[0].at"]);
+    expect(at([{ id: "quiet", at: { ...point.at, quiet: { value: 1, unit: "{route}" } } }])).toEqual(["point points[0].at.quiet"]);
+    expect(at([{ id: "far", at: { ...point.at, routes: { value: 1000, unit: "{route}" } } }])).toEqual(["point points[0].at.routes"]);
   });
 
   it("examines each tree: a problem of the seeder tree has its id", () => {
