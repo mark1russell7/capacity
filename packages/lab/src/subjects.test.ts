@@ -5,6 +5,7 @@ import { basename, join } from "node:path";
 import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
 import { afterAll, describe, expect, it } from "vitest";
+import { APP_START_PROGRAM } from "./start-app.ts";
 import { ALERTS } from "./subject/alerts.ts";
 import { NODE_HTTP, SUBJECT_FOLDER, subjectFiles } from "./subjects.ts";
 
@@ -40,12 +41,13 @@ const start = (args: readonly string[]): { child: ChildProcess; next: () => Prom
 };
 
 describe("NODE_HTTP", () => {
-  it("names each file of the folder of the subjects in one subject, and its program is one of them", () => {
+  it("names each file of the folder of the subjects in one subject or as the start program of an app, and its program is one of them", () => {
     const folder = fileURLToPath(new URL("./subject/", import.meta.url));
     const programs = readdirSync(folder).filter((name) => name.endsWith(".ts") && !name.endsWith(".test.ts"));
-    // The folder holds two subjects. The subject of alerts has its declaration and its two programs. Each file is in one subject.
+    // The folder holds two subjects and the start program of the app cases. The subject of alerts has its declaration and its
+    // two programs. Each file is in one subject, or it is the program of the app cases.
     const alerts = ["alerts.ts", ALERTS.seed, ALERTS.start];
-    expect([...NODE_HTTP.files, ...alerts].sort()).toEqual(programs.sort());
+    expect([...NODE_HTTP.files, ...alerts, APP_START_PROGRAM].sort()).toEqual(programs.sort());
     expect(NODE_HTTP.files).toContain(NODE_HTTP.program);
     expect(NODE_HTTP.image).toMatch(/^node:\d+\.\d+\.\d+-alpine@sha256:[0-9a-f]{64}$/);
   });

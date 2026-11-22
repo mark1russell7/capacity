@@ -19,7 +19,7 @@ import { RATE, type Workload } from "./workload.ts";
 const HTTPS = /^https:\/\/[^\s/?#@]+(?:[/?#]\S*)?$/i;
 
 /** This function tells if a text is an HTTPS URL. The package uses no global of a browser or of Node.js. */
-const isHttps = (text: string): boolean => HTTPS.test(text);
+export const isHttps = (text: string): boolean => HTTPS.test(text);
 
 /** This function makes a problem of a contract or of a workload against a contract. */
 const appProblem = (code: AppProblem["code"], path: string, message: string): AppProblem => ({ code, path, message });

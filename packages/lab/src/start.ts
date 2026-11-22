@@ -1,4 +1,4 @@
-import { SLUG, type Amounts, type Problem } from "@mark1russell7/capacity";
+import { SLUG, isHttps, type Amounts, type Problem } from "@mark1russell7/capacity";
 import { isRecord } from "@mark1russell7/optional/read";
 import { convertible, isQuantity, kindOf, quantity, valueIn, type Quantity } from "@mark1russell7/quantity";
 import { MIN_CONTAINER_MEMORY } from "@mark1russell7/rigor-bench/fresh";
@@ -102,6 +102,9 @@ export interface StartSubject {
   /** This name is the file of the start program, in the folder `src/subject`. */
   readonly start: string;
 }
+
+/** The variables of a store, by their names: the variables of a subject, or the store variables of the contract of an app. */
+export type StartVariables = Pick<StartSubject, "variables">;
 
 /** These subjects are the start subjects that a start case can name, by their names. */
 export const START_SUBJECTS: Readonly<Record<string, StartSubject>> = { [ALERTS.name]: ALERTS };
@@ -237,8 +240,14 @@ export interface StartCase {
   readonly format: typeof START_FORMAT;
   readonly id: string;
   readonly title: string;
-  /** This name is the name of a subject of `START_SUBJECTS`. */
+  /** This name is the name of a subject of `START_SUBJECTS`, or the id of the contract of the app of the field `app`. */
   readonly subject: string;
+  /**
+   * This URL is the public HTTPS URL of the repository of an app with a contract file, `capacity-app.json`. Then the contract
+   * at each arm gives the steps of the start, and the lab program `app-start` starts the app. The default is no app: the
+   * subject is a subject of `START_SUBJECTS`.
+   */
+  readonly app?: string;
   /** This commit is the tree of the seed program. Each arm opens the same stores. */
   readonly seeder: string;
   readonly arms: readonly StartArm[];
@@ -285,7 +294,7 @@ const isRepositoryPath = (path: unknown): path is string =>
   typeof path === "string" && path !== "" && !path.startsWith("/") && path.split("/").every((part) => part !== "" && part !== "." && part !== ".." && !part.includes("\\"));
 
 /** This function gives the problems of the arms of a start case. */
-const armProblems = (arms: unknown): readonly StartProblem[] => {
+const armProblems = (arms: unknown, app: boolean): readonly StartProblem[] => {
   if (!Array.isArray(arms) || arms.length < 2) return [problem("arm", "arms", "The case has fewer than 2 arms. The first arm is the base, and each other arm is compared with it.")];
   const problems: StartProblem[] = [];
   const ids = new Set<string>();
@@ -301,7 +310,11 @@ const armProblems = (arms: unknown): readonly StartProblem[] => {
     else ids.add(id);
     if (typeof commit !== "string" || !COMMIT.test(commit)) problems.push(problem("commit", `${path}.commit`, "The commit is not 40 lower-case hexadecimal digits."));
     problems.push(...ballastProblems(ballast, `${path}.ballast`, "arm"));
-    if (snapshot !== undefined && typeof snapshot !== "boolean") problems.push(problem("arm", `${path}.snapshot`, "The field snapshot is not true or false."));
+    if (app && snapshot !== undefined) {
+      problems.push(problem("arm", `${path}.snapshot`, "An arm of an app case has no field snapshot. The run of the contract of the app tells if it reads a snapshot."));
+    } else if (snapshot !== undefined && typeof snapshot !== "boolean") {
+      problems.push(problem("arm", `${path}.snapshot`, "The field snapshot is not true or false."));
+    }
     if (graft === undefined) return;
     if (!Array.isArray(graft)) {
       problems.push(problem("arm", `${path}.graft`, "The graft is not a list."));
@@ -318,8 +331,25 @@ const armProblems = (arms: unknown): readonly StartProblem[] => {
   return problems;
 };
 
+/**
+ * The scope of the points of a start case: the name of the subject and its variables. The variables of an app case are
+ * the variables that its first point names, with no range. The measure reads the ranges from the contract of the app.
+ */
+interface PointScope extends StartVariables {
+  readonly name: string;
+  readonly ranged: boolean;
+}
+
+/** This function gives the variables that the first point of an app case names: each amount, in its unit. The range starts at 0 and has no end. */
+const appVariablesOf = (points: unknown): Readonly<Record<string, StartVariable>> => {
+  const first: unknown = Array.isArray(points) ? points[0] : undefined;
+  const at = isRecord(first) ? first["at"] : undefined;
+  if (!isRecord(at)) return {};
+  return Object.fromEntries(Object.entries(at).flatMap(([name, amount]) => (isQuantity(amount) ? [[name, { unit: amount.unit, min: 0, max: Infinity }]] : [])));
+};
+
 /** This function gives the problems of the points of a start case for its subject. */
-const pointProblems = (points: unknown, subject: StartSubject | undefined): readonly StartProblem[] => {
+const pointProblems = (points: unknown, subject: PointScope | undefined): readonly StartProblem[] => {
   if (!Array.isArray(points) || points.length === 0) return [problem("point", "points", "The case has no point. A case measures one store or more.")];
   const problems: StartProblem[] = [];
   const ids = new Set<string>();
@@ -342,14 +372,22 @@ const pointProblems = (points: unknown, subject: StartSubject | undefined): read
       }
     }
     if (subject === undefined) return;
+    if (!subject.ranged) {
+      // Each point of an app case names the same variables: the store variables of the app.
+      for (const name of Object.keys(subject.variables).filter((each) => !Object.hasOwn(at, each))) {
+        problems.push(problem("point", `${path}.at`, `The point does not name "${name}". Each point of an app case names the variables of its first point.`));
+      }
+    }
     for (const [name, amount] of Object.entries(at)) {
       const where = `${path}.at.${name}`;
       const variable = Object.hasOwn(subject.variables, name) ? subject.variables[name] : undefined;
       if (variable === undefined) {
-        problems.push(problem("point", where, `The subject "${subject.name}" has no variable "${name}". Its variables are ${Object.keys(subject.variables).join(", ")}.`));
+        const known = Object.keys(subject.variables).join(", ");
+        const why = subject.ranged ? `The subject "${subject.name}" has no variable "${name}". Its variables are ${known}.` : `The first point of the app case does not name "${name}". It names ${known}.`;
+        problems.push(problem("point", where, why));
       } else if (!isQuantity(amount) || !convertible(amount.unit, variable.unit)) {
         problems.push(problem("point", where, `"${name}" is not an amount in a unit that converts to "${variable.unit}".`));
-      } else {
+      } else if (subject.ranged) {
         const value = valueIn(amount, variable.unit);
         if (!(value >= variable.min && value <= variable.max)) {
           problems.push(problem("point", where, `"${name}" is ${value} ${variable.unit}. It must be from ${variable.min} to ${variable.max} ${variable.unit}.`));
@@ -374,10 +412,21 @@ export const startCaseProblems = (value: StartCase): readonly StartProblem[] => 
   if (value.format !== START_FORMAT) problems.push(problem("format", "format", `The format is not "${START_FORMAT}".`));
   if (typeof value.id !== "string" || !SLUG.test(value.id)) problems.push(problem("id", "id", 'The id is not lower-case words joined by ".", "-" or "/".'));
   if (typeof value.title !== "string" || value.title.trim() === "") problems.push(problem("id", "title", "The case has no title."));
-  const subject = typeof value.subject === "string" && Object.hasOwn(START_SUBJECTS, value.subject) ? START_SUBJECTS[value.subject] : undefined;
-  if (subject === undefined) problems.push(problem("subject", "subject", `The subject is not one of ${Object.keys(START_SUBJECTS).join(", ")}.`));
+  const app = value.app !== undefined;
+  let scope: PointScope | undefined;
+  if (app) {
+    if (typeof value.app !== "string" || !isHttps(value.app)) problems.push(problem("subject", "app", "The app is not the HTTPS URL of a repository."));
+    if (typeof value.subject !== "string" || !SLUG.test(value.subject)) {
+      problems.push(problem("subject", "subject", 'The subject of an app case is the id of its contract: lower-case words joined by ".", "-" or "/".'));
+    }
+    scope = { name: String(value.subject), variables: appVariablesOf(value.points), ranged: false };
+  } else {
+    const subject = typeof value.subject === "string" && Object.hasOwn(START_SUBJECTS, value.subject) ? START_SUBJECTS[value.subject] : undefined;
+    if (subject === undefined) problems.push(problem("subject", "subject", `The subject is not one of ${Object.keys(START_SUBJECTS).join(", ")}.`));
+    else scope = { ...subject, ranged: true };
+  }
   if (typeof value.seeder !== "string" || !COMMIT.test(value.seeder)) problems.push(problem("commit", "seeder", "The seeder is not a commit of 40 lower-case hexadecimal digits."));
-  problems.push(...armProblems(value.arms), ...pointProblems(value.points, subject));
+  problems.push(...armProblems(value.arms, app), ...pointProblems(value.points, scope));
   if (typeof value.seed !== "string" || value.seed.trim() === "") problems.push(problem("seed", "seed", "The case has no seed: a text that is not empty."));
   if (!Number.isInteger(value.rounds) || value.rounds < 1 || value.rounds > MAX_START_ROUNDS) {
     problems.push(problem("rounds", "rounds", `The count of rounds is not a whole number from 1 to ${MAX_START_ROUNDS}.`));
@@ -500,15 +549,15 @@ const amountOf = (at: Readonly<Record<string, unknown>>, name: string, variable:
 };
 
 /** This function gives the amount of each variable of the subject at a point: the amount of the point, or the `min` of the variable. */
-export const pointAmounts = (subject: StartSubject, point: StartPoint): Readonly<Record<string, number>> =>
+export const pointAmounts = (subject: StartVariables, point: StartPoint): Readonly<Record<string, number>> =>
   Object.fromEntries(Object.entries(subject.variables).map(([name, variable]) => [name, amountOf(point.at, name, variable)]));
 
 /** This function tells if two records of amounts give the same amount of each variable of a subject. A variable that a record does not name has its `min`. */
-const sameAmounts = (subject: StartSubject, a: unknown, b: unknown): boolean =>
+const sameAmounts = (subject: StartVariables, a: unknown, b: unknown): boolean =>
   isRecord(a) && isRecord(b) && Object.entries(subject.variables).every(([name, variable]) => amountOf(a, name, variable) === amountOf(b, name, variable));
 
 /** This function gives the byte size of a point: the sum of the amounts of the variables in a unit of data. */
-export const pointBytes = (subject: StartSubject, point: StartPoint): number =>
+export const pointBytes = (subject: StartVariables, point: StartPoint): number =>
   Object.entries(pointAmounts(subject, point)).reduce((sum, [name, amount]) => {
     const { unit } = subject.variables[name]!;
     return sum + (convertible(unit, "B") ? valueIn(quantity(amount, unit), "B") : 0);
@@ -523,6 +572,9 @@ export const startSubjectOf = (value: StartCase): StartSubject => {
   if (subject === undefined) throw new RangeError(`The lab has no start subject "${value.subject}".`);
   return subject;
 };
+
+/** This function gives the variables of the points of a start case: the variables of its subject, or the variables that the first point of an app case names. */
+export const startVariablesOf = (value: StartCase): StartVariables => (value.app === undefined ? startSubjectOf(value) : { variables: appVariablesOf(value.points) });
 
 /** This function gives the count of the trees of a start case: one for each arm. The seeder gets one more tree when no arm without a graft has its commit. */
 export const treesOf = (value: StartCase): number => value.arms.length + (value.arms.some((arm) => arm.commit === value.seeder && (arm.graft ?? []).length === 0) ? 0 : 1);
@@ -542,7 +594,7 @@ export const firstStartsOf = (value: StartCase): number => value.points.filter((
  * The longest child is the limit, the watch and `CHILD_MARGIN`. A job in this time cannot stop a child. A point with the field `after` has no seed.
  */
 export const startWindowOf = (value: StartCase): Quantity => {
-  const subject = startSubjectOf(value);
+  const subject = startVariablesOf(value);
   const bytes = value.points.filter((point) => point.after === undefined).reduce((sum, point) => sum + pointBytes(subject, point), 0);
   const child = valueIn(value.limit, "s") + valueIn(value.watch, "s") + valueIn(CHILD_MARGIN, "s");
   const steps = IMAGE_STEPS * valueIn(IMAGE_MARGIN, "s") + (treesOf(value) + checksOf(value)) * valueIn(TREE_MARGIN, "s");

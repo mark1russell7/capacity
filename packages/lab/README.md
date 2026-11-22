@@ -368,7 +368,8 @@ A start case measures the start of an application, not its load. It gives the ti
 
 | Field | What it is |
 | --- | --- |
-| `subject` | The name of a subject of `START_SUBJECTS`. A subject is data: its repository, its install command, its type check, its variables and its two programs. |
+| `subject` | The name of a subject of `START_SUBJECTS`, or the id of the contract of an app. A subject is data: its repository, its install command, its type check, its variables and its two programs. |
+| `app` | The HTTPS URL of the repository of an app with a contract file. The default is no app. Refer to the app cases. |
 | `seeder` | The commit of the tree that writes the stores. Each arm opens the same stores. |
 | `arms` | 2 trees or more of the subject, each at a commit. The first arm is the base. A `graft` puts a file of another commit into a tree. An arm can also have `ballast` and `snapshot`. |
 | `points` | The stores of the case. A point gives an amount of each variable of the subject, for example the byte size of the log. A point with `after` is a second start. |
@@ -390,6 +391,28 @@ A start case measures the start of an application, not its load. It gives the ti
 4. `freshRun` of `@mark1russell7/rigor-bench/fresh` starts the children in the order `arms`, with the scope `child`. Each round starts one child of each arm and one A/A child of the base, on each point.
 
 Each child is the start program in a new container of the target, with the Node of the image and `--expose-gc`. The container has the memory, the swap and the CPUs of the target. Node sizes the heap of V8 from the memory limit of the container, as on the target. The child copies the store and opens the copy with no network and no key. It is ready at the end of its first pass. Then it reads its memory and does the passes of a live loop for the time of the watch.
+
+### The app cases
+
+An app case has the field `app`: the HTTPS URL of the repository of an app with a contract file, `capacity-app.json`. Its `subject` is the id of the contract. The contract of each tree gives the steps of the start. Thus the lab has no subject record for the app.
+
+- The commands `install` and `check` of the contract replace the install and the type check of a subject. They start on the host, in the tree.
+- The command `seed` writes the store of each point. The lab gives it `{store}` and the amount of each store variable, in the unit of the variable.
+- The last line of the output of the seed is a JSON record. Its field `amounts` gives the amount of each store variable that the seed wrote.
+- The command `run` starts `node`. The lab writes a run file for each arm. The child is the program `app-start`, with the options of Node of the command `run`.
+- `app-start` sets the arguments, the folder and the environment of the command `run`. Then it imports the script in its own process. Thus the container holds only the process of the app, as on the target.
+- The app is ready at its ready signal: a line of its output, or the status 200 of a path on a free port.
+- After the watch, `app-start` sends SIGTERM to its process and measures the close. An app with no listener of SIGTERM has no close time.
+
+An app has no pass of the lab. Thus `limit` is the longest start to the ready signal, and a reading of an app has no first pass.
+
+The lab examines the contract of each tree before the seed, with `appCaseProblems`:
+
+- Each point names each store variable of the contract, in the range of the contract.
+- The Node of the target is in the range `engines.node` of the `package.json` of the tree.
+- The options of Node of the command `run` hold no placeholder. An option with a value has the form `--name=value`.
+- The command `run` does not set `NODE_OPTIONS`, because the process of the app has started when it sets the environment.
+- The contract has no outside service. The lab does not start the fakes of services yet (CAP-64).
 
 ### The machine model
 

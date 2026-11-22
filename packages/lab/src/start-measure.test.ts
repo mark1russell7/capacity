@@ -1,10 +1,12 @@
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { ChildExit, ContainerOptions, FreshSkip, StartChild } from "@mark1russell7/rigor-bench/fresh";
 import { afterEach, describe, expect, it } from "vitest";
+import { APP_CASE, FIXTURE } from "./app-fixtures.ts";
 import { START_FORMAT, type StartCase } from "./start.ts";
+import { APP_START_PROGRAM, RUN_SLOTS, type AppRunFile } from "./start-app.ts";
 import {
   CHECK_PROGRAM,
   START_RECORD_FORMAT,
@@ -359,6 +361,78 @@ const MODEL: StartCase = {
 };
 
 /** This disk of the host puts the data of Docker on `/dev/sda` and each other path on `/dev/sdb`, and it counts the drops of the page cache. */
+const APP_START = fileURLToPath(new URL(`./subject/${APP_START_PROGRAM}`, import.meta.url));
+
+/** This start answers each command of the host for the app of the tests. The checkout of a tree gives the files of the app. */
+const fakeAppStart = (calls: Call[], contract: (text: string) => string = (text) => text): StartChild =>
+  async (argv, options) => {
+    calls.push({ argv, cwd: options.cwd, timeoutMs: options.timeoutMs });
+    if (argv[0] === "docker" && argv[1] === "image") return ok(`${ID} ${JSON.stringify([DIGEST])}\n`);
+    if (argv[0] === "docker" && argv[1] === "info") return ok("/var/lib/docker\n");
+    if (argv[0] === "git" && argv.includes("FETCH_HEAD")) {
+      const tree = argv[2]!;
+      cpSync(FIXTURE, tree, { recursive: true });
+      writeFileSync(join(tree, "capacity-app.json"), contract(readFileSync(join(tree, "capacity-app.json"), "utf8")));
+    }
+    if (argv.includes("seed.mjs")) return ok(`The seed wrote the log.\n${JSON.stringify({ amounts: { log: Number(flagOf(argv, "log")) } })}\n`);
+    return ok("");
+  };
+
+/** This container gives the check line to the check child, and the line of the program app-start to each child: an app has no pass. */
+const fakeAppContainer = (calls: Call[]) => (): StartChild => async (argv, limits) => {
+  calls.push({ argv, cwd: limits.cwd, timeoutMs: limits.timeoutMs });
+  if (argv[1] === "-e") return ok(`${JSON.stringify(CHECK)}\n`);
+  const line = JSON.parse(startLine(basename(flagOf(argv, "run"), ".json"), flagOf(argv, "case"), argv)) as Record<string, unknown>;
+  return ok(`${JSON.stringify({ ...line, firstPass: null, passes: null, closeMs: null, closeCode: null })}\n`);
+};
+
+/** The case of the app of the tests, with the target of the fake check. */
+const APP: StartCase = { ...APP_CASE, target: CASE.target };
+
+describe("measureStart of an app case", () => {
+  it("installs each tree and seeds each point from the contract, writes the run of each arm, and starts the program app-start", async () => {
+    const calls: Call[] = [];
+    const inside: Call[] = [];
+    const folder = work();
+    const { record } = await measureStart(APP, { work: folder, start: fakeAppStart(calls), container: fakeAppContainer(inside), host: HOST, now: clock() });
+    const tree = (id: string): string => join(folder, "trees", id);
+    const store = (id: string): string => join(folder, "stores", id);
+
+    expect(calls.filter((call) => call.argv[0] === "git" && call.argv[3] === "remote").map((call) => call.argv.at(-1))).toEqual([APP.app, APP.app]);
+    // The seeder has the commit of the plain arm base, thus the case has no tree of the seeder.
+    expect(record.trees.map((each) => each.id)).toEqual(["base", "new"]);
+    expect(calls.filter((call) => call.argv.join(" ") === "node --version").map((call) => call.cwd)).toEqual([tree("base"), tree("new")]);
+    const seeds = calls.filter((call) => call.argv.includes("seed.mjs"));
+    expect(seeds.map((call) => [call.argv, call.cwd])).toEqual([
+      [["env", "FIXTURE_SEED=1", "node", "seed.mjs", "--out", store("small"), "--log", "1024"], tree("base")],
+      [["env", "FIXTURE_SEED=1", "node", "seed.mjs", "--out", store("large"), "--log", String(512 * 1024)], tree("base")],
+    ]);
+    expect(record.points.map((point) => [point.id, point.sizes, point.events, point.args])).toEqual([
+      ["small", { log: { value: 1024, unit: "B" } }, undefined, []],
+      ["large", { log: { value: 512 * 1024, unit: "B" } }, undefined, []],
+    ]);
+
+    const run = JSON.parse(readFileSync(join(folder, "runs", "new.json"), "utf8")) as AppRunFile;
+    expect(run).toMatchObject({ app: "fixture-app", script: join(tree("new"), "app.mjs"), args: ["--store", RUN_SLOTS.store], slots: { store: RUN_SLOTS.store } });
+    const children = inside.filter((call) => call.argv.includes(APP_START));
+    expect(children).toHaveLength(2 * 3);
+    const first = children.find((call) => call.cwd === tree("new"))!;
+    const point = flagOf(first.argv, "case");
+    expect(first.argv).toEqual(["node", "--expose-gc", "--max-semi-space-size=1", APP_START, "--run", join(folder, "runs", "new.json"), "--case", point, "--seeded", store(point), "--watch", "2000"]);
+    // A reading of an app has no first pass, and the record needs none.
+    expect(record.readings.every((reading) => reading.measures.firstPass === null)).toBe(true);
+    expect(record.failures).toEqual([]);
+    expect(startRecordProblems(record)).toEqual([]);
+  });
+
+  it("throws before the seed for a tree whose contract does not fit the case", async () => {
+    const calls: Call[] = [];
+    const other = (text: string): string => text.replace('"id": "fixture-app"', '"id": "other-app"');
+    await expect(measureStart(APP, { work: work(), start: fakeAppStart(calls, other), container: fakeAppContainer([]), host: HOST })).rejects.toThrow(/has the id "other-app"/);
+    expect(calls.some((call) => call.argv.includes("seed.mjs"))).toBe(false);
+  });
+});
+
 const fakeDisk = (drops: string[]): HostDisk => ({
   of: (path) => (path === "/var/lib/docker" ? "/dev/sda" : "/dev/sdb"),
   drop: async () => {

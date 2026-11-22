@@ -1,0 +1,30 @@
+{
+  "format": "capacity-app/1",
+  "id": "fixture-app",
+  "title": "The app of the tests of the lab program app-start",
+  "repository": "https://github.com/example/fixture-app.git",
+  "variables": [
+    {
+      "id": "log",
+      "title": "The bytes of the log of the store",
+      "kind": "store",
+      "unit": "B",
+      "min": 0,
+      "max": 1048576,
+      "scale": "linear"
+    }
+  ],
+  "classes": [],
+  "start": {
+    "install": { "argv": ["node", "--version"], "cwd": ".", "env": {} },
+    "seed": { "argv": ["node", "seed.mjs", "--out", "{store}", "--log", "{variable.log}"], "cwd": ".", "env": { "FIXTURE_SEED": "1" } },
+    "run": {
+      "argv": ["node", "--max-semi-space-size=1", "app.mjs", "--store", "{store}"],
+      "cwd": ".",
+      "env": { "FIXTURE_STORE": "{store}" },
+      "ready": { "kind": "line", "text": "fixture ready" }
+    }
+  },
+  "services": [],
+  "metrics": []
+}
