@@ -294,12 +294,21 @@ export const selectPlans = (plans: readonly Plan[], selection: Selection): reado
   return chosen;
 };
 
-/** An entry of the matrix of the workflow: one run of one plan, with the time limit of its job. */
+/** An entry of the matrix of the workflow is one run of one plan. It has the time limit of its job and the swap of its runner. */
 export interface MatrixEntry {
   readonly plan: string;
   readonly run: number;
   readonly minutes: number;
+  /** This amount is the swap that the runner needs, in bytes (`planSwap`). The workflow adds a swap file when the runner has less. */
+  readonly swap: number;
 }
+
+/**
+ * This function gives the swap that the runner of a plan needs, in bytes: the most swap of the target of a start case. A plan
+ * with no start case, or with targets with no swap, gives 0. The check child of a start case refuses a host with less swap.
+ */
+export const planSwap = (plan: Plan): number =>
+  plan.cases.filter(isStartCase).reduce((most, value) => Math.max(most, valueIn(value.target.swap, "B")), 0);
 
 /**
  * This function gives the matrix of the workflow: one job for each run of each plan. Each run is a
@@ -315,7 +324,7 @@ export const matrixOf = (plans: readonly Plan[], runs?: readonly number[]): { re
     if (runs.length === 0 || bad.length > 0) throw new RangeError(`The runs are not a list of different whole numbers above 0: ${JSON.stringify(runs)}.`);
   }
   const include = plans.flatMap((plan) =>
-    (runs ?? Array.from({ length: plan.jobs ?? 1 }, (_, index) => index + 1)).map((run) => ({ plan: plan.id, run, minutes: planMinutes(plan) })),
+    (runs ?? Array.from({ length: plan.jobs ?? 1 }, (_, index) => index + 1)).map((run) => ({ plan: plan.id, run, minutes: planMinutes(plan), swap: planSwap(plan) })),
   );
   if (include.length > MAX_JOBS) throw new RangeError(`The matrix has ${include.length} jobs. GitHub starts at most ${MAX_JOBS}.`);
   return { include };

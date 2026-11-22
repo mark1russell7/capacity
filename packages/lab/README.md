@@ -229,6 +229,7 @@ gh workflow run lab.yml -R mark1russell7/capacity --ref <branch> -f plans=contro
 The workflow has three steps:
 
 1. The job `plan` reads and examines each plan file. Then `selectPlans` gives the plans of the event, and `matrixOf` gives one job for each run of each plan. A plan with a problem, an unknown id and a selection with no plan stop the workflow.
+   Each job gets the time limit of its plan (`planMinutes`) and the swap of its targets (`planSwap`). Some runners have no swap, thus the job adds a swap file when the runner has less.
 2. Each job measures its plan with `timePlan`: each case with `measureCase`, and each start case with `measureStart`. Then the check of the plan gives the verdict (`verdictOf`), with the problems of each start record. A verdict with a problem fails the job. The summary of the job has the CPU model, each value of the check and each problem.
 3. Each job uploads its folder as the artifact `lab-<plan>-<run>-<attempt>`.
 

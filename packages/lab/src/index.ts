@@ -92,6 +92,7 @@ export {
   matrixOf,
   planMinutes,
   planProblems,
+  planSwap,
   readPlans,
   selectPlans,
   type MatrixEntry,
