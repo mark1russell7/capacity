@@ -573,7 +573,7 @@ export const startSubjectOf = (value: StartCase): StartSubject => {
   return subject;
 };
 
-/** This function gives the variables of the points of a start case: the variables of its subject, or the variables that the first point of an app case names. */
+/** This function gives the variables of the points of a start case. For an app case, they are the variables that its first point names. */
 export const startVariablesOf = (value: StartCase): StartVariables => (value.app === undefined ? startSubjectOf(value) : { variables: appVariablesOf(value.points) });
 
 /** This function gives the count of the trees of a start case: one for each arm. The seeder gets one more tree when no arm without a graft has its commit. */

@@ -208,8 +208,8 @@ export const hostCommand = (command: AppCommand, tree: string): HostCommand => {
 };
 
 /**
- * This function reads the amounts of the last line of the output of a seed: the field `amounts`, with a number of 0 or more
- * for each store variable of the contract, in the unit of the variable. It throws an `Error` for a line that does not give them.
+ * This function reads the amounts of the last line of the output of a seed. The field `amounts` of the line has an amount of
+ * 0 or more for each store variable, in the unit of the variable. The function throws an `Error` for a line that does not give them.
  */
 export const seedAmountsOf = (stdout: string, app: AppContract): Readonly<Record<string, Quantity>> => {
   const last = stdout.trim().split("\n").at(-1) ?? "";
