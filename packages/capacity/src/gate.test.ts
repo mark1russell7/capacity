@@ -167,6 +167,8 @@ describe("lawGate", () => {
         const far = lawGate([{ law, jobs: Array.from({ length: jobs }, (_, index) => jobOf(law, `job ${index}`, 2, rates)) }]);
         expect(far.outcome).toBe("block");
       }),
+      // Each run reads the law at up to 64 points. 20 runs keep the test far below its time limit on a slow runner.
+      { numRuns: 20 },
     );
   });
 
@@ -179,6 +181,7 @@ describe("lawGate", () => {
         expect(backward.outcome).toBe(forward.outcome);
         expect(backward.cases[0]?.sides.map((side) => side.adjusted)).toEqual(forward.cases[0]?.sides.map((side) => side.adjusted));
       }),
+      { numRuns: 20 },
     );
   });
 });

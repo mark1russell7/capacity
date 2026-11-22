@@ -318,7 +318,7 @@ if (gate.outcome === "block") console.log(gate.reason);
 - **A side.** `partialConjunction` joins the p of the jobs for the claim "two jobs or more show this side" (`GATE_JOBS`). One job on an odd runner cannot block alone.
 - **The family.** `holm` corrects the tests of the two sides of each law at the level 0.01 (`GATE_ALPHA`). A rejected side is a block.
 - **A low side is a block too.** The subject is faster or smaller than its law, thus the law is out of date. A new fit must replace it.
-- **No read.** The function `gateOf` of `@mark1russell7/rigor-bench` joins the laws. A law with fewer than two jobs gives no read. So does a law with too few reads to reject a side. A gate with no law gives no read, never a pass.
+- **No read.** The function `gateOf` of `@mark1russell7/rigor-bench` joins the laws. A law with fewer than two jobs gives no read. So does a law with too few reads to reject a side. A gate with no law gives no read. It does not pass.
 
 The caller gives the jobs of each law. Each job measured the subject in the conditions of the law. A job with `noRead` gives no read, for example a job with a noise floor over its limit. The lab gives the jobs, the noise rule and the workflow (CAP-26).
 

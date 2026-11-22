@@ -4,7 +4,7 @@ import { binomialTest, holm, partialConjunction } from "@mark1russell7/rigor-sta
 import { DEFAULT_LEVEL, type Law, type LawProblem } from "./law.ts";
 import { lawValue, type LevelOptions, type LoadPoint, type Range } from "./value.ts";
 
-/** This level is the level of the family of tests of a gate: the chance of one false block or more in one run of the gate. */
+/** This level is the level of the family of tests of a gate. It is the chance of one false block or more in one run of the gate. */
 export const GATE_ALPHA = 0.01;
 
 /**
@@ -166,8 +166,8 @@ interface Counted {
 }
 
 /**
- * This function gives the gate of some laws: for each law, do the measured values of the jobs stay in the run range of
- * the law? It is the rule of a gate of the laws of a subject, for example on a pull request.
+ * This function gives the gate of some laws. For each law, it tells if the measured values of the jobs stay in the run
+ * range of the law. It is the rule of a gate of the laws of a subject, for example on a pull request.
  *
  * - **A read:** each value of a job falls `within`, `high` or `low` against the run range of its law (`lawRead`).
  *   A read of a job that agrees with its law falls on one side with a chance of `share`, `(1 - level) / 2`, or less.
@@ -179,7 +179,7 @@ interface Counted {
  *   case `beyond`. A low side is a block too: the law is no longer the law of the subject, and a new fit must replace it.
  * - **No read:** a case with fewer than `jobs` jobs that read is `cannot decide`. So is a case whose reads are too few to
  *   reject a side, also with each read on that side. The gate of `@mark1russell7/rigor-bench` (`gateOf`) joins the cases.
- *   A gate with no case, or with a case that cannot decide and no block, is "no read", never a pass.
+ *   A gate with no case, or with a case that cannot decide and no block, is "no read". It does not pass.
  *
  * The function throws a `RangeError` for a level, an alpha or a count of jobs that is not valid.
  */
