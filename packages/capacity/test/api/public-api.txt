@@ -718,7 +718,7 @@ interface Problem<Code extends string> {
 }
 
 ### build/instance.chunk.d.ts#ProblemCode
-type ProblemCode = "shape" | "format" | "id" | "unit" | "range" | "condition" | "program" | "read" | "constant" | "replicates" | "value" | "fit" | "evidence" | "noise" | "point" | "level" | "knee";
+type ProblemCode = "shape" | "format" | "id" | "unit" | "range" | "condition" | "program" | "read" | "constant" | "replicates" | "flat" | "value" | "fit" | "evidence" | "noise" | "point" | "level" | "knee";
 
 ### build/instance.chunk.d.ts#RATE
 declare const RATE = "rate";

@@ -76,6 +76,7 @@ jobs:
           done
           df -h "$RUNNER_TEMP"
       # A law that the records do not give, or no law, fails the step. The summary tells each problem.
+      # A known problem (the field `known` of a measure of the plan) does not fail the step. The summary tells it with its item.
       - name: The fit of the laws
         env:
           RECORDS: ${{ runner.temp }}/records
