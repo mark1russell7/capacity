@@ -32,6 +32,7 @@ const CONSTANTS: Readonly<Record<string, Readonly<Record<string, number>>>> = {
   constant: { base: 0.1 },
   linear: { base: 0.1, slope: 1e-5 },
   power: { base: 0.1, scale: 1e-3, exponent: 0.5 },
+  "fall-power": { base: 0.1, excess: 10, scale: 1e-3, exponent: 0.5 },
   logarithm: { base: 0.1, scale: 0.01 },
   hinge: { base: 0.08, slope: 1e-5, bend: 5e-5, knee: 2500 },
   queue: { base: 0.1, scale: 0.05, capacity: 5000 },
@@ -44,6 +45,7 @@ const PLAIN: Readonly<Record<string, (x: number, c: Readonly<Record<string, numb
   constant: (_, c) => c["base"]!,
   linear: (x, c) => c["base"]! + c["slope"]! * x,
   power: (x, c) => c["base"]! + c["scale"]! * x ** c["exponent"]!,
+  "fall-power": (x, c) => c["base"]! + c["excess"]! / x + c["scale"]! * x ** c["exponent"]!,
   logarithm: (x, c) => c["base"]! + c["scale"]! * Math.log(x),
   hinge: (x, c) => c["base"]! + c["slope"]! * x + c["bend"]! * Math.max(0, x - c["knee"]!),
   queue: (x, c) => c["base"]! + (c["scale"]! * c["capacity"]!) / (c["capacity"]! - x),
@@ -79,7 +81,7 @@ const slopes = (catalog: CatalogForm, xs: readonly number[], constants: Readonly
 
 describe("FORMS", () => {
   it("has the eight forms of the roadmap, in its order", () => {
-    expect(FORMS.map((each) => each.id)).toEqual(["constant", "linear", "power", "logarithm", "hinge", "queue", "scalability", "drift"]);
+    expect(FORMS.map((each) => each.id)).toEqual(["constant", "linear", "power", "fall-power", "logarithm", "hinge", "queue", "scalability", "drift"]);
   });
 
   it("gives each form an id, and each constant a name that a law can read once", () => {
@@ -190,6 +192,7 @@ const TRUE: Readonly<Record<string, Readonly<Record<string, number>>>> = {
   constant: { base: 3 },
   linear: { base: 3, slope: 0.5 },
   power: { base: 3, scale: 2, exponent: 0.5 },
+  "fall-power": { base: 3, excess: 2, scale: 2, exponent: 0.5 },
   logarithm: { base: 3, scale: 2 },
   hinge: { base: 3, slope: 0.5, bend: 2, knee: 21 },
   queue: { base: 3, scale: 2, capacity: onGrid(form("queue"), "capacity", 5) },
@@ -282,6 +285,7 @@ describe("startOf", () => {
     const nested: readonly (readonly [string, string])[] = [
       ["linear", "constant"],
       ["power", "linear"],
+      ["fall-power", "linear"],
       ["logarithm", "constant"],
       ["hinge", "linear"],
       ["queue", "constant"],

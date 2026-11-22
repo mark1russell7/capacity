@@ -11,9 +11,9 @@
       { "id": "cpu.request", "title": "The CPU time of one request", "residual": "relative", "forms": ["constant", "linear", "power", "logarithm", "hinge", "queue"] },
       { "id": "memory", "title": "The memory of the subject at the end of a run", "residual": "relative", "forms": ["constant", "linear", "power", "logarithm", "hinge", "queue"] },
       { "id": "memory.high", "title": "The highest memory of the subject in a run", "residual": "relative", "forms": ["constant", "linear", "power", "logarithm", "hinge", "queue"] },
-      { "id": "latency.p50", "title": "The median latency of a request", "residual": "relative", "forms": ["constant", "linear", "power", "fall-power", "logarithm", "hinge", "queue"], "served": 0.97, "knee": { "kind": "floor", "share": 1 } },
-      { "id": "latency.p90", "title": "The 90th percentile of the latency of a request", "residual": "relative", "forms": ["constant", "linear", "power", "fall-power", "logarithm", "hinge", "queue"], "served": 0.97, "knee": { "kind": "floor", "share": 1 } },
-      { "id": "latency.p99", "title": "The 99th percentile of the latency of a request", "residual": "relative", "forms": ["constant", "linear", "power", "fall-power", "logarithm", "hinge", "queue"], "served": 0.97, "knee": { "kind": "floor", "share": 1 } }
+      { "id": "latency.p50", "title": "The median latency of a request", "residual": "relative", "forms": ["constant", "linear", "power", "fall-power", "logarithm", "hinge", "queue"], "served": 0.97, "tail": 10, "knee": { "kind": "floor", "share": 1 } },
+      { "id": "latency.p90", "title": "The 90th percentile of the latency of a request", "residual": "relative", "forms": ["constant", "linear", "power", "fall-power", "logarithm", "hinge", "queue"], "served": 0.97, "tail": 10 },
+      { "id": "latency.p99", "title": "The 99th percentile of the latency of a request", "residual": "relative", "forms": ["constant", "linear", "power", "fall-power", "logarithm", "hinge", "queue"], "served": 0.97, "tail": 10, "knee": { "kind": "floor", "share": 1 } }
     ]
   },
   "cases": [

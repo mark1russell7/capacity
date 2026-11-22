@@ -104,6 +104,7 @@ const contention = add(one, times(v("contention"), less(x, one)), times(times(v(
  * - `constant`: `base`.
  * - `linear`: `base + slope·x`.
  * - `power`: `base + scale·x^exponent`.
+ * - `fall-power`: `base + excess / x + scale·x^exponent`. The term `excess / x` is a cost at a low load that falls as the load grows.
  * - `logarithm`: `base + scale·ln(x)`.
  * - `hinge`: `base + slope·x + bend·max(0, x − knee)`. After the knee the slope is `slope + bend`.
  * - `queue`: `base + scale·capacity / (capacity − x)`. This is the delay of a queue. The form has no

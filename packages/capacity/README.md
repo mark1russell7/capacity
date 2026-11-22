@@ -205,13 +205,14 @@ A law has 8 variables at most.
 | `constant` | `base` | |
 | `linear` | `base + slope·x` | |
 | `power` | `base + scale·x^exponent` | `exponent` |
+| `fall-power` | `base + excess / x + scale·x^exponent` | `exponent` |
 | `logarithm` | `base + scale·ln(x)` | |
 | `hinge` | `base + slope·x + bend·max(0, x − knee)` | `knee` |
 | `queue` | `base + scale·capacity / (capacity − x)` | `capacity` |
 | `scalability` | `unit·x / (1 + contention·(x − 1) + coherency·x·(x − 1))` | `contention`, `coherency` |
 | `drift` | `base + drift·x + warm·(1 − e^(−x / settle))` | `settle` |
 
-The `queue` form is the delay of a queue, and it has no finite value at its capacity. The `scalability` form is the universal scalability law of the throughput at a concurrency. The `drift` form is a measure over the age of a process: a warm-up that settles, and a steady drift.
+The `fall-power` form has a cost at a low load that falls as the load grows, and then a power of the load. The `queue` form is the delay of a queue, and it has no finite value at its capacity. The `scalability` form is the universal scalability law of the throughput at a concurrency. The `drift` form is a measure over the age of a process: a warm-up that settles, and a steady drift.
 
 Each shape constant has a grid of start values and bounds. A fit refines the constant inside its bounds:
 

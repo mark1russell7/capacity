@@ -36,10 +36,10 @@ export const countProblems = (record: CaseRecord): readonly CheckProblem[] => {
 };
 
 /**
- * This function gives the value of a measure for a case: the median over the runs of its record. A run
- * with no read of the measure gives a problem.
+ * This function gives the value of a measure in each run of a record. A run with no read of the
+ * measure gives a problem, and a record with no run gives a problem.
  */
-export const caseValue = (record: CaseRecord, name: RunMeasure | LoadMeasure | CpusetMeasure): number | CheckProblem => {
+export const runValues = (record: CaseRecord, name: RunMeasure | LoadMeasure | CpusetMeasure): readonly number[] | CheckProblem => {
   const values: number[] = [];
   for (const run of record.runs) {
     // a record of an older lab has no key for a newer measure
@@ -47,7 +47,16 @@ export const caseValue = (record: CaseRecord, name: RunMeasure | LoadMeasure | C
     if (amount === null) return { code: "read", path: `${record.case.id} run ${run.index}`, message: `The run has no read of ${name}.` };
     values.push(amount.value);
   }
-  return values.length === 0 ? { code: "read", path: record.case.id, message: `The record has no run, thus no read of ${name}.` } : median(values);
+  return values.length === 0 ? { code: "read", path: record.case.id, message: `The record has no run, thus no read of ${name}.` } : values;
+};
+
+/**
+ * This function gives the value of a measure for a case: the median over the runs of its record. A run
+ * with no read of the measure gives a problem.
+ */
+export const caseValue = (record: CaseRecord, name: RunMeasure | LoadMeasure | CpusetMeasure): number | CheckProblem => {
+  const values = runValues(record, name);
+  return "code" in values ? values : median(values);
 };
 
 /** This function gives the lag of the driver in each run of a record, in ms. A run with no read gives null. */

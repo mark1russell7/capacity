@@ -267,6 +267,7 @@ A plan with the field `laws` gives laws from its records. The law set tells the 
 - **The noise.** Each law gets the floor of its measure from the jobs of the check `floor` on the same CPU model. With no floor on that CPU model, the law gets the largest floor of the jobs.
 - **The fit.** `fitLaw` of `@mark1russell7/capacity` fits each form of the measure. The law keeps each form that lost, with its error, in `fit.losers`. `checkLaw` examines each law before the command writes it.
 - **The served share.** A measure with the field `served` keeps only the points where the subject keeps up with the offered rate. The range of the law is the range of these points, and the law has the condition `served`.
+- **The tail count.** A quantile measure with the field `tail` keeps only the points with enough arrivals for its quantile. The law has the condition `tail`.
 - **The knee.** A measure with the field `knee` gives the knee of each law in its range, with `lawKnee` of `@mark1russell7/capacity`. A search that cannot apply gives a problem, and the law stays.
 
 ### The served share
@@ -283,14 +284,25 @@ The latency is the median of the runs of the case. The plan `rate` gives the sha
 - **The other laws.** The laws of the CPU time and of the memory have good fits on all of the range. Thus their measures have no field `served`.
 - **Too few points.** With fewer than 40 points that keep up, the law of the measure goes into the list of skipped laws.
 
+### The tail count
+
+The quantile of a run is a rank of its arrivals. With few arrivals, a high quantile is the latency of a few slow requests, not a property of the subject. The field `tail` of a quantile measure gives the least count `k` of requests in the tail of the quantile.
+
+- **The rule.** A quantile `q` needs `k / (1 - q)` arrivals or more in each run (`tailNeed`). The run of a case with the fewest arrivals decides.
+- **The count of the plan `rate`.** The plan gives the count 10 to its three latency laws. Thus the median needs 20 arrivals, the 90th percentile needs 100, and the 99th percentile needs 1000.
+- **The cut.** A point with fewer arrivals stays out of the law, and the summary tells it. With fewer than 40 points in the range, the law goes into the list of skipped laws.
+- **The cut on the Intel Xeon 6975P-C.** Each run has 111 arrivals at 100 requests each second and 295 at 300. At 1000, each run has 1000 or more. Thus the count cuts the rates 100 and 300 from the law of the 99th percentile. It cuts no point from the laws of the median and of the 90th percentile.
+
 ### The knee of a latency
 
-The knee of a latency is the rate where the latency leaves its floor. The plan `rate` gives the rule `{ "kind": "floor", "share": 1 }` to its latency laws: the first rate where the latency is two times its floor.
+The knee of a latency is the rate where the latency leaves its floor. The plan `rate` gives the rule `{ "kind": "floor", "share": 1 }` to the laws of the median and of the 99th percentile: the first rate where the latency is two times its floor.
 
-- **Why the floor, not the start.** At 100 requests each second, the median latency is 0.34 ms. From 1000 to 12000, it is approximately 0.13 ms. The first requests of a run are cold, and at a low rate they are a large part of the run. Thus the start value is not the floor.
+- **Why the floor, not the start.** At 100 requests each second, the median latency is 0.35 ms. From 1000 to 12000, it is approximately 0.13 ms. Thus the start value is not the floor.
 - **Why a floor for each replicate.** The knee of a replicate is after its own floor. With the floor of the constants as one amount, a replicate with a high start had its knee at 100, the start of the range. That is not a knee.
-- **Why the tail leaves first.** On the Intel Xeon 6975P-C, the 99th percentile leaves its floor between 1000 and 3000, and the 90th percentile between 3000 and 4000. The median stays near 0.13 ms to 13000. A delay that stops a share of the requests can cause this, for example a stop of the event loop. A quantile `p` leaves its floor when that share is more than `1 - p`. The records have no measure of garbage collection, thus this cause is not certain.
-- **The cold start of the tail.** At 100 requests each second, a run of 1 s has approximately 100 requests. Thus the 99th percentile is approximately the slowest request, and the first requests are cold. The 90th percentile goes from 0.51 ms at 100 to 0.23 ms at 2000. The forms of the latency laws cannot fall, thus their floor is between these values.
+- **The fall at a low rate.** The median goes from 0.354 ms at 100 to 0.140 ms at 2000. The 90th percentile goes from 0.511 ms to 0.231 ms. The tail count cuts no point of these laws, thus the fall is not an effect of the estimate. It is a cost of the subject at a low rate. The form `fall-power` gives it. The records do not tell its cause. Idle cores and cold caches are candidates.
+- **The 99th percentile does not fall.** It goes up from 1.11 ms at 100. The tail count cuts the rates 100 and 300, thus its law starts at 1000.
+- **Why the tail leaves first.** On the Intel Xeon 6975P-C, the 90th and the 99th percentiles are two times their floor between 3000 and 4000. The median is two times its floor near 16000. A delay that stops a share of the requests can cause this, for example a stop of the event loop. A quantile `p` leaves its floor when that share is more than `1 - p`. The records have no measure of garbage collection, thus this cause is not certain.
+- **No knee of the 90th percentile.** The plan gives the 90th percentile no knee rule. Its fall rests on the two lowest rates, 100 and 300. The bootstrap draws whole rates, thus approximately one third of the replicates have no point at 100. These replicates extrapolate the fall. On the Intel Xeon 6975P-C, 11 of 200 replicates of `fall-power` have a value of 0 or less at a low rate. For the form `power`, the count is 5 of 200. The level 0.95 allows at most 5 of 200. CAP-56 adds rates from 100 to 1000 to the plan, and then gives the 90th percentile its knee.
 
 ### The command and the workflow
 

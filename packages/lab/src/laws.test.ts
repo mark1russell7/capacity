@@ -9,7 +9,7 @@ import { escapeMarkdown } from "@mark1russell7/text";
 import { describe, expect, it } from "vitest";
 import type { Case } from "./case.ts";
 import { FLOOR_MEASURES } from "./floor.ts";
-import { CPU_IDS, conditionsOf, lawSetProblems, lawsOf, lawsSummaryOf, servedShare, type LawJob, type LawSet } from "./laws.ts";
+import { CPU_IDS, conditionsOf, lawSetProblems, lawsOf, lawsSummaryOf, servedShare, tailNeed, type LawJob, type LawSet } from "./laws.ts";
 import { readPlans } from "./plan.ts";
 import type { CaseRecord, RunRecord } from "./record.ts";
 import { isStartCase } from "./start.ts";
@@ -97,6 +97,29 @@ const jobOf = (run: Run | null, cpu: string, job: number, verdict: Partial<Timed
 
 /** This function gives two jobs of the plan rate in one CI run, on one CPU model. */
 const twoJobs = (run: Run, cpu: string, first: number): readonly LawJob[] => [jobOf(run, cpu, first), jobOf(run, cpu, first + 1)];
+
+/** A set of the 99th percentile with a served share and the tail count 10: a point needs 1000 arrivals in each run. */
+const TAIL: LawSet = {
+  ...RATE.laws!,
+  measures: [{ id: "latency.p99", title: "The 99th percentile of the latency of a request", residual: "relative", forms: ["linear", "power"], served: 0.97, tail: 10 }],
+};
+
+/**
+ * This function gives two jobs of the plan rate with runs of 1.01 s: each run plans 1.01 times the rate.
+ * In the first job, the second run of the rate 1000 plans 999 requests.
+ */
+const tailJobs = (): readonly LawJob[] =>
+  twoJobs(runOf(1), EPYC, 1).map((job, which) => ({
+    ...job,
+    records: job.records.map((record) => {
+      const rate = record.case.demand.classes[0]!.rate.value;
+      const runs = record.runs.map((run, r): RunRecord => {
+        const planned = which === 0 && rate === 1000 && r === 1 ? 999 : Math.round(rate * 1.01);
+        return { ...run, measures: { ...run.measures, planned: { value: planned, unit: "{request}" } } };
+      });
+      return { ...record, runs };
+    }),
+  }));
 
 /** This function gives a floor job with the floor `scale` times a base floor for each measure. */
 const floorOf = (run: Run, cpu: string, scale: number, problems: Timed["verdict"]["problems"] = []): Timed =>
@@ -263,7 +286,43 @@ describe("the laws of a plan", () => {
     const jobs = [jobOf(runOf(1), EPYC, 1, {}, 12_000), jobOf(runOf(1), EPYC, 2, {}, 12_000)];
     const { laws, skipped, problems } = lawsOf({ id: "rate", laws: SERVED }, jobs, FLOORS, OPTIONS);
     expect([laws, problems]).toEqual([[], []]);
-    expect(skipped).toEqual([{ code: "case", path: "node-http/rate/epyc-7763/latency.p50", message: "The subject served the share 0.97 at 28 of 50 points. A law needs 40 points or more." }]);
+    expect(skipped).toEqual([{ code: "case", path: "node-http/rate/epyc-7763/latency.p50", message: "28 of 50 points are in the range of the measure (served share 0.97). A law needs 40 points or more." }]);
+  });
+
+  it("gives the count of arrivals that the tail of a quantile needs", () => {
+    expect([tailNeed(10, 0.5), tailNeed(10, 0.9), tailNeed(10, 0.99), tailNeed(1, 0.99)]).toEqual([20, 100, 1000, 100]);
+  });
+
+  it("keeps only the points where each run has the arrivals that the tail of the quantile needs", () => {
+    const { laws, skipped, problems } = lawsOf({ id: "rate", laws: TAIL }, tailJobs(), FLOORS, OPTIONS);
+    expect([problems, skipped]).toEqual([[], []]);
+    const { law, cut } = laws[0]!;
+    // The served share cuts 33000 and 36000 of each job. The tail cuts 100 and 300 of each job, and 1000 of the first job: one of its runs has 999 arrivals.
+    expect(law.fit.residuals).toHaveLength(41);
+    expect(law.variables[0]).toMatchObject({ min: 1000, max: 30000 });
+    expect([law.conditions["served"], law.conditions["tail"]]).toEqual([0.97, 10]);
+    expect(checkLaw(law)).toEqual([]);
+    const tails = cut.filter((point) => point.rule === "tail");
+    expect(tails.map((point) => [point.case, point.count, point.need])).toEqual([
+      ["rate/100", 101, 1000],
+      ["rate/300", 303, 1000],
+      ["rate/1000", 999, 1000],
+      ["rate/100", 101, 1000],
+      ["rate/300", 303, 1000],
+    ]);
+    expect(cut.filter((point) => point.rule === "served")).toHaveLength(4);
+  });
+
+  it("gives a problem of a read for a point with no count of arrivals, and a skip for too few points in the range", () => {
+    const [first, second] = tailJobs();
+    const lost = { ...first!, records: first!.records.map((record, index) => (index > 0 ? record : { ...record, runs: record.runs.map((run): RunRecord => ({ ...run, measures: { ...run.measures, planned: null } })) })) };
+    expect(lawsOf({ id: "rate", laws: TAIL }, [lost, second!], FLOORS, OPTIONS).problems).toEqual([
+      { code: "read", path: "node-http/rate/epyc-7763/latency.p99", message: `rate/100 run ${BASE.runs[0]!.index}: The run has no read of planned.` },
+    ]);
+    const few: LawSet = { ...TAIL, measures: [{ ...TAIL.measures[0]!, tail: 30 }] };
+    expect(lawsOf({ id: "rate", laws: few }, tailJobs(), FLOORS, OPTIONS).skipped).toEqual([
+      { code: "case", path: "node-http/rate/epyc-7763/latency.p99", message: "38 of 50 points are in the range of the measure (served share 0.97, tail 30). A law needs 40 points or more." },
+    ]);
   });
 
   it("keeps a law with a knee search that cannot apply, and gives the problem of the search", () => {
@@ -293,6 +352,9 @@ describe("the laws of a plan", () => {
     expect(summary).toContain(escapeMarkdown("(rule floor, share 0.5, floor "));
     expect(summary).toContain("The points that a law leaves out, because the subject served a smaller share than the field `served` of the measure:");
     expect(summary).toContain(escapeMarkdown("rate/33000 (latency.max 60 ms, served 0.9434) of "));
+    const tails = lawsSummaryOf("rate", lawsOf({ id: "rate", laws: TAIL }, tailJobs(), FLOORS, OPTIONS));
+    expect(tails).toContain("The points that a law leaves out, because a run has fewer arrivals than the field `tail` of the measure needs:");
+    expect(tails).toContain(escapeMarkdown("rate/100 (101 arrivals, 1000 needed) of "));
   });
 });
 
@@ -332,13 +394,25 @@ describe("the law set of a plan", () => {
       "laws.conditions.memory.limit",
       "laws.conditions.memory.limit",
     ]);
-    const shares = { ...SET, measures: [{ ...SERVED.measures[0]!, served: 1 }, { ...SET.measures[0]!, served: "0.97", knee: { kind: "peak" } }, { ...SET.measures[1]!, knee: { kind: "floor" } }] };
-    expect(lawSetProblems(shares, RATE.cases).map((each) => each.path)).toEqual([
+    const shares = {
+      ...SET,
+      measures: [
+        { ...SERVED.measures[0]!, served: 1, tail: 2.5 },
+        { ...SET.measures[0]!, served: "0.97", tail: 10, knee: { kind: "peak" } },
+        { ...SET.measures[1]!, knee: { kind: "floor" } },
+      ],
+    };
+    const found = lawSetProblems(shares, RATE.cases);
+    expect(found.map((each) => each.path)).toEqual([
       "laws.measures[0].served",
+      "laws.measures[0].tail",
       "laws.measures[1].served",
+      "laws.measures[1].tail",
       "laws.measures[1].knee.kind",
       "laws.measures[2].knee.share",
     ]);
+    expect(found[1]!.message).toBe("The tail count is not a whole number above 0.");
+    expect(found[3]!.message).toBe('The measure "cpu.request" is not a quantile. Only latency.p50, latency.p90, latency.p99 have a tail.');
     expect(lawSetProblems([], RATE.cases)).toEqual([{ code: "laws", path: "laws", message: "The law set is not a record." }]);
     expect(lawSetProblems({ ...SET, measures: [] }, RATE.cases).map((each) => each.path)).toEqual(["laws.measures"]);
   });

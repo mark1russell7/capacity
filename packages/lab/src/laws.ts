@@ -31,8 +31,8 @@ import { canonicalJson } from "@mark1russell7/rigor-generators";
 import { escapeMarkdown } from "@mark1russell7/text";
 import type { Case } from "./case.ts";
 import { FLOOR_MEASURES, type FloorMeasure } from "./floor.ts";
-import { caseValue } from "./reads.ts";
-import { CPUSET_MEASURES, LOAD_MEASURES, RECORD_FORMAT, RUN_MEASURES, type CaseRecord } from "./record.ts";
+import { caseValue, runValues } from "./reads.ts";
+import { CPUSET_MEASURES, LOAD_MEASURES, QUANTILE_MEASURES, RECORD_FORMAT, RUN_MEASURES, type CaseRecord, type QuantileMeasure } from "./record.ts";
 import { isStartCase, type StartCase } from "./start.ts";
 import type { Timed } from "./timed.ts";
 
@@ -53,6 +53,12 @@ export interface LawMeasure {
    * from 0 to 1. A point with a smaller share stays out of the law (`servedShare`). With no value, each point is in the law.
    */
   readonly served?: number;
+  /**
+   * This count `k` is the least count of requests in the tail of a quantile measure, in each run of each point of the law.
+   * A quantile `q` needs `k / (1 − q)` arrivals or more in each run (`tailNeed`). A point with fewer stays out of the law.
+   * With no value, each point is in the law.
+   */
+  readonly tail?: number;
   /** This rule gives the knee of each law of the measure, with `lawKnee` of `@mark1russell7/capacity`. */
   readonly knee?: KneeRule;
 }
@@ -119,12 +125,21 @@ const isRecordCondition = (name: string): boolean =>
 /** This function gives the part of a law that a load point reads, for the variable of a law set. */
 const pointLawOf = (id: string, variable: LawVariable): PointLaw => ({ id, variables: [{ id: variable.id, unit: variable.unit }] });
 
+/** This function tells if a measure name is the name of a quantile measure of the driver. */
+const isQuantile = (id: string): id is QuantileMeasure => Object.hasOwn(QUANTILE_MEASURES, id);
+
+/**
+ * This function gives the least count of arrivals in a run for `tail` requests in the tail of the
+ * quantile `level`: `tail / (1 − level)`, up to a whole count. The tail 10 gives 20 for the median, 100 for the level 0.9 and 1000 for the level 0.99.
+ */
+export const tailNeed = (tail: number, level: number): number => Math.ceil(tail / (1 - level) - 1e-9);
+
 /** This function gives the problems of one measure of a law set. */
-const measureProblems = (value: unknown, path: string, seen: Set<string>): readonly LawSetProblem[] => {
+const measureProblems =(value: unknown, path: string, seen: Set<string>): readonly LawSetProblem[] => {
   const problems: LawSetProblem[] = [];
   const add = (at: string, message: string): void => void problems.push({ code: "laws", path: `${path}${at}`, message });
   if (!isRecord(value)) return [{ code: "laws", path, message: "The measure is not a record." }];
-  const { id, title, residual, forms, served, knee } = value;
+  const { id, title, residual, forms, served, tail, knee } = value;
   if (typeof id !== "string" || !(FLOOR_MEASURES as readonly string[]).includes(id)) add(".id", `The measure is not one of ${FLOOR_MEASURES.join(", ")}. A law needs the noise floor of its measure.`);
   else if (seen.has(id)) add(".id", `The measure "${id}" is in the set two times.`);
   else seen.add(id);
@@ -140,6 +155,10 @@ const measureProblems = (value: unknown, path: string, seen: Set<string>): reado
     }
   }
   if (served !== undefined && !(typeof served === "number" && served > 0 && served < 1)) add(".served", "The served share is not a number above 0 and below 1.");
+  if (tail !== undefined) {
+    if (!(typeof tail === "number" && Number.isInteger(tail) && tail > 0)) add(".tail", "The tail count is not a whole number above 0.");
+    else if (typeof id === "string" && !isQuantile(id)) add(".tail", `The measure "${id}" is not a quantile. Only ${Object.keys(QUANTILE_MEASURES).join(", ")} have a tail.`);
+  }
   if (knee !== undefined) {
     const bad = kneeRuleProblem(knee, `${path}.knee`);
     if (bad !== undefined) problems.push({ code: "laws", path: bad.path, message: bad.message });
@@ -212,15 +231,31 @@ export type LawsProblemCode = "plan" | "job" | "cpu" | "case" | "read" | "noise"
 /** A laws problem tells why a job gave no point, why a measure gave no law, or why a law gave no knee. `path` names the job or the law. */
 export type LawsProblem = Problem<LawsProblemCode>;
 
+/** A cut point is a point that a law leaves out, with its case, its job and the rule that cuts it. */
+export type CutPoint = ServedCut | TailCut;
+
 /**
- * A cut point is a point that a law leaves out, because the subject served too small a share there.
- * It has its case, its job, its largest latency in ms and the least share that the latency gives (`servedShare`).
+ * A served cut is a point where the subject served too small a share (the field `served` of the measure).
+ * It has the largest latency in ms and the least share that the latency gives (`servedShare`).
  */
-export interface CutPoint {
+export interface ServedCut {
+  readonly rule: "served";
   readonly case: string;
   readonly job: string;
   readonly max: number;
   readonly served: number;
+}
+
+/**
+ * A tail cut is a point with a run that has too few arrivals for the tail of the quantile (the field `tail` of the measure).
+ * It has the least count of arrivals of its runs, and the count that the quantile needs (`tailNeed`).
+ */
+export interface TailCut {
+  readonly rule: "tail";
+  readonly case: string;
+  readonly job: string;
+  readonly count: number;
+  readonly need: number;
 }
 
 /**
@@ -374,29 +409,58 @@ interface Points {
 /** This function gives each CI run of the jobs of some points once. */
 const runsOf = (points: Points): readonly Run[] => uniqueRuns(points.jobs.flatMap((timed) => (timed.run === null ? [] : [timed.run])));
 
-/** The points of one measure: the points where the subject served the share `served` of the measure, and the points that it left out. */
-interface ServedPoints {
+/** The points of one measure: the points in the range of the measure, and the points that its rules left out. */
+interface RangePoints {
   readonly points: Points;
   readonly cut: readonly CutPoint[];
 }
 
-/** This function gives the points of one measure, or the problems of the reads of the served share. */
-const servedOf = (measure: LawMeasure, id: string, points: Points): ServedPoints | readonly LawsProblem[] => {
-  const least = measure.served;
-  if (least === undefined) return { points, cut: [] };
+/** This function gives the cut of one point by the rule `served`, nothing, or the problem of its read. */
+const servedCut = (least: number, record: CaseRecord, job: string): ServedCut | undefined | Problem<"read"> => {
+  const share = servedShare(record);
+  if (typeof share !== "number") return share;
+  return share >= least ? undefined : { rule: "served", case: record.case.id, job, max: caseValue(record, "latency.max") as number, served: share };
+};
+
+/** This function gives the cut of one point by the rule `tail`, nothing, or the problem of its read. The least count of the runs decides. */
+const tailCut = (tail: number, level: number, record: CaseRecord, job: string): TailCut | undefined | Problem<"read"> => {
+  const counts = runValues(record, "planned");
+  if ("code" in counts) return { code: "read", path: counts.path, message: counts.message };
+  const count = Math.min(...counts);
+  const need = tailNeed(tail, level);
+  return count >= need ? undefined : { rule: "tail", case: record.case.id, job, count, need };
+};
+
+/**
+ * This function gives the points in the range of one measure, or the problems of the reads of its rules.
+ * A point stays when no rule cuts it. The list `cut` has each cut of each rule.
+ */
+const rangeOf = (measure: LawMeasure, id: string, points: Points): RangePoints | readonly LawsProblem[] => {
+  const { served, tail } = measure;
+  const level = isQuantile(measure.id) ? QUANTILE_MEASURES[measure.id] : undefined;
   const kept: number[] = [];
   const cut: CutPoint[] = [];
   const reads: LawsProblem[] = [];
   points.records.forEach((record, index) => {
-    const share = servedShare(record);
-    if (typeof share !== "number") return void reads.push({ code: "read", path: id, message: `${share.path}: ${share.message}` });
-    if (share >= least) return void kept.push(index);
-    cut.push({ case: record.case.id, job: jobName(points.jobs[index]!), max: caseValue(record, "latency.max") as number, served: share });
+    const job = jobName(points.jobs[index]!);
+    const found = [served === undefined ? undefined : servedCut(served, record, job), tail === undefined || level === undefined ? undefined : tailCut(tail, level, record, job)];
+    let out = false;
+    for (const each of found) {
+      if (each === undefined) continue;
+      if ("code" in each) reads.push({ code: "read", path: id, message: `${each.path}: ${each.message}` });
+      else cut.push(each);
+      out = true;
+    }
+    if (!out) kept.push(index);
   });
   if (reads.length > 0) return reads;
   const pick = <T>(list: readonly T[]): T[] => kept.map((index) => list[index]!);
   return { points: { ...points, records: pick(points.records), x: pick(points.x), jobs: pick(points.jobs) }, cut };
 };
+
+/** This function gives the text of the rules of the range of a measure, for example "served share 0.97, tail 10". */
+const rangeText = (measure: LawMeasure): string =>
+  [measure.served === undefined ? [] : [`served share ${measure.served}`], measure.tail === undefined ? [] : [`tail ${measure.tail}`]].flat().join(", ");
 
 /** This function gives the points of one CPU model, or the problems of its cases. */
 const pointsOf = (set: LawSet, base: string, jobs: readonly LawJob[]): Points | readonly LawsProblem[] => {
@@ -431,10 +495,10 @@ const pointsOf = (set: LawSet, base: string, jobs: readonly LawJob[]): Points | 
 
 /**
  * This function gives the law of one measure from its points on one CPU model, or the problems of the
- * law. A measure with a served share gives the condition `served`.
+ * law. A measure with a served share gives the condition `served`, and a measure with a tail count gives the condition `tail`.
  */
-const lawOf = (set: LawSet, measure: LawMeasure, id: string, served: ServedPoints, noise: Noise, options: LawsOptions): FittedLaw | readonly LawsProblem[] => {
-  const { points, cut } = served;
+const lawOf = (set: LawSet, measure: LawMeasure, id: string, range: RangePoints, noise: Noise, options: LawsOptions): FittedLaw | readonly LawsProblem[] => {
+  const { points, cut } = range;
   const y: number[] = [];
   const reads: LawsProblem[] = [];
   for (const record of points.records) {
@@ -464,7 +528,11 @@ const lawOf = (set: LawSet, measure: LawMeasure, id: string, served: ServedPoint
     subject: points.facts.subject,
     measure: { id: measure.id, unit: UNITS[measure.id] ?? "" },
     variables: [{ id: set.variable.id, unit: set.variable.unit, min: Math.min(...points.x), max: Math.max(...points.x), scale: set.variable.scale }],
-    conditions: measure.served === undefined ? points.facts.conditions : { ...points.facts.conditions, served: measure.served },
+    conditions: {
+      ...points.facts.conditions,
+      ...(measure.served === undefined ? {} : { served: measure.served }),
+      ...(measure.tail === undefined ? {} : { tail: measure.tail }),
+    },
     form,
     constants,
     replicates,
@@ -496,6 +564,9 @@ const kneeOf = (set: LawSet, measure: LawMeasure, fitted: FittedLaw): FittedLaw 
  * - **The served share:** a measure with the field `served` keeps only the points where the subject
  *   served that share of the offered rate (`servedShare`). The range of its law is the range of these
  *   points. With fewer than 40 of them, the law goes into `skipped`.
+ * - **The tail count:** a quantile measure with the field `tail` keeps only the points where each run
+ *   has enough arrivals for that count of requests in the tail of the quantile (`tailNeed`). A quantile of fewer
+ *   arrivals is an estimate of a few slow requests, not of the subject. The cut and the skip are the same as for the served share.
  * - **The evidence:** the CI runs of the jobs of the points.
  * - **The noise:** the largest floor of the floor jobs on the CPU model. With none, the model with the largest floor.
  * - **The fit:** `fitLaw` of `@mark1russell7/capacity`. The law keeps each form that lost. `checkLaw` examines each law.
@@ -547,18 +618,18 @@ export const lawsOf = (plan: { readonly id: string; readonly laws?: LawSet }, jo
         problems.push({ code: "noise", path: id, message: noise });
         continue;
       }
-      const served = servedOf(measure, id, points);
-      if (isProblems(served)) {
-        problems.push(...served);
+      const range = rangeOf(measure, id, points);
+      if (isProblems(range)) {
+        problems.push(...range);
         continue;
       }
-      const kept = served.points.records.length;
+      const kept = range.points.records.length;
       if (kept < need) {
-        const message = `The subject served the share ${measure.served ?? 1} at ${kept} of ${points.records.length} points. A law needs ${need} points or more.`;
+        const message = `${kept} of ${points.records.length} points are in the range of the measure (${rangeText(measure)}). A law needs ${need} points or more.`;
         skipped.push({ code: "case", path: id, message });
         continue;
       }
-      const result = lawOf(set, measure, id, served, noise, options);
+      const result = lawOf(set, measure, id, range, noise, options);
       if (isProblems(result)) {
         problems.push(...result);
         continue;
@@ -611,6 +682,21 @@ const kneeText = (law: Law, knee: Knee | undefined): string => {
   return `${found} (${rule}${floor}${noFloor}${edge})`;
 };
 
+/** This function adds the list of the points that the rule `rule` cuts from each law, with the text `read` of each cut. */
+const cutList = <Rule extends CutPoint["rule"]>(
+  lines: string[],
+  laws: readonly FittedLaw[],
+  rule: Rule,
+  title: string,
+  read: (point: Extract<CutPoint, { readonly rule: Rule }>) => string,
+): void => {
+  const each = laws.flatMap(({ law, cut }) => {
+    const points = cut.filter((point): point is Extract<CutPoint, { readonly rule: Rule }> => point.rule === rule);
+    return points.length === 0 ? [] : [`- ${escapeMarkdown(`${law.id}: ${points.map((point) => `${point.case} (${read(point)}) of ${point.job}`).join("; ")}`)}`];
+  });
+  if (each.length > 0) lines.push(title, "", ...each, "");
+};
+
 /**
  * This function gives the summary of the laws of a plan as Markdown. It gives a table of the laws, with
  * the interval of each constant. A second table gives the range of each law, the values at its ends
@@ -633,15 +719,12 @@ export const lawsSummaryOf = (plan: string, laws: Laws): string => {
       row([law.id, `${short(variable.min)} to ${short(variable.max)} ${variable.unit}`, endText(law, variable.min), endText(law, variable.max), kneeText(law, knee)]);
     }
     lines.push("");
-    const cut = laws.laws.filter((each) => each.cut.length > 0);
-    if (cut.length > 0) {
-      lines.push("The points that a law leaves out, because the subject served a smaller share than the field `served` of the measure:", "");
-      for (const { law, cut: points } of cut) {
-        const each = points.map((point) => `${point.case} (latency.max ${short(point.max)} ms, served ${short(point.served)}) of ${point.job}`);
-        lines.push(`- ${escapeMarkdown(`${law.id}: ${each.join("; ")}`)}`);
-      }
-      lines.push("");
-    }
+    cutList(lines, laws.laws, "served", "The points that a law leaves out, because the subject served a smaller share than the field `served` of the measure:", (point) =>
+      `latency.max ${short(point.max)} ms, served ${short(point.served)}`,
+    );
+    cutList(lines, laws.laws, "tail", "The points that a law leaves out, because a run has fewer arrivals than the field `tail` of the measure needs:", (point) =>
+      `${point.count} arrivals, ${point.need} needed`,
+    );
   }
   const list = (title: string, items: readonly LawsProblem[]): void => {
     if (items.length === 0) return;
