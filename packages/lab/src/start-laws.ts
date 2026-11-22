@@ -87,7 +87,8 @@ const startMeasureProblems = (value: unknown, path: string, seen: Set<string>, l
 
 /**
  * This function examines the start law set of a plan and gives each problem that it finds. Each case must be a start case,
- * and each point of each case must have an amount of the variable. A correct set gives an empty list.
+ * and each point of each case must have an amount of the variable. The points of a case have one amount of each other
+ * variable. Otherwise a law of the variable also holds the effect of another variable. A correct set gives an empty list.
  */
 export const startLawSetProblems = (laws: unknown, cases: readonly (Case | StartCase)[]): readonly LawSetProblem[] => {
   if (!isRecord(laws)) return [{ code: "laws", path: "startLaws", message: "The start law set is not a record." }];
@@ -110,6 +111,13 @@ export const startLawSetProblems = (laws: unknown, cases: readonly (Case | Start
     value.points.forEach((point, at) => {
       if (point.at[id] === undefined) problems.push({ code: "laws", path: `${path}.points[${at}].at`, message: `The point "${point.id}" has no amount of the variable "${id}".` });
     });
+    const others = new Set(value.points.flatMap((point) => Object.keys(point.at)).filter((name) => name !== id));
+    for (const name of others) {
+      const amounts = new Set(value.points.map((point) => (point.at[name] === undefined ? "none" : canonicalHash(point.at[name]))));
+      if (amounts.size > 1) {
+        problems.push({ code: "laws", path: `${path}.points`, message: `The points have more than one amount of the variable "${name}". A start law moves only "${id}", thus each other variable stays at one amount.` });
+      }
+    }
   });
   return problems;
 };

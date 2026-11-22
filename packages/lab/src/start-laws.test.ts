@@ -1,5 +1,6 @@
 import { fileURLToPath } from "node:url";
 import { cpuEntry } from "@mark1russell7/rigor-bench";
+import { valueIn } from "@mark1russell7/quantity";
 import { describe, expect, it } from "vitest";
 import { EPYC, runOf, timedOf, wave } from "./law-fixtures.ts";
 import { CPU_IDS, type LawJob } from "./laws.ts";
@@ -128,5 +129,39 @@ describe("the problems of a start law set", () => {
     expect(startLawSetProblems({ ...SET, conditions: { start: "warm" } }, [CASE]).map((each) => each.path)).toEqual(["startLaws.conditions.start"]);
     const point = { ...CASE.points[0]!, at: {} };
     expect(startLawSetProblems(SET, [{ ...CASE, points: [point] }]).map((each) => each.path)).toEqual(["cases[0].points[0].at"]);
+  });
+
+  it("refuses the points of a case that move a variable other than the variable of the set", () => {
+    const feeds = (value: number) => ({ value, unit: "{feed}" });
+    const held = CASE.points.map((each) => ({ ...each, at: { ...each.at, feeds: feeds(10) } }));
+    expect(startLawSetProblems(SET, [{ ...CASE, points: held }])).toEqual([]);
+    const moved = held.map((each, index) => ({ ...each, at: { ...each.at, feeds: feeds(index === 0 ? 1 : 10) } }));
+    const problems = startLawSetProblems(SET, [{ ...CASE, points: moved }]);
+    expect(problems.map((each) => each.path)).toEqual(["cases[0].points"]);
+    expect(problems[0]?.message).toContain('"feeds"');
+    // a variable that only some points name is a variable that moves
+    const some = held.map((each, index) => (index === 0 ? { ...each, at: Object.fromEntries(Object.entries(each.at).filter(([name]) => name !== "feeds")) } : each));
+    expect(startLawSetProblems(SET, [{ ...CASE, points: some }]).map((each) => each.path)).toEqual(["cases[0].points"]);
+  });
+});
+
+describe("the plans of the levels of alerts", () => {
+  const plans = readPlans(PLANS);
+  const LEVELS = ["feeds", "persons", "incidents"] as const;
+
+  it("give one ladder of 9 rungs for each level, with each other variable at the base point, and no problem", () => {
+    expect(plans.problems).toEqual([]);
+    const bases = LEVELS.map((level) => {
+      const plan = plans.plans.find((each) => each.id === `alerts-start-${level}`);
+      expect(plan?.startLaws?.variable.id).toBe(level);
+      expect(plan?.cases).toHaveLength(1);
+      const value = plan?.cases[0] as StartCase;
+      expect(value.points).toHaveLength(9);
+      expect(new Set(value.points.map((each) => valueIn(each.at[level]!, plan!.startLaws!.variable.unit))).size).toBe(9);
+      return value.points.find((each) => each.id === `${level}-10`);
+    });
+    // the three ladders meet at one base point, thus their readings there can be compared
+    expect(bases.every((each) => each !== undefined)).toBe(true);
+    expect(new Set(bases.map((each) => JSON.stringify(each?.at))).size).toBe(1);
   });
 });
