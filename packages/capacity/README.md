@@ -254,6 +254,36 @@ if (result.tag === "ok") {
 
 A test fits a hinge with its knee between two loads. The interval of the knee holds the true knee, and `checkLaw` finds no problem in the law.
 
+## The law files
+
+The folder `laws` holds the law files that the lab gives, one file for each law: `laws/<subject>/<plan>/<cpu>/<measure>.law.json`. The workflow `laws.yml` gives the files from the records of named Lab runs. The README of the lab tells the command and the workflow.
+
+```sh
+gh workflow run laws.yml -R mark1russell7/capacity -f runs='<run of the plan rate> <run of the plan floor>'
+gh run download <laws run> -R mark1russell7/capacity -n laws-<laws run> -D packages/capacity/laws
+```
+
+A pull request puts the files into the folder. A test reads each file with `readLaw`. The id of each law is its path, and each run of its evidence and its noise is a run of CI. A folder with no law file fails the test.
+
+### The laws of the request rate
+
+The Laws run 44971762036 gives the laws of the plan `rate` on the Intel Xeon 6975P-C. Their points are the 100 cases of the four jobs of the Lab run 44964347304 on that CPU model. The floor jobs of the Lab run 44467543161 give the noise. Each law has 1000 replicates.
+
+| Measure | Form | Constant | Held-out error |
+| --- | --- | --- | --- |
+| `cpu.request` | power | exponent −0.486 | 0.106 |
+| `memory` | hinge | knee at 14490 requests each second | 0.013 |
+| `memory.high` | hinge | knee at 17150 requests each second | 0.013 |
+| `latency.p50` | queue | capacity of 36210 requests each second | 1.60 |
+| `latency.p90` | queue | capacity of 44170 requests each second | 1.25 |
+| `latency.p99` | hinge | knee at 32710 requests each second | 0.70 |
+
+- **The held-out error** is the root mean square of the relative held-out residuals.
+- **The CPU time of each request** falls as the rate increases.
+- **The memory** increases by approximately 80 B for each request each second, up to its knee. After the knee, it stays approximately flat.
+- **The latency fits are poor past the limit of the core.** The capacity of the queue law of `latency.p50` is 0.6% above the top rate of 36000. CAP-53 examines these fits and gives the interval of each knee.
+- **The Intel Xeon Platinum 8573C has no law.** One job of five was on it, with 25 points, and a law needs 40.
+
 ## A workload
 
 A workload is the load on an app: the classes of its requests, each with a rate. It is plain data, thus a workload file is JSON. Its format is `capacity-workload/1`.

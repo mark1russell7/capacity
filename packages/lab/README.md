@@ -172,7 +172,7 @@ The plan runs each night, not on each pull request. Its time limit is 54 minutes
 
 ### The request rate
 
-The plan `rate` sends the bare request to the bare subject at 25 rates, from 100 to 36000 requests each second. The subject has one core and 512 MiB. The points of the laws of the request rate come from its records (CAP-20). Its law set tells the laws of its records (refer to [The laws](#the-laws)). The law files, with their intervals and the knee, are CAP-53.
+The plan `rate` sends the bare request to the bare subject at 25 rates, from 100 to 36000 requests each second. The subject has one core and 512 MiB. The points of the laws of the request rate come from its records (CAP-20). Its law set tells the laws of its records (refer to [The laws](#the-laws)). Its six law files are in `packages/capacity/laws` (CAP-17). Their intervals and their knees are CAP-53.
 
 | Part | The value | Why |
 | --- | --- | --- |
