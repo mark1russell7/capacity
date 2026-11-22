@@ -23,6 +23,11 @@ on:
 permissions:
   contents: read
 
+# The same Lab runs give the same laws. Thus a second dispatch with the same runs waits for the first, and none is cancelled.
+concurrency:
+  group: laws-${{ inputs.runs }}
+  cancel-in-progress: false
+
 jobs:
   laws:
     runs-on: ubuntu-latest
