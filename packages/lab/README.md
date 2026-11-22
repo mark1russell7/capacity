@@ -470,13 +470,13 @@ A contract can have outside services, for example a feed or a channel of message
 - The child starts when each fake gives its ready signal. A fake that ends before the end of the child makes the run fail.
 - A start case gives the fakes a workload with no load: the rate of each class is 0. The load of an app comes with CAP-66.
 
-#### The ladders of the levels
+#### The ladders of the levels and of the log
 
-The plans `alerts-start-feeds`, `alerts-start-persons` and `alerts-start-incidents` start alerts from its contract at 9 rungs of one level (CAP-35). Each plan has one app case with one arm, and a start law set of its level.
+The plans `alerts-start-feeds`, `alerts-start-persons` and `alerts-start-incidents` start alerts from its contract at 9 rungs of one level (CAP-35). The plan `alerts-start-log` starts it at 9 rungs of its log (CAP-62). Each plan has one app case with one arm, and a start law set of its variable.
 
 | Part | The value | Why |
 | --- | --- | --- |
-| The rungs | `feeds` and `persons`: 1, 3, 10, 30, 100, 300, 1000, 3000 and 10000. `incidents`: 0, 10, 100, 200, 300, 400, 600, 800 and 1000. | The rungs cover the range of the contract, on the scale of the variable. 9 rungs in each of 5 jobs give 45 points, and a law needs 40. |
+| The rungs | `feeds` and `persons`: 1, 3, 10, 30, 100, 300, 1000, 3000 and 10000. `incidents`: 0, 10, 100, 200, 300, 400, 600, 800 and 1000. `log`: 2, 4, 8, 16, 32, 64, 128 and 256 MiB, and the point `log-max` at 400,000,000 B. | The rungs cover the range of the contract, on the scale of the variable. 9 rungs in each of 5 jobs give 45 points, and a law needs 40. |
 | The base point | 16 MiB of log, 10 feeds, 10 persons and 10 incidents | Each ladder holds the other levels at the base point. The three ladders meet at it, thus their readings there must agree. |
 | The arm | One arm: alerts at the commit of its levels, with its A/A copy | A ladder gives a law, not a comparison. The A/A copy gives the noise floor of each measure. |
 | The limit | 240 s for each start | A start at the base is ready in approximately 6 s. A start that passes the limit has no reading, and the result tells it. |
@@ -486,6 +486,8 @@ The plans `alerts-start-feeds`, `alerts-start-persons` and `alerts-start-inciden
 - A start law set refuses a case with points that move a second variable. Otherwise a law of one variable also holds the effect of another variable.
 - The routes of alerts are the persons times the incidents and the system incidents. The ladders move one level at a time. Thus their laws do not give the interaction of the two levels (CAP-67).
 - The plans have no trigger: a person starts them. The time limit of each plan is 151 minutes.
+- The contract accepts a log from 2,000,000 B to 400,000,000 B. Thus the log ladder stops at 400,000,000 B, and not at 512 MiB as the old plan `alerts-start`.
+- The jobs of one run can land on more than one CPU model. A law needs 5 jobs on one CPU model. Thus a ladder can need a second run of the same plan.
 
 ### The machine model
 
@@ -544,9 +546,8 @@ The container does not model all of the target machine:
 - The CPUs of the host of the lab are not the CPUs of the target. Thus a time of the lab is a time on the CPU of the record.
 - The page cache of the store counts in the memory of the container. The kernel takes back clean cache first.
 
-Three plans measure the start of alerts with the start subject `alerts`. Each one has no check and no trigger. The arm `cloud` is the build of the cloud machine with the graft of the measured start.
+Two plans measure the start of alerts with the start subject `alerts`. Each one has no check and no trigger. The arm `cloud` is the build of the cloud machine with the graft of the measured start.
 
-- `alerts-start` measures logs from 16 MiB to 512 MiB, and the log of the cloud machine, with the shapes and the transit copy of the cloud machine. It reads the windows of 90 s, of 308.012 s and of 600 s. The arm `new` is the current build.
 - `alerts-start-bytes-mean` and `alerts-start-bytes-peak` measure the knee of the cloud log on the model of the cloud machine. The model has a cold cache, the other processes and the disk of the machine.
   - The point `cut-1030` is the log at the last start that was ready in 90 s. A count of the events of the cloud log gives its size.
   - The point `file-1844` is the log when the starts stopped at 90 s. The two points are 3% apart. The point `file-1844-again` is a second start after `file-1844`.
@@ -564,9 +565,9 @@ The plan `alerts-start-app` starts alerts from its contract, on the commit of th
 
 The Actions artifacts of these runs expire in February 2027. Thus this section keeps their results. The machine of the observations is a small cloud machine with 2 CPUs, 964.6 MiB of memory and 2 GiB of swap.
 
-An observation is a fact of the machine, for example "the cloud build was not ready in 90 s at `file-1844`". A job exits 1 when the lab reads a window of an observation differently from the machine. CAP-62 retired the plans `alerts-start-files`, `alerts-start-horizon`, `alerts-start-disk-mean` and `alerts-start-disk-peak`.
+An observation is a fact of the machine, for example "the cloud build was not ready in 90 s at `file-1844`". A job exits 1 when the lab reads a window of an observation differently from the machine. CAP-62 retired the plans `alerts-start-files`, `alerts-start-horizon`, `alerts-start-disk-mean` and `alerts-start-disk-peak`. The plan `alerts-start-log` replaced the plan `alerts-start`.
 
-- **`alerts-start`** (the runs [44941391218](https://github.com/mark1russell7/capacity/actions/runs/44941391218) and [44945165388](https://github.com/mark1russell7/capacity/actions/runs/44945165388)):
+- **`alerts-start`** (retired, the runs [44941391218](https://github.com/mark1russell7/capacity/actions/runs/44941391218) and [44945165388](https://github.com/mark1russell7/capacity/actions/runs/44945165388)):
   - Each of the 90 children is ready in each window, but each job exits 1 on one observation.
   - The median `ready` of `cloud` is 4.89 s at 16 MiB, 9.59 s at 256 MiB and 24.12 s at 512 MiB.
   - At 512 MiB, `cloud` has a `peak` of 607.2 to 622.5 MiB and a `heapPeak` of 470.3 to 473.8 MiB.
@@ -617,7 +618,7 @@ At each point, the ranges of the two cases overlap. At `cut-1030`, the ratio of 
 A person starts a plan by hand, for example with 5 runs:
 
 ```sh
-gh workflow run lab.yml -R mark1russell7/capacity --ref <branch> -f plans=alerts-start -f runs='[1,2,3,4,5]'
+gh workflow run lab.yml -R mark1russell7/capacity --ref <branch> -f plans=alerts-start-log -f runs='[1,2,3,4,5]'
 ```
 
 The programs of alerts are in `src/subject`. `alerts-seed.main.ts` writes a store with `seedStore` of the testkit of the tree. The seed writes the events at the rate of a live log, thus a larger log has more days of events. `alerts-start.main.ts` opens the store with `openMeasuredRuntime` of the runtime of the tree. With the snapshot, it also asks for the time of each write of the snapshot. An older tree ignores that option, and its measures of the writes are `null`. `alerts-config.json` is the configuration of each store: one place, one person and one channel, with made-up codes.

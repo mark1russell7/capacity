@@ -110,7 +110,12 @@ describe("the plan files of the lab", () => {
 
   it("have the plan of the start of alerts: no check, no trigger, only start cases, in the time of one job", () => {
     // CAP-62 retired the plans alerts-start-files, alerts-start-horizon, alerts-start-disk-mean and alerts-start-disk-peak. The README of the lab keeps their results.
-    const plans = [["alerts-start", ["alerts-start/log"], ["cloud", "new"]]] as const;
+    // CAP-62 also moved the log ladder to the contract of alerts, in the plan alerts-start-log.
+    const plans = [
+      ["alerts-start-log", ["alerts-start-log/ladder"], ["main"]],
+      ["alerts-start-bytes-mean", ["alerts-start/bytes-mean"], ["cloud", "main"]],
+      ["alerts-start-bytes-peak", ["alerts-start/bytes-peak"], ["cloud", "main"]],
+    ] as const;
     for (const [id, cases, arms] of plans) {
       const start = readPlans(PLANS).plans.find((each) => each.id === id);
       expect(start?.check).toBeNull();
@@ -188,7 +193,7 @@ describe("the problems of a plan", () => {
   });
 
   it("examines a start case with the rules of a start case, and puts its time in the time of the job", () => {
-    const start = readPlans(PLANS).plans.find((each) => each.id === "alerts-start")!.cases[0] as StartCase;
+    const start = readPlans(PLANS).plans.find((each) => each.id === "alerts-start-log")!.cases[0] as StartCase;
     expect(paths(plan({ cases: [CASE, { ...start, rounds: 0 }] }))).toEqual(["case cases[1].rounds"]);
     const seconds = valueIn(startWindowOf(start), "s") + (CASE.runs + 1) * valueIn(windowOf(CASE), "s");
     expect(planMinutes(plan({ cases: [CASE, start] }))).toBe(SETUP_MINUTES + Math.ceil(seconds / 60));
@@ -216,7 +221,7 @@ describe("the problems of a plan", () => {
   });
 
   it("examines a start law set: only start cases, and no law set with it", () => {
-    const start = readPlans(PLANS).plans.find((each) => each.id === "alerts-start")!.cases[0] as StartCase;
+    const start = readPlans(PLANS).plans.find((each) => each.id === "alerts-start-log")!.cases[0] as StartCase;
     expect(paths(plan({ cases: [start], startLaws: START_SET }))).toEqual([]);
     expect(paths(plan({ cases: [CASE, start], startLaws: START_SET }))).toEqual(["laws cases[0]"]);
     expect(paths(plan({ cases: [start], startLaws: { ...START_SET, measures: [] } }))).toEqual(["laws startLaws.measures"]);
