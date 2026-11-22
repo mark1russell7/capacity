@@ -101,7 +101,7 @@ describe("startCaseProblems", () => {
   });
 
   it("needs 1 arm or more, each with a different id, and each graft with a relative path and a commit", () => {
-    expect(paths(start({ arms: [] }))).toEqual(["arm arms"]);
+    expect(paths(start({ arms: [], observed: [] }))).toEqual(["arm arms"]);
     // one arm is a ladder: it has the readings of its points and the A/A floor of its base, with no comparison
     expect(paths(start({ arms: [CASE.arms[0]!], observed: [] }))).toEqual([]);
     expect(paths(bare({ arms: [CASE.arms[1]!, CASE.arms[1]!] }))).toEqual(["id arms[1].id"]);
