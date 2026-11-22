@@ -71,6 +71,9 @@ export interface FloorPair {
 /** This function gives the ids of the cases of the A/A pair `pair`, from 1 to `FLOOR_PAIRS`, in the plan `plans/floor.json`. */
 export const floorPair = (pair: number): FloorPair => ({ a: `floor/a${pair}`, b: `floor/b${pair}` });
 
+/** These ids are the ids of the cases of each A/A pair, in the order of the plan `plans/floor.json`. */
+export const FLOOR_IDS: readonly string[] = Array.from({ length: FLOOR_PAIRS }, (_, index) => floorPair(index + 1)).flatMap((pair) => [pair.a, pair.b]);
+
 /**
  * This check is the check of the noise floor. The plan `floor` has `FLOOR_PAIRS` A/A pairs. The two
  * cases of a pair are equal, and each one has its own container. Each case sends the load of `control/base`.

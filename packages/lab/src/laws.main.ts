@@ -15,38 +15,19 @@
  * - `--runs` is the count of the bootstrap runs of each fit, and `--seed` is the seed of each fit.
  *   The defaults are the defaults of `fitLaw`.
  */
-import { appendFileSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
-import { basename, dirname, join } from "node:path";
+import { appendFileSync, mkdirSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
-import { readLaw } from "@mark1russell7/capacity/schema";
 import { errorMessage } from "@mark1russell7/text";
-import { lawsOf, lawsSummaryOf, type LawJob, type LawsOptions } from "./laws.ts";
+import { LAW_SUFFIX, readJobs, readLawFile } from "./jobs.ts";
+import { lawsOf, lawsSummaryOf, type LawsOptions } from "./laws.ts";
 import { readPlans } from "./plan.ts";
-import { RECORD_FORMAT, type CaseRecord } from "./record.ts";
-import { MANIFEST, TIMED_FORMAT, type Timed } from "./timed.ts";
 
 /** This folder holds the plan files of the lab. */
 const PLANS = fileURLToPath(new URL("../plans/", import.meta.url));
 
 const USAGE = "node src/laws.main.ts fit --records <folder> [--records <folder>] --out <folder> [--runs <count>] [--seed <number>]";
-
-const readJson = (file: string): unknown => JSON.parse(readFileSync(file, "utf8"));
-
-/** This function gives each job of a folder: each manifest in the folder or in a subfolder, with the records of its cases of load. */
-const jobsOf = (folder: string): readonly LawJob[] =>
-  readdirSync(folder, { recursive: true, encoding: "utf8" })
-    .filter((name) => basename(name) === MANIFEST)
-    .sort()
-    .map((name) => {
-      const file = join(folder, name);
-      const timed = readJson(file) as Timed;
-      if (timed.format !== TIMED_FORMAT) throw new Error(`The file ${file} is not a manifest of the format "${TIMED_FORMAT}".`);
-      const records = timed.files
-        .map((each) => readJson(join(dirname(file), each.record)) as { readonly format?: unknown })
-        .filter((record): record is CaseRecord => record.format === RECORD_FORMAT);
-      return { timed, records };
-    });
 
 /** This function gives a whole number from an option, or it throws. */
 const wholeOf = (name: string, text: string | undefined): number | undefined => {
@@ -68,7 +49,7 @@ const fit = (args: readonly string[]): void => {
   const options: LawsOptions = { ...(runs === undefined ? {} : { runs }), ...(seed === undefined ? {} : { seed }) };
   const { plans, problems } = readPlans(PLANS);
   if (problems.length > 0) throw new Error(`The plan files have problems:\n${problems.map((each) => `  ${each.path}: ${each.message}`).join("\n")}`);
-  const jobs = folders.flatMap(jobsOf);
+  const jobs = folders.flatMap(readJobs);
   const floors = jobs.map((job) => job.timed);
   const summaries: string[] = [];
   let count = 0;
@@ -78,11 +59,10 @@ const fit = (args: readonly string[]): void => {
     if (plan.laws === undefined || own.length === 0) continue;
     const result = lawsOf(plan, own, floors, options);
     for (const { law } of result.laws) {
-      const file = join(out, `${law.id}.law.json`);
+      const file = join(out, `${law.id}${LAW_SUFFIX}`);
       mkdirSync(dirname(file), { recursive: true });
       writeFileSync(file, `${JSON.stringify(law, null, 2)}\n`);
-      const again = readLaw(readJson(file));
-      if (again.tag === "err") throw new Error(`The file ${file} is not a correct law:\n${again.error.map((each) => `  ${each.path}: ${each.message}`).join("\n")}`);
+      readLawFile(file);
     }
     count += result.laws.length;
     failed ||= result.problems.length > 0;

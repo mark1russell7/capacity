@@ -3,6 +3,7 @@ import { connect, type AddressInfo } from "node:net";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { EMPTY, pathOf, requestOf, type RequestClass } from "./class.ts";
 import { nodeHttp } from "./node-http.ts";
+import { processCpu } from "./perform.ts";
 
 let server: Server;
 let port = 0;
@@ -62,6 +63,22 @@ describe("nodeHttp", () => {
     expect(response.status).toBe(200);
     expect(await response.text()).toHaveLength(20);
     expect(performance.now() - start).toBeGreaterThanOrEqual(25);
+  });
+
+  it("adds the CPU time of the option cost to each request", async () => {
+    const slow = nodeHttp({ cost: 20_000 });
+    await new Promise<void>((resolve) => slow.listen(0, "127.0.0.1", resolve));
+    try {
+      const before = processCpu();
+      const response = await fetch(`http://127.0.0.1:${(slow.address() as AddressInfo).port}${pathOf(EMPTY)}`);
+      expect(response.status).toBe(200);
+      expect(await response.text()).toBe("");
+      // The busy wait ends when the CPU time of the process is 20000 us past its start.
+      expect(processCpu() - before).toBeGreaterThanOrEqual(20_000);
+    } finally {
+      slow.closeAllConnections();
+      await new Promise((resolve) => slow.close(resolve));
+    }
   });
 
   it("answers 400 for a body that does not have the bytes of the class", async () => {

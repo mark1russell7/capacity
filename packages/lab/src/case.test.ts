@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CASE_FORMAT, MAX_ARRIVALS, arrivalsOf, caseLevel, caseProblems, requestClassOf, type Case } from "./case.ts";
+import { CASE_FORMAT, MAX_ARRIVALS, arrivalsOf, caseCost, caseLevel, caseProblems, requestClassOf, type Case } from "./case.ts";
 
 const CASE: Case = {
   format: CASE_FORMAT,
@@ -78,6 +78,18 @@ describe("the check of a case", () => {
     expect(codes({ ...CASE, runs: 0 })).toEqual(["runs runs"]);
     expect(codes({ ...CASE, runs: 2.5 })).toEqual(["runs runs"]);
     expect(codes({ ...CASE, runs: 21 })).toEqual(["runs runs"]);
+  });
+
+  it("takes a cost of the subject: a whole number of us up to the limit of the field work", () => {
+    expect(caseProblems({ ...CASE, cost: { value: 10, unit: "us" } })).toEqual([]);
+    expect(caseProblems({ ...CASE, cost: { value: 0.5, unit: "ms" } })).toEqual([]);
+    expect(caseCost({ ...CASE, cost: { value: 0.5, unit: "ms" } })).toBe(500);
+    expect(caseCost(CASE)).toBe(0);
+    expect(codes({ ...CASE, cost: { value: 0.5, unit: "us" } })).toEqual(["cost cost"]);
+    expect(codes({ ...CASE, cost: { value: -1, unit: "us" } })).toEqual(["cost cost"]);
+    expect(codes({ ...CASE, cost: { value: 11, unit: "s" } })).toEqual(["cost cost"]);
+    expect(codes({ ...CASE, cost: { value: 10, unit: "B" } })).toEqual(["cost cost"]);
+    expect(codes({ ...CASE, cost: 10 } as unknown as Case)).toEqual(["cost cost"]);
   });
 
   it("takes the connections of the harness: a pipeline, a pool of 1 to 1024 connections, or a new connection for each arrival", () => {

@@ -66,6 +66,12 @@ export interface Case {
   readonly connections?: LoadConnections;
   /** This count is the runs that the record counts. One warm-up run comes before them. */
   readonly runs: number;
+  /**
+   * This time is an added CPU time that the subject spends on each request, in a unit that converts to "us". It makes a
+   * slower subject, for example to prove that a gate of the laws blocks a slower subject. It is not a condition of a law,
+   * because the laws compare the subject. With no value, the subject adds no time.
+   */
+  readonly cost?: Quantity;
 }
 
 /** A case problem code names the part of a case that is not correct. */
@@ -82,6 +88,7 @@ export type CaseProblemCode =
   | "arrivals"
   | "connections"
   | "runs"
+  | "cost"
   | "load";
 
 /** A case problem tells what is not correct, and where: `path` is the path of the field in the case. */
@@ -173,8 +180,8 @@ const arrivalProblems = (arrivals: ScheduleOptions): readonly CaseProblem[] => {
  * It examines the format, the id, the title and the subject. It examines the instance and the
  * demand with `instanceProblems` and `demandProblems` of `@mark1russell7/capacity`. Then it
  * examines what the lab can do: the resources that it limits, the request variables and the levels.
- * It examines the connections with `connectionsProblems` of `@mark1russell7/harness`. A case with
- * no other problem must plan `MAX_ARRIVALS` or fewer (`arrivalsOf`).
+ * It examines the connections with `connectionsProblems` of `@mark1russell7/harness`. The cost must be a whole number
+ * of us, up to the limit of the field `work`. A case with no other problem must plan `MAX_ARRIVALS` or fewer (`arrivalsOf`).
  */
 export const caseProblems = (value: Case): readonly CaseProblem[] => {
   if (!isRecord(value)) return [problem("shape", "", "The case is not a record.")];
@@ -209,6 +216,12 @@ export const caseProblems = (value: Case): readonly CaseProblem[] => {
   if (!Number.isInteger(value.runs) || value.runs < 1 || value.runs > MAX_RUNS) {
     problems.push(problem("runs", "runs", `The count of runs is not a whole number from 1 to ${MAX_RUNS}.`));
   }
+  if (value.cost !== undefined) {
+    const us = isQuantity(value.cost) && convertible(value.cost.unit, "us") ? wholeIn(value.cost, "us") : undefined;
+    if (us === undefined || us < 0 || us > LIMITS.work) {
+      problems.push(problem("cost", "cost", `The cost is not a whole number of us from 0 to ${LIMITS.work}.`));
+    }
+  }
   if (problems.length === 0 && (value.runs + 1) * arrivalsOf(value) > MAX_ARRIVALS) {
     const all = (value.runs + 1) * arrivalsOf(value);
     problems.push(problem("load", "demand", `The case plans ${all} arrivals in its ${value.runs + 1} runs, with the warm-up run. A case plans at most ${MAX_ARRIVALS}.`));
@@ -237,6 +250,9 @@ export const requestClassOf = (request: Amounts): RequestClass => {
   });
   return Object.fromEntries(fields) as Record<Field, number> as RequestClass;
 };
+
+/** This function gives the added CPU time of the subject for each request of a case, in us (`Case.cost`). With no cost, it is 0. */
+export const caseCost = (value: Case): number => (value.cost === undefined ? 0 : (wholeIn(value.cost, "us") ?? 0));
 
 /** This function gives a level of a case in the unit of the level of `CASE_LEVELS`, or 0 when the demand does not hold it. */
 export const caseLevel = (value: Case, name: string): number => {

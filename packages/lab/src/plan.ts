@@ -3,10 +3,12 @@ import { basename, join } from "node:path";
 import type { Problem } from "@mark1russell7/capacity";
 import { isRecord } from "@mark1russell7/optional/read";
 import { valueIn } from "@mark1russell7/quantity";
+import { canonicalJson } from "@mark1russell7/rigor-generators";
 import { errorMessage } from "@mark1russell7/text";
-import { caseProblems, type Case } from "./case.ts";
+import { caseCost, caseProblems, type Case } from "./case.ts";
 import { windowOf } from "./cell.ts";
 import { CHECKS } from "./check.ts";
+import { FLOOR_IDS } from "./floor.ts";
 import { lawSetProblems, type LawSet } from "./laws.ts";
 import { isStartCase, startCaseProblems, startWindowOf, type StartCase } from "./start.ts";
 
@@ -46,6 +48,7 @@ export const MAX_JOBS = 256;
  * or a start case (`capacity-start/1`). A check judges only the cases of load.
  *
  * The field `laws` tells the laws that the records of the plan give (`lawsOf`). A plan with no law set gives no law.
+ * The field `gate` makes a gate plan: the plan measures the subject again at points of the laws of another plan (`planGate`).
  */
 export interface Plan {
   readonly format: typeof PLAN_FORMAT;
@@ -57,10 +60,24 @@ export interface Plan {
   readonly triggers: readonly PlanTrigger[];
   readonly cases: readonly (Case | StartCase)[];
   readonly laws?: LawSet;
+  readonly gate?: GateSet;
+}
+
+/** This text is the id of the plan of the A/A pairs. A gate plan has each of its cases, for the noise floor of its job. */
+export const FLOOR_PLAN = "floor";
+
+/**
+ * A gate set tells the plan of the laws of a gate plan. A gate plan has the check `gate`, each case of the plan
+ * `FLOOR_PLAN`, and some cases of the plan of the laws, each with the same id. A case of the laws can add a cost
+ * (`Case.cost`): a slower subject, thus a gate that must block.
+ */
+export interface GateSet {
+  /** This id is the id of a plan with a law set. */
+  readonly laws: string;
 }
 
 /** A plan problem code names the part of a plan that is not correct. */
-export type PlanProblemCode = "shape" | "format" | "id" | "check" | "trigger" | "case" | "time" | "laws";
+export type PlanProblemCode = "shape" | "format" | "id" | "check" | "trigger" | "case" | "time" | "laws" | "gate";
 
 /** A plan problem tells what is not correct, and where: `path` is the path of the field in the plan. */
 export type PlanProblem = Problem<PlanProblemCode>;
@@ -84,6 +101,8 @@ export const planMinutes = (plan: Plan): number => {
  * It examines the format, the id, the title, the check and the triggers. It examines each case with
  * `caseProblems`, or a start case with `startCaseProblems`. The ids of the cases must differ. Then the time limit of the job of the plan
  * (`planMinutes`) must be `MAX_JOB_MINUTES` or less. A plan with correct cases and a law set gets the problems of `lawSetProblems`.
+ * A plan with a law set has no case with a cost. A gate plan has the check `gate`, a plan id in `gate.laws` and no law set.
+ * `readPlans` compares the cases of a gate plan with the cases of its plans.
  */
 export const planProblems = (plan: Plan): readonly PlanProblem[] => {
   if (!isRecord(plan)) return [problem("shape", "", "The plan is not a record.")];
@@ -117,10 +136,60 @@ export const planProblems = (plan: Plan): readonly PlanProblem[] => {
       ids.add(id);
     }
   });
-  if (problems.length === 0 && plan.laws !== undefined) problems.push(...lawSetProblems(plan.laws, plan.cases));
+  if (problems.length === 0 && plan.laws !== undefined) {
+    problems.push(...lawSetProblems(plan.laws, plan.cases));
+    plan.cases.forEach((value, index) => {
+      if (!isStartCase(value) && caseCost(value) > 0) {
+        problems.push(problem("laws", `cases[${index}].cost`, "A plan with a law set has no case with a cost. A law is a law of the subject with no added cost."));
+      }
+    });
+  }
+  if (plan.gate !== undefined) problems.push(...gateShapeProblems(plan));
   if (problems.length === 0 && planMinutes(plan) > MAX_JOB_MINUTES) {
     problems.push(problem("time", "cases", `The job of the plan needs ${planMinutes(plan)} minutes. A job has at most ${MAX_JOB_MINUTES}. Put some cases in a second plan.`));
   }
+  return problems;
+};
+
+/** This function gives the problems of the field `gate` of a plan, with no other plan: its shape, its check and no law set. */
+const gateShapeProblems = (plan: Plan): readonly PlanProblem[] => {
+  const problems: PlanProblem[] = [];
+  if (!isRecord(plan.gate) || typeof plan.gate.laws !== "string" || !PLAN_ID.test(plan.gate.laws)) {
+    problems.push(problem("gate", "gate", `The gate is not a record with the id of a plan in "laws", for example { "laws": "rate" }.`));
+  }
+  if (plan.check !== "gate") problems.push(problem("gate", "check", `A gate plan has the check "gate", not ${JSON.stringify(plan.check)}.`));
+  if (plan.laws !== undefined) problems.push(problem("gate", "laws", "A gate plan has no law set. It compares the records with the laws of another plan."));
+  return problems;
+};
+
+/** This function gives the text of a case with no cost, to compare two cases. */
+const plainText = (value: Case | StartCase): string => canonicalJson(Object.fromEntries(Object.entries(value).filter(([name]) => name !== "cost")));
+
+/**
+ * This function gives the problems of a gate plan against the other plans. The plan of its laws must have a law set. The gate
+ * plan has each case of the plan `FLOOR_PLAN`, equal to it. Each other case is a case of the plan of the laws, with
+ * the same id, equal to it apart from its cost.
+ */
+export const gatePlanProblems = (plan: Plan, plans: readonly Plan[]): readonly PlanProblem[] => {
+  const laws = plans.find((each) => each.id === plan.gate?.laws);
+  if (laws?.laws === undefined) return [problem("gate", "gate.laws", `No plan with a law set has the id "${plan.gate?.laws ?? ""}".`)];
+  const floor = plans.find((each) => each.id === FLOOR_PLAN);
+  if (floor === undefined) return [problem("gate", "cases", `No plan has the id "${FLOOR_PLAN}". A gate plan has each of its cases.`)];
+  const problems: PlanProblem[] = [];
+  for (const id of FLOOR_IDS) {
+    const own = plan.cases.find((each) => each.id === id);
+    const base = floor.cases.find((each) => each.id === id);
+    if (own === undefined || base === undefined || canonicalJson(own) !== canonicalJson(base)) {
+      problems.push(problem("gate", "cases", `The case "${id}" is not the case of the plan ${FLOOR_PLAN}. A gate plan has each A/A pair of that plan, for the noise floor of its job.`));
+    }
+  }
+  plan.cases.forEach((value, index) => {
+    if (FLOOR_IDS.includes(value.id)) return;
+    const base = laws.cases.find((each) => each.id === value.id);
+    if (base === undefined || plainText(value) !== plainText(base)) {
+      problems.push(problem("gate", `cases[${index}]`, `The case "${value.id}" is not a case of the plan ${laws.id}, apart from its cost.`));
+    }
+  });
   return problems;
 };
 
@@ -132,8 +201,8 @@ export interface PlanFiles {
 
 /**
  * This function reads each plan file of a folder: each file with the extension `.json`. It examines
- * each plan with `planProblems`, and the id of each plan must be the name of its file. A plan with a
- * problem is not in `plans`.
+ * each plan with `planProblems`, and the id of each plan must be the name of its file. Then it examines each gate plan
+ * with `gatePlanProblems`. A plan with a problem is not in `plans`.
  */
 export const readPlans = (folder: string): PlanFiles => {
   const plans: Plan[] = [];
@@ -156,7 +225,10 @@ export const readPlans = (folder: string): PlanFiles => {
     if (found.length === 0) plans.push(value as Plan);
     problems.push(...found);
   }
-  return { plans, problems };
+  const gates = plans.flatMap((plan) => (plan.gate === undefined ? [] : [{ plan, found: gatePlanProblems(plan, plans) }]));
+  const bad = new Set(gates.filter((each) => each.found.length > 0).map((each) => each.plan.id));
+  for (const { plan, found } of gates) problems.push(...found.map((each) => ({ ...each, path: `${plan.id}.json: ${each.path}` })));
+  return { plans: plans.filter((plan) => !bad.has(plan.id)), problems };
 };
 
 /** A selection tells the plans of a workflow run: its event, and the ids of a dispatch by hand. */

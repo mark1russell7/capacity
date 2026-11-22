@@ -1,0 +1,52 @@
+import { readdirSync, readFileSync } from "node:fs";
+import { basename, dirname, join } from "node:path";
+import type { Law } from "@mark1russell7/capacity";
+import { readLaw } from "@mark1russell7/capacity/schema";
+import type { LawJob } from "./laws.ts";
+import { RECORD_FORMAT, type CaseRecord } from "./record.ts";
+import { MANIFEST, TIMED_FORMAT, type Timed } from "./timed.ts";
+
+/** This text is the end of the name of a law file. */
+export const LAW_SUFFIX = ".law.json";
+
+const readJson = (file: string): unknown => JSON.parse(readFileSync(file, "utf8"));
+
+/**
+ * This function gives each job of a folder: each manifest `timed.json` in the folder or in a subfolder, with the records
+ * of its cases of load. The order of the jobs is the order of the paths of their manifests.
+ *
+ * It throws an `Error` for a manifest of another format.
+ */
+export const readJobs = (folder: string): readonly LawJob[] =>
+  readdirSync(folder, { recursive: true, encoding: "utf8" })
+    .filter((name) => basename(name) === MANIFEST)
+    .sort()
+    .map((name) => {
+      const file = join(folder, name);
+      const timed = readJson(file) as Timed;
+      if (timed.format !== TIMED_FORMAT) throw new Error(`The file ${file} is not a manifest of the format "${TIMED_FORMAT}".`);
+      const records = timed.files
+        .map((each) => readJson(join(dirname(file), each.record)) as { readonly format?: unknown })
+        .filter((record): record is CaseRecord => record.format === RECORD_FORMAT);
+      return { timed, records };
+    });
+
+/**
+ * This function reads one law file with `readLaw` of `@mark1russell7/capacity`. It throws an `Error` for a file that is not a
+ * correct law, with each problem of the file.
+ */
+export const readLawFile = (file: string): Law => {
+  const result = readLaw(readJson(file));
+  if (result.tag === "err") throw new Error(`The file ${file} is not a correct law:\n${result.error.map((each) => `  ${each.path}: ${each.message}`).join("\n")}`);
+  return result.value;
+};
+
+/**
+ * This function gives each law of a folder: each file `<id>.law.json` in the folder or in a subfolder (`readLawFile`).
+ * The order of the laws is the order of their paths. It throws an `Error` for a file that is not a correct law.
+ */
+export const readLaws = (folder: string): readonly Law[] =>
+  readdirSync(folder, { recursive: true, encoding: "utf8" })
+    .filter((name) => name.endsWith(LAW_SUFFIX))
+    .sort()
+    .map((name) => readLawFile(join(folder, name)));

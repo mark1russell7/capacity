@@ -4,11 +4,14 @@
  *
  * ```text
  * node src/timed.main.ts plan --event <event> [--plans <id,id>] [--runs <JSON list>]
+ * node src/timed.main.ts gates --event <event> [--plans <id,id>]
  * node src/timed.main.ts measure --plan <id> --out <folder> [--run <number>]
  * ```
  *
  * - `plan` reads each plan file of `plans` and examines it. It writes the matrix of the workflow as
  *   JSON on its standard output: one entry for each run of each plan of the selection.
+ * - `gates` writes the ids of the gate plans of the same selection as a JSON list. The job `gate` of the workflow starts
+ *   only for a list that is not empty.
  * - `measure` measures each case of one plan (`timePlan`) in the run `--run` of the matrix. The default
  *   run is 1. It writes the records, the raw results and the manifest into the folder. It writes a
  *   summary into `GITHUB_STEP_SUMMARY`, with a table for each start record. A verdict with a problem
@@ -27,6 +30,7 @@ import { summaryOf, timePlan } from "./timed.ts";
 const PLANS = fileURLToPath(new URL("../plans/", import.meta.url));
 
 const USAGE = `node src/timed.main.ts plan --event <event> [--plans <id,id>] [--runs <JSON list>]
+node src/timed.main.ts gates --event <event> [--plans <id,id>]
 node src/timed.main.ts measure --plan <id> --out <folder> [--run <number>]`;
 
 /** This function gives the plans of the folder, or it throws with each problem of a plan file. */
@@ -36,17 +40,27 @@ const plans = () => {
   return found;
 };
 
-const plan = (args: readonly string[]): void => {
-  const { values } = parseArgs({ args: [...args], options: { event: { type: "string" }, plans: { type: "string", default: "" }, runs: { type: "string", default: "[1]" } } });
-  if (values.event === undefined) throw new Error(`The command needs --event.\n${USAGE}`);
-  const ids = values.plans
+/** This function gives the ids of the option `--plans`: the ids separated by commas, with no empty id. */
+const idsOf = (text: string): readonly string[] =>
+  text
     .split(",")
     .map((id) => id.trim())
     .filter((id) => id !== "");
+
+const plan = (args: readonly string[]): void => {
+  const { values } = parseArgs({ args: [...args], options: { event: { type: "string" }, plans: { type: "string", default: "" }, runs: { type: "string", default: "[1]" } } });
+  if (values.event === undefined) throw new Error(`The command needs --event.\n${USAGE}`);
   const runs: unknown = JSON.parse(values.runs);
   if (!Array.isArray(runs)) throw new Error(`--runs is not a JSON list: ${values.runs}`);
-  const chosen = selectPlans(plans(), { event: values.event, ids });
+  const chosen = selectPlans(plans(), { event: values.event, ids: idsOf(values.plans) });
   process.stdout.write(`${JSON.stringify(matrixOf(chosen, runs.map(Number)))}\n`);
+};
+
+const gates = (args: readonly string[]): void => {
+  const { values } = parseArgs({ args: [...args], options: { event: { type: "string" }, plans: { type: "string", default: "" } } });
+  if (values.event === undefined) throw new Error(`The command needs --event.\n${USAGE}`);
+  const chosen = selectPlans(plans(), { event: values.event, ids: idsOf(values.plans) });
+  process.stdout.write(`${JSON.stringify(chosen.filter((each) => each.gate !== undefined).map((each) => each.id))}\n`);
 };
 
 const measure = async (args: readonly string[]): Promise<void> => {

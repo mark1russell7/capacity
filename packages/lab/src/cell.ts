@@ -1,7 +1,7 @@
 import type { Cell, LoadStream, Target } from "@mark1russell7/harness";
 import { quantity, valueIn, type Quantity } from "@mark1russell7/quantity";
 import { constant, type ScheduleOptions } from "@mark1russell7/rigor-chaos";
-import { CASE_RATE, SUBJECTS, caseLevel, caseProblems, requestClassOf, type Case } from "./case.ts";
+import { CASE_RATE, SUBJECTS, caseCost, caseLevel, caseProblems, requestClassOf, type Case } from "./case.ts";
 import { requestOf } from "./subject/class.ts";
 import { SUBJECT_FOLDER, subjectFiles, type LabSubject } from "./subjects.ts";
 
@@ -56,10 +56,11 @@ export const subjectOf = (value: Case): LabSubject => {
 
 /**
  * This function gives the command of the subject of a case. The subject keeps each connection
- * (`--keep-alive-timeout 0`), and the level `heap` of the demand is its ballast.
+ * (`--keep-alive-timeout 0`), and the level `heap` of the demand is its ballast. A case with a cost (`caseCost`) gives the flag `--cost`.
  */
 export const commandOf = (value: Case): readonly string[] => {
   const heap = caseLevel(value, "heap");
+  const cost = caseCost(value);
   return [
     "node",
     `${SUBJECT_FOLDER}/${subjectOf(value).program}`,
@@ -68,6 +69,7 @@ export const commandOf = (value: Case): readonly string[] => {
     "--keep-alive-timeout",
     "0",
     ...(heap > 0 ? ["--ballast", String(heap)] : []),
+    ...(cost > 0 ? ["--cost", String(cost)] : []),
   ];
 };
 
