@@ -480,7 +480,7 @@ The plans `alerts-start-feeds`, `alerts-start-persons` and `alerts-start-inciden
 | The base point | 16 MiB of log, 10 feeds, 10 persons and 10 incidents | Each ladder holds the other levels at the base point. The three ladders meet at it, thus their readings there must agree. |
 | The arm | One arm: alerts at the commit of its levels, with its A/A copy | A ladder gives a law, not a comparison. The A/A copy gives the noise floor of each measure. |
 | The limit | 240 s for each start | A start at the base is ready in approximately 6 s. A start that passes the limit has no reading, and the result tells it. |
-| The measures | `ready`, `peak`, `heap` and `watchPeak` | The time to ready and the memory of a start are inputs of the scale rule. |
+| The measures | `ready`, `peak`, `heap`, `heapPeak` and `watchPeak` | The time to ready and the memory of a start are inputs of the scale rule. `heapPeak` gives the reach of each level to the heap limit of V8. |
 
 - The target is the target of the plan `alerts-start-app`.
 - A start law set refuses a case with points that move a second variable. Otherwise a law of one variable also holds the effect of another variable.
@@ -614,6 +614,24 @@ An observation is a fact of the machine, for example "the cloud build was not re
 | `log-256` | 17.06 s | 17.26 s | 11.46 to 19.04 s and 12.44 to 19.37 s |
 
 At each point, the ranges of the two cases overlap. At `cut-1030`, the ratio of the medians is 0.89. That is a little below the lowest A/A ratios of the two cases, 0.93 and 0.91. The lab made no statistical test. The ranges and the memory agree, thus the contract case replaces the subject case.
+
+- **The ladders of the levels and of the log** (the runs [45060628731](https://github.com/mark1russell7/capacity/actions/runs/45060628731) and [45072989987](https://github.com/mark1russell7/capacity/actions/runs/45072989987) of the levels, [45073979241](https://github.com/mark1russell7/capacity/actions/runs/45073979241) and [45080303535](https://github.com/mark1russell7/capacity/actions/runs/45080303535) of the log, and the run [45087929821](https://github.com/mark1russell7/capacity/actions/runs/45087929821) of `laws.yml`):
+  - Each child of the 35 jobs is ready at each rung, except at 10000 persons. There, each child reached the heap limit of V8.
+  - The jobs on the Xeon 6975P-C give 20 laws, 5 measures for each ladder. The jobs on the EPYC 7763 are too few for a law.
+  - The knee is the load where the law is two times its floor, by the rule `floor` with the share 1. The intervals are 95 % intervals over whole jobs.
+
+| Ladder | The law of `ready` | The knee of `ready` | The law of `heapPeak` | The first limit of the target |
+| --- | --- | --- | --- | --- |
+| `persons` | A power law with the exponent 1.15 [0.98, 1.34]. 21.7 s at 3000 persons. | 1045 [813, 1245] persons | 212.6 MB and 71,180 B for each person | The heap limit at 4828 [4646, 5063] persons |
+| `feeds` | A power law with the exponent 2.25 [2.17, 2.33]. 72.8 s at 10000 feeds. | 3186 [3023, 3347] feeds | 215.9 MB and 21,320 B for each feed | None up to 10000 feeds |
+| `incidents` | A line with 1.23 ms [0.57, 1.89] for each incident. 6.7 s at 1000 incidents. | None up to 1000 incidents | A hinge, 243 MiB at 1000 incidents | None up to 1000 incidents |
+| `log` | A hinge with its bend at 183 MiB [85, 189]. 21.0 s at the largest log. | 192 [158, 201] MiB | A hinge, 302 MiB at the largest log | None up to 400,000,000 B |
+
+- The reach of `persons` is outside the range of its fit, 1 to 3000 persons. The failures at 10000 persons agree with it: the law gives 882 MiB there.
+- After the heap limit, the memory limit of the target comes next. The law of `watchPeak` reaches it at 6304 [5828, 6876] persons.
+- Thus at the base point of the other levels, one instance of alerts on the target starts with at most approximately 4800 persons.
+- The rung of 10000 feeds sets the exponent of `feeds`. A fit without that rung does not predict the cliff: its held-out residuals are near 1.4.
+- The ladders move one level at a time. The laws of two levels together come with CAP-67.
 
 A person starts a plan by hand, for example with 5 runs:
 
