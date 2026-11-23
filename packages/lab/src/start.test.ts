@@ -281,6 +281,14 @@ describe("an app case", () => {
     expect(appPaths(app({ points: [...APP_CASE.points, { id: "time", at: { log: { value: 1, unit: "s" } } }] }))).toEqual(["point points[2].at.log"]);
   });
 
+  it("accepts the memory of the fakes as whole bytes of MIN_FAKES_MEMORY or more, and refuses the field on a case with no app", () => {
+    expect(appPaths(app({ fakes: { value: 256, unit: "MiB" } }))).toEqual([]);
+    expect(appPaths(app({ fakes: { value: 32, unit: "MiB" } }))).toEqual(["target fakes"]);
+    expect(appPaths(app({ fakes: { value: 1.5, unit: "B" } }))).toEqual(["target fakes"]);
+    expect(appPaths(app({ fakes: { value: 1, unit: "s" } }))).toEqual(["target fakes"]);
+    expect(startCaseProblems({ ...CASE, fakes: { value: 256, unit: "MiB" } }).map((each) => `${each.code} ${each.path}`)).toEqual(["target fakes"]);
+  });
+
   it("gives the variables of its first point to the amounts and to the time of the case", () => {
     expect(startVariablesOf(APP_CASE)).toEqual({ variables: { log: { unit: "KiB", min: 0, max: Infinity } } });
     expect(startVariablesOf(CASE)).toBe(START_SUBJECTS["alerts"]);

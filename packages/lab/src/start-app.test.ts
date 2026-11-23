@@ -18,9 +18,11 @@ import {
   readTreeApp,
   runParts,
   seedAmountsOf,
+  loadOf,
+  loadVariables,
   serviceValues,
-  startWorkloadOf,
   variableValues,
+  workloadOf,
   type TreeApp,
 } from "./start-app.ts";
 
@@ -204,12 +206,65 @@ describe("the fakes of the services of a contract", () => {
     });
   });
 
-  it("gives the fakes a workload with no load, and the workload has no problem against the contract", () => {
+  it("gives the fakes a workload with no load at a point with no rate, and the workload has no problem against the contract", () => {
     const { app } = served();
-    const workload = startWorkloadOf(app);
-    expect(workload).toMatchObject({ id: "fixture-app/start", classes: [], levels: {} });
+    const workload = workloadOf(app, APP_CASE.points[0]!);
+    expect(workload).toMatchObject({ id: `fixture-app/${APP_CASE.points[0]!.id}`, classes: [], levels: {} });
     expect(checkWorkload(workload)).toEqual([]);
     expect(appWorkloadProblems(app, workload)).toEqual([]);
+  });
+});
+
+describe("the load of a point", () => {
+  const bytes = { id: "eventBytes", title: "The bytes of one event", kind: "request", unit: "B", min: 200, max: 100000, scale: "linear" } as const;
+  const rate = (max: number) => ({ unit: "{event}/s", min: 0, max, scale: "linear" }) as const;
+  /** This function gives the tree of the tests with a feed and a request variable. It has a class of the feed and a class of HTTP. */
+  const loaded = (): TreeApp => {
+    const { app } = tree();
+    const fake: AppProcess = { argv: ["node", "feed.ts", "--port", "{port}", "--rates", "{workload}"], cwd: "fakes", env: {}, ready: { kind: "line", text: "feed up" } };
+    return changed({
+      variables: [...app.variables, bytes],
+      classes: [
+        { id: "event", title: "An event of the feed", rate: rate(100), request: ["eventBytes"], entry: { kind: "service", service: "feed" } },
+        { id: "hit", title: "A request of HTTP", rate: rate(50), request: [], entry: { kind: "http", method: "GET", path: "/" } },
+      ],
+      services: [{ id: "feed", title: "A feed of events", fake }],
+      start: { ...app.start, run: { ...app.start.run, argv: [...app.start.run.argv, "--feed", "{service.feed}", "--port", "{port}"] } },
+    });
+  };
+  const log = { value: 1, unit: "KiB" };
+  const at = (more: Record<string, { value: number; unit: string }>) => ({ id: "load", at: { log, ...more } });
+
+  it("gives the load variables of a contract: the rate of each class and each request variable, with their ranges", () => {
+    const { app } = loaded();
+    expect(checkApp(app)).toEqual([]);
+    expect(loadVariables(app)).toEqual({
+      variables: { event: { unit: "{event}/s", min: 0, max: 100 }, hit: { unit: "{event}/s", min: 0, max: 50 }, eventBytes: { unit: "B", min: 200, max: 100000 } },
+    });
+    expect(loadVariables(tree().app)).toEqual({ variables: {} });
+    // A class with the id of a variable has no load variable.
+    expect(Object.keys(loadVariables({ ...app, classes: [{ ...app.classes[0]!, id: "log" }] }).variables)).toEqual(["eventBytes"]);
+  });
+
+  it("gives the fakes the rate of each class above 0 and the amounts of its requests, and keeps the load out of the levels", () => {
+    const { app } = loaded();
+    const point = at({ event: { value: 30, unit: "{event}/s" }, eventBytes: { value: 2000, unit: "B" }, hit: { value: 0, unit: "{event}/s" } });
+    expect(loadOf(app, point)).toEqual({ event: { value: 30, unit: "{event}/s" }, eventBytes: { value: 2000, unit: "B" }, hit: { value: 0, unit: "{event}/s" } });
+    const workload = workloadOf(app, point);
+    expect(workload).toMatchObject({ id: "fixture-app/load", classes: [{ id: "event", rate: { value: 30, unit: "{event}/s" }, request: { eventBytes: { value: 2000, unit: "B" } } }], levels: {} });
+    expect(checkWorkload(workload)).toEqual([]);
+    expect(appWorkloadProblems(app, workload)).toEqual([]);
+    expect(workloadOf(app, at({ eventBytes: { value: 2000, unit: "B" } })).classes).toEqual([]);
+  });
+
+  it("accepts a point with a load, and refuses a rate with no request variable, a rate of HTTP, and a load out of its range", () => {
+    const points = (more: Record<string, { value: number; unit: string }>): readonly string[] => appCaseProblems({ ...APP_CASE, points: [at(more)] }, [loaded()]).map((each) => `${each.code} ${each.path}: ${each.message}`);
+    expect(points({ event: { value: 30, unit: "{event}/s" }, eventBytes: { value: 2000, unit: "B" } })).toEqual([]);
+    expect(points({ event: { value: 0, unit: "{event}/s" } })).toEqual([]);
+    expect(points({ event: { value: 30, unit: "{event}/s" } })).toEqual(['point points[0].at: The point gives the class "event" a rate, and it does not name its request variable "eventBytes".']);
+    expect(points({ hit: { value: 5, unit: "{event}/s" } })).toEqual(['point points[0].at.hit: The class "hit" of the contract of the tree "base" comes from HTTP. The lab sends no request of HTTP yet (CAP-71).']);
+    expect(codes(appCaseProblems({ ...APP_CASE, points: [at({ event: { value: 300, unit: "{event}/s" }, eventBytes: { value: 2000, unit: "B" } })] }, [loaded()]))).toEqual(["point points[0].at.event"]);
+    expect(codes(appCaseProblems({ ...APP_CASE, points: [at({ event: { value: 3, unit: "B" }, eventBytes: { value: 2000, unit: "B" } })] }, [loaded()]))).toEqual(["point points[0].at.event"]);
   });
 });
 
