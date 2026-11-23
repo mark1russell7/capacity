@@ -489,6 +489,22 @@ The plan `alerts-start-event` starts alerts at 6 rungs of the rate of new events
 - The fakes run in a sidecar on the other CPUs. Thus the CPU time of the fakes is not in `watchCores`.
 - The ladder of the class `update` comes with CAP-35. The laws of the alerts come with CAP-36.
 
+The first run of the plan is [Lab run 45247869988](https://github.com/mark1russell7/capacity/actions/runs/45247869988), with 5 jobs. Each value is the median of 10 readings, from the 2 arms of each job.
+
+| Events each second | `watchCores` | The live heap | `watchHeapPeak` | `watchPeak` | The GC time in the watch |
+| --- | --- | --- | --- | --- | --- |
+| 0 | 0.018 | 172 MiB | 199 MiB | 385 MiB | 141 ms |
+| 1 | 0.026 | 185 MiB | 241 MiB | 396 MiB | 169 ms |
+| 3 | 0.034 | 189 MiB | 251 MiB | 424 MiB | 274 ms |
+| 10 | 0.074 | 229 MiB | 362 MiB | 578 MiB | 864 ms |
+| 30 | 0.225 | 318 MiB | 428 MiB | 754 MiB | 4481 ms |
+| 100 | No reading | No reading | No reading | No reading | No reading |
+
+- The cores increase linearly with the rate. One event costs approximately 7 ms of CPU time.
+- The live heap and the GC time increase with the rate. At 100 events each second, each of the 10 starts reached the heap limit of V8 (556 MB).
+- Thus the heap limit is the first resource that binds, at a rate from 30 to 100 events each second.
+- The jobs are on 3 CPU models. A law needs 5 jobs and 40 points on one CPU model, thus this run gives no law. CAP-36 adds runs and fits the laws.
+
 #### The ladders of the levels and of the log
 
 The plans `alerts-start-feeds`, `alerts-start-persons` and `alerts-start-incidents` start alerts from its contract at 9 rungs of one level (CAP-35). The plan `alerts-start-log` starts it at 9 rungs of its log (CAP-62). Each plan has one app case with one arm, and a start law set of its variable.
