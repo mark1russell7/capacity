@@ -26,6 +26,19 @@ export {
   type CaseProblemCode,
 } from "./case.ts";
 export {
+  LOAD_GRID,
+  LOAD_UNITS,
+  LOAD_VARIABLE_IDS,
+  designCases,
+  designProblems,
+  gridProblems,
+  loadOfCase,
+  type GridProblem,
+  type GridVariable,
+  type LoadDesign,
+  type LoadVariableId,
+} from "./grid.ts";
+export {
   DRAIN,
   READING_PERIOD,
   SUBJECT_PORT,
