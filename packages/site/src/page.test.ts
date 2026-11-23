@@ -18,4 +18,10 @@ describe("the home page", () => {
     expect(page).toContain('href="./status/"');
     expect(page).toContain('href="https://github.com/mark1russell7/capacity"');
   });
+
+  it("has the parts of the coverage view: the percent, the CPU model, the bars, the legend and the matrices", () => {
+    for (const id of ["percent", "done-text", "cpu", "bars", "matrices"]) expect(page).toContain(`id="${id}"`);
+    expect(page).toContain("How much of the goal is done");
+    expect(page).toContain("Measured in CI, no law yet");
+  });
 });

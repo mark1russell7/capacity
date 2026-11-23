@@ -27,7 +27,29 @@
 
 <main>
   <h1>capacity</h1>
-  <p class="lead">Performance and capacity models: the cost of a request in CPU, memory, garbage collection and event-loop time as laws over each load variable, for Node, the service runner and each app, and the scale rule of each service.</p>
+  <p class="lead">The cost of a request in CPU, memory, garbage collection, event-loop lag, network bytes and latency, as laws over each load variable. Each law comes from timed runs in CI, with its interval.</p>
+
+  <section aria-labelledby="done-title">
+    <h2 id="done-title">How much of the goal is done</h2>
+    <p class="note">The goal is a law for each load variable, each measure and each subject, on each CPU model. Each cell below is one of these laws. The page counts the cells from the law files of the repository.</p>
+    <div class="done">
+      <p class="percent"><span id="percent">0</span><span class="unit">%</span></p>
+      <p id="done-text" class="done-text"></p>
+    </div>
+    <label id="cpu-label" class="cpu">CPU model <select id="cpu"></select></label>
+    <ul id="bars" class="bars"></ul>
+  </section>
+
+  <section aria-labelledby="matrix-title">
+    <h2 id="matrix-title">The coverage matrix</h2>
+    <ul class="legend" aria-label="The states of a cell">
+      <li><span class="swatch law" aria-hidden="true">●</span> A law with its interval</li>
+      <li><span class="swatch measured" aria-hidden="true">◐</span> Measured in CI, no law yet</li>
+      <li><span class="swatch none" aria-hidden="true">·</span> Not measured</li>
+    </ul>
+    <p class="note">Select a cell to see its law, or the plan that measures it, and the item of the roadmap that gives its law.</p>
+    <div id="matrices"></div>
+  </section>
 
   <h2>Get the code</h2>
   <div class="command">

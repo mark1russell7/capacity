@@ -125,3 +125,313 @@ button {
   font: inherit;
   cursor: pointer;
 }
+
+/* The coverage of the goal */
+
+:root {
+  --law: #2346c4;
+  --law-ink: #ffffff;
+  --measured: #b26a00;
+  --measured-bg: #fdf0dc;
+  --none: #e6e6e1;
+  --none-ink: #8a8a84;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --law: #6f8ff5;
+    --law-ink: #0d1430;
+    --measured: #f0b257;
+    --measured-bg: #3a2a12;
+    --none: #2c2c2a;
+    --none-ink: #7d7d77;
+  }
+}
+
+:root[data-theme="dark"] {
+  --law: #6f8ff5;
+  --law-ink: #0d1430;
+  --measured: #f0b257;
+  --measured-bg: #3a2a12;
+  --none: #2c2c2a;
+  --none-ink: #7d7d77;
+}
+
+h3 {
+  margin: 1.75rem 0 0.25rem;
+  font-size: 1.05rem;
+}
+
+h4 {
+  margin: 0 0 0.25rem;
+  font-size: 0.95rem;
+}
+
+.quiet {
+  color: var(--quiet);
+}
+
+.done {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 1.25rem;
+}
+
+.percent {
+  margin: 0.25rem 0;
+  color: var(--law);
+  font-size: 3.5rem;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.percent .unit {
+  margin-left: 0.15rem;
+  font-size: 1.75rem;
+}
+
+.done-text {
+  flex: 1 1 16rem;
+  margin: 0;
+}
+
+.cpu {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 1rem 0 0.5rem;
+  color: var(--quiet);
+}
+
+select {
+  min-height: 2.25rem;
+  padding: 0 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: 0.375rem;
+  background: var(--page);
+  color: var(--ink);
+  font: inherit;
+}
+
+.bars,
+.legend {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.bars li {
+  margin: 0.75rem 0;
+}
+
+.bar-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0 1rem;
+}
+
+.bar-name {
+  font-weight: 600;
+}
+
+.bar-count {
+  color: var(--quiet);
+  font-size: 0.9rem;
+}
+
+.bar {
+  display: flex;
+  height: 0.75rem;
+  margin-top: 0.25rem;
+  overflow: hidden;
+  border-radius: 0.375rem;
+  background: var(--none);
+}
+
+.part.law {
+  background: var(--law);
+}
+
+.part.measured {
+  background: var(--measured);
+}
+
+.part.none {
+  background: var(--none);
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.25rem;
+}
+
+.swatch {
+  display: inline-grid;
+  place-items: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  margin-right: 0.25rem;
+  border-radius: 0.25rem;
+  vertical-align: middle;
+}
+
+.swatch.law,
+.cell.law {
+  background: var(--law);
+  color: var(--law-ink);
+}
+
+.swatch.measured,
+.cell.measured {
+  border: 1px solid var(--measured);
+  background: var(--measured-bg);
+  color: var(--measured);
+}
+
+.swatch.none,
+.cell.none {
+  background: var(--none);
+  color: var(--none-ink);
+}
+
+.scroll {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.matrix {
+  border-collapse: separate;
+  border-spacing: 0.25rem;
+  margin: 0.25rem -0.25rem;
+}
+
+.matrix th {
+  padding: 0 0.25rem;
+  color: var(--quiet);
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-align: center;
+}
+
+.matrix tbody th {
+  max-width: 7rem;
+  overflow: hidden;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.matrix .corner {
+  text-align: left;
+}
+
+.matrix td {
+  padding: 0;
+}
+
+.cell {
+  display: grid;
+  place-items: center;
+  width: 2.5rem;
+  min-height: 2.25rem;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 0.375rem;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.cell.extra {
+  opacity: 0.8;
+  border-style: dashed;
+}
+
+.cell[aria-pressed="true"] {
+  outline: 3px solid var(--ink);
+  outline-offset: 1px;
+}
+
+.cell:focus-visible {
+  outline: 3px solid var(--link);
+  outline-offset: 1px;
+}
+
+.detail {
+  margin: 0.75rem 0 0;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  background: var(--panel);
+}
+
+.detail h3 {
+  margin-top: 0;
+}
+
+.detail p {
+  margin: 0.4rem 0;
+}
+
+.state {
+  font-weight: 600;
+}
+
+.state.law {
+  color: var(--law);
+}
+
+.state.measured {
+  color: var(--measured);
+}
+
+.law-box {
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--line);
+}
+
+.constants {
+  margin: 0.5rem 0;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+.constants caption {
+  color: var(--quiet);
+  font-size: 0.85rem;
+  text-align: left;
+}
+
+.constants th,
+.constants td {
+  padding: 0.15rem 1rem 0.15rem 0;
+  text-align: left;
+}
+
+.runs,
+.next {
+  font-size: 0.95rem;
+}
+
+/* On a phone, the 7 columns of an app and the names of the rows fit in a width of 328 px (a 360 px screen). */
+@media (max-width: 30rem) {
+  .cell {
+    width: 1.85rem;
+    min-height: 2rem;
+  }
+
+  .matrix {
+    border-spacing: 0.15rem;
+    margin: 0.25rem -0.15rem;
+  }
+
+  .matrix th {
+    padding: 0 0.05rem;
+    font-size: 0.75rem;
+  }
+}

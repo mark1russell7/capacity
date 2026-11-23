@@ -51,6 +51,30 @@ The case uses the records of `@mark1russell7/capacity`. Thus a measurement and a
   - `fresh` opens a new connection for each request. CAP-28 measures that protocol.
 - **The size of the raw result.** The raw result of a cell keeps approximately 2.3 KB for each arrival, most of it the records of the prober. One JSON text in Node has at most 512 MiB. Thus `MAX_ARRIVALS` keeps the raw result of a case near 340 MB or less. CAP-54 removes this limit for load cells.
 
+### The grid of load variables
+
+A load variable is one amount of a case that a design moves. `LOAD_GRID` gives the range and the scale of each one:
+
+| Variable | Amount of the case | Unit | Range |
+| --- | --- | --- | --- |
+| `rate` | the rate of the class | `{request}/s` | 1 to 9000 |
+| `body`, `reply` | a field of the request | `B` | 1 to 1 MiB |
+| `alloc` | a field of the request | `B` | 1 to 16 MiB |
+| `work` | a field of the request | `us` | 1 to 10000 |
+| `wait` | a field of the request | `ms` | 1 to 1000 |
+| `concurrency` | the size of the pool of connections | `{connection}` | 1 to 256 |
+| `heap` | the level `heap` | `B` | 1 MiB to 256 MiB |
+| `age` | the duration of each run | `ms` | 1000 to 4000 |
+
+- **The scale.** Each scale is `log`, because a law of a load variable spans orders of magnitude. Each amount is a whole number in its unit.
+- **The limit of the arrivals.** The rate and the age together fit `MAX_ARRIVALS` for 3 runs and the warm-up run: 9000 × 4 s × 4 is 144000. A test holds this product.
+- **A load design** (`LoadDesign`) has a seed, the variables that it moves, and two counts. `designCases` gives its cases over a base case of one class.
+  - `alone` is the count of points of each variable alone. The other variables keep their amounts in the base case.
+  - These points come from `oneAtATimePoints` of `@mark1russell7/rigor-generators`, with one point in each stratum of the range. The ids are `<base>/<variable>/<k>`.
+  - `together` is the count of points of a Latin hypercube of all the variables. The ids are `<base>/together/<k>`.
+- **The check.** `designProblems` gives the problems of the grid, of the shape of the design, and of each case (`caseProblems`).
+- **Other ranges.** A design that needs other ranges gives its own grid to `designCases`. `gridProblems` examines that grid.
+
 ## The cell and the record
 
 `measureCase(case)` measures a case in three steps. Each step is also a function, and a test can give each part.
