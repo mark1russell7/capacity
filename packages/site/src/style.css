@@ -418,17 +418,20 @@ select {
   font-size: 0.95rem;
 }
 
-/* On a phone, the 7 columns of an app and the names of the rows fit in the width of the page. */
+/* On a phone, the 7 columns of an app and the names of the rows fit in a width of 328 px (a 360 px screen). */
 @media (max-width: 30rem) {
   .cell {
-    width: 2.1rem;
+    width: 1.85rem;
+    min-height: 2rem;
   }
 
   .matrix {
-    border-spacing: 0.2rem;
+    border-spacing: 0.15rem;
+    margin: 0.25rem -0.15rem;
   }
 
-  .matrix tbody th {
-    max-width: 5.75rem;
+  .matrix th {
+    padding: 0 0.05rem;
+    font-size: 0.75rem;
   }
 }
