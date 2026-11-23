@@ -12,7 +12,11 @@
     "dev": "vite",
     "build": "vite build"
   },
+  "dependencies": {
+    "@mark1russell7/capacity": "workspace:*"
+  },
   "devDependencies": {
+    "@capacity/lab": "workspace:*",
     "@mark1russell7/cue": "^2.0.0",
     "@mark1russell7/site-pages": "^0.8.0",
     "@types/node": "^26.6.5",
