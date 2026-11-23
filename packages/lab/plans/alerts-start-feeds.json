@@ -297,6 +297,19 @@
         ]
       },
       {
+        "id": "heapPeak",
+        "law": "heap-peak",
+        "title": "The highest used heap from the start of the process to ready",
+        "residual": "relative",
+        "forms": [
+          "constant",
+          "linear",
+          "power",
+          "logarithm",
+          "hinge"
+        ]
+      },
+      {
         "id": "watchPeak",
         "law": "watch-peak",
         "title": "The highest memory of the process in the watch after ready",
