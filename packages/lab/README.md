@@ -332,6 +332,8 @@ The workflow has three steps:
 2. Each job measures its plan with `timePlan`: each case with `measureCase`, and each start case with `measureStart`. Then the check of the plan gives the verdict (`verdictOf`), with the problems of each start record. A verdict with a problem fails the job. The summary of the job has the CPU model, each value of the check and each problem.
 3. Each job uploads its folder as the artifact `lab-<plan>-<run>-<attempt>`.
 
+A rerun of the failed jobs of a run uploads only the artifacts of those jobs, with the next try. The other artifacts keep their first try. Thus the gates download the artifacts of all tries. With `--latest`, `gate.main.ts` and the bench gate read only the latest try of each artifact (`latestAttempts`).
+
 ### The folder of a run
 
 | File | What it is |

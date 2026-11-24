@@ -44,6 +44,15 @@ describe("the reader of the jobs of a folder", () => {
     expect(jobs.map((each) => each.starts?.map((record) => record.format))).toEqual([["capacity-start-record/1"], ["capacity-start-record/1"]]);
   });
 
+  it("keeps the latest attempt of each artifact with the option latest, as after a rerun of failed jobs", () => {
+    folder = mkdtempSync(join(tmpdir(), "capacity-jobs-"));
+    writeJob("lab-gate-1-1", "2026-11-22T06:01:00Z");
+    writeJob("lab-gate-2-1", "2026-11-22T06:02:00Z");
+    writeJob("lab-gate-2-2", "2026-11-22T07:02:00Z");
+    expect(readJobs(folder).map((each) => each.timed.at.started)).toHaveLength(3);
+    expect(readJobs(folder, { latest: true }).map((each) => each.timed.at.started)).toEqual(["2026-11-22T06:01:00Z", "2026-11-22T07:02:00Z"]);
+  });
+
   it("gives no job for a folder with no manifest, and throws for a manifest of another format", () => {
     folder = mkdtempSync(join(tmpdir(), "capacity-jobs-"));
     expect(readJobs(folder)).toEqual([]);
