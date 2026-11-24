@@ -21,7 +21,7 @@ interface PlanFile {
     readonly variable: { readonly id: string };
     readonly measures: readonly { readonly id: string; readonly knee?: KneeRule }[];
   };
-  readonly startLaws?: { readonly variable: { readonly id: string }; readonly measures: readonly { readonly id: string }[] };
+  readonly startLaws?: { readonly variable: { readonly id: string }; readonly measures: readonly { readonly id: string; readonly law: string }[] };
 }
 
 const planFiles = import.meta.glob<PlanFile>("../../lab/plans/*.json", { eager: true, import: "default" });
@@ -46,14 +46,14 @@ export const PLANS: readonly PlanEntry[] = Object.keys(planFiles)
   .sort()
   .map((path) => planEntry(planFiles[path]!));
 
-/** This function gives the entry of a plan file: the subjects of its cases, the variable of its laws and its start measures. */
+/** This function gives the entry of a plan file: the subjects of its cases, the variable of its laws and its start measures. A law name keys each start measure. */
 export function planEntry(plan: PlanFile): PlanEntry {
   return {
     id: plan.id,
     title: plan.title,
     subjects: [...new Set(plan.cases.map((each) => each.subject))],
     variable: plan.laws?.variable.id ?? plan.startLaws?.variable.id,
-    start: plan.startLaws?.measures.map((each) => each.id) ?? [],
+    start: Object.fromEntries((plan.startLaws?.measures ?? []).map((each) => [each.law, each.id])),
     lawClass: plan.laws?.class,
     knees: Object.fromEntries((plan.laws?.measures ?? []).flatMap((each) => (each.knee === undefined ? [] : [[each.id, each.knee]]))),
   };
