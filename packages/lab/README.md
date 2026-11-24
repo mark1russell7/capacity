@@ -560,7 +560,30 @@ The first run of the plan is [Lab run 45247869988](https://github.com/mark1russe
 - The cores increase linearly with the rate. One event costs approximately 7 ms of CPU time.
 - The live heap and the GC time increase with the rate. At 100 events each second, each of the 10 starts reached the heap limit of V8 (556 MB).
 - Thus the heap limit is the first resource that binds, at a rate from 30 to 100 events each second.
-- The jobs are on 3 CPU models. A law needs 5 jobs and 40 points on one CPU model, thus this run gives no law. CAP-36 adds runs and fits the laws.
+- The jobs are on 3 CPU models. A law needs 5 jobs and 40 points on one CPU model, thus this run gives no law.
+
+The second run is the Lab run [45351701555](https://github.com/mark1russell7/capacity/actions/runs/45351701555), with 15 jobs. The run [45382785749](https://github.com/mark1russell7/capacity/actions/runs/45382785749) of `laws.yml` fits the laws over the two runs (CAP-36).
+
+- The 15 jobs on the Intel Xeon 6975P-C give 4 laws, with 75 points from 0 to 30 events each second. The other CPU models have too few jobs.
+- Each law is of the arm `main` at the first start. The intervals are 95 % intervals over whole jobs.
+
+| The measure | The law | The limit that it reaches |
+| --- | --- | --- |
+| `watchCores` | A line: 0.0130 [0.0090, 0.0162] cores, and 5.46 ms [4.62, 6.61] of CPU time for each event | 1 core at 181 [150, 213] events each second |
+| `watchHeapPeak` | A hinge: 207.1 MB, and 20.4 MB for each event each second to the bend at 6.2 [0.5, 7.4] events each second. After the bend, 4.9 MB. | The heap limit of V8 at 52 [42, 59] events each second |
+| `watchPeak` | A line: 412.0 MB [407.6, 416.5], and 12.41 MB [12.06, 12.81] for each event each second | The memory limit of the target at 48 [47, 50] events each second |
+| `ready` | A constant: 5.15 s [4.98, 5.34] | None. The rate of events does not change the time to ready. |
+
+- The memory binds first, not the CPU. At 48 events each second, the law of the cores gives 0.28 cores of the 2 CPUs of the target.
+- The two limits of the memory are at 48 and 52 events each second, and their intervals overlap. Thus the lab cannot tell which limit comes first.
+- The two reaches are outside the range of the fit. The failures at 100 events each second agree with them: each child reached the heap limit of V8.
+- CAP-86 adds rungs from 30 to 100 events each second. Then the first limit is inside the range of a fit.
+- At 30 events each second, two jobs give 0.31 and 0.33 cores, two times the median of 0.155. The line still has the smallest error on the held-out jobs.
+- The rule `floor` with the share 1 gives the knees in events each second:
+  - `watchCores` at 2.4 [1.4, 3.5]
+  - `watchHeapPeak` at 23.0 [19.2, 25.4]
+  - `watchPeak` at 33.2 [32.0, 34.3].
+- The CPU time of one event is less than the 7 ms of the first run. That value was a median over 3 CPU models.
 
 #### The load ladder of updates
 
