@@ -61,8 +61,8 @@ export const FAMILIES: readonly Family[] = [
 export const START: Family = { id: "start", short: "Start", title: "The start: the time and the memory to ready" };
 
 /**
- * These measures are the measures of the subject that each run of the lab records (`RUN_MEASURES` and the latency
- * quantiles of `LOAD_MEASURES` of the lab). A test holds this list equal to the lists of the lab.
+ * These measures are the measures of the subject that each run of the lab records (`RUN_MEASURES`, the latency
+ * quantiles of `LOAD_MEASURES` and `LOOP_MEASURES` of the lab). A test holds this list equal to the lists of the lab.
  */
 export const RECORD_MEASURES: readonly string[] = [
   "elapsed",
@@ -82,6 +82,9 @@ export const RECORD_MEASURES: readonly string[] = [
   "latency.p90",
   "latency.p99",
   "latency.max",
+  "loop.lag.mean",
+  "loop.lag.max",
+  "loop.busy",
 ];
 
 /**

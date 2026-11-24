@@ -12,10 +12,13 @@
 // --cost is an added CPU time for each request, in us: a busy wait. It makes a slower subject, for
 // the proof of a gate. The line `listening` gives it.
 //
+// Each 100 ms, the program writes the line `loop` with the lag of its event loop (loop.ts).
+//
 // The readiness of the subject is the line `listening`. At SIGTERM or SIGINT, the program writes
 // `stopping`, closes its listener and each connection, and ends.
 
 import { emit, fail, numberFlag } from "./lines.ts";
+import { watchLoop } from "./loop.ts";
 import { nodeHttp } from "./node-http.ts";
 import { BALLAST_PIECE, ballastOf, usedHeap } from "./perform.ts";
 
@@ -24,6 +27,7 @@ const keepAlive = numberFlag("--keep-alive-timeout");
 const ballast = numberFlag("--ballast") ?? 0;
 const cost = numberFlag("--cost") ?? 0;
 const held = ballastOf(ballast);
+const stopLoop = watchLoop();
 
 const server = nodeHttp({ cost });
 if (keepAlive !== undefined) server.keepAliveTimeout = keepAlive;
@@ -44,6 +48,7 @@ server.listen(port, "0.0.0.0", () => {
 
 const stop = (signal: string): void => {
   emit("stopping", { signal });
+  stopLoop();
   server.close();
   server.closeAllConnections();
 };

@@ -5,18 +5,22 @@ import { verdictOf } from "./check.ts";
 import { readPlans } from "./plan.ts";
 import { RATE_LAG_LIMIT, RATE_MEASURES, coresOf, rateCheck } from "./rate.ts";
 import { LAG_LIMIT, caseValue, worstLag } from "./reads.ts";
-import { CPUSET_MEASURES, type CaseRecord, type RunRecord } from "./record.ts";
+import { CPUSET_MEASURES, LOOP_MEASURES, type CaseRecord, type RunRecord } from "./record.ts";
 import { isStartCase } from "./start.ts";
 
 /** The record of the case control/base of the Lab run 44453927945 on main: 3 runs of the bare request. Its lab had no cpuset measures. */
 const OLDER = JSON.parse(readFileSync(new URL("../test/fixtures/control-base.record.json", import.meta.url), "utf8")) as CaseRecord;
 
-/** The record `OLDER` with cpuset measures, a different value in each run. The values are not of a lab run. */
+/** The record `OLDER` with cpuset and loop measures, a different value in each run. The values are not of a lab run. */
 const BASE: CaseRecord = {
   ...OLDER,
   runs: OLDER.runs.map((run, i) => ({
     ...run,
-    measures: { ...run.measures, ...Object.fromEntries(Object.keys(CPUSET_MEASURES).map((name, j) => [name, { value: (j + 1) / 10 + i / 100, unit: "{core}" }])) },
+    measures: {
+      ...run.measures,
+      ...Object.fromEntries(Object.keys(CPUSET_MEASURES).map((name, j) => [name, { value: (j + 1) / 10 + i / 100, unit: "{core}" }])),
+      ...Object.fromEntries(Object.entries(LOOP_MEASURES).map(([name, unit], j) => [name, { value: j + 1 + i / 10, unit }])),
+    },
   })),
 };
 
@@ -91,6 +95,15 @@ describe("the check of the request rate", () => {
     const names = RATE_MEASURES.filter((name) => name.includes("cpuset"));
     expect(names).toHaveLength(6);
     expect(problems).toEqual(names.map((name) => ({ code: "read", path: `rate/100 run ${FIRST}`, message: `The run has no read of ${name}.` })));
+  });
+
+  it("skips the loop measures of a record of a lab before CAP-68, and gives a problem for a run of a later lab with no read of them", () => {
+    const older = rateCheck([{ ...OLDER, case: LOW.case }]);
+    expect(Object.keys(older.values).filter((name) => name.includes(".loop."))).toEqual([]);
+    expect(older.problems.some((each) => each.message.includes("loop."))).toBe(false);
+    const silent = rateCheck([changed(LOW, FIRST, { "loop.lag.mean": null })]);
+    expect(silent.problems).toEqual([{ code: "read", path: `rate/100 run ${FIRST}`, message: "The run has no read of loop.lag.mean." }]);
+    expect(silent.values["rate/100.loop.busy"]).toBe(caseValue(BASE, "loop.busy"));
   });
 
   it("is the check rate of the verdict of a plan", () => {

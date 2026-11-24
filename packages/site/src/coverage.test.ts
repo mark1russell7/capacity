@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { LOAD_GRID, LOAD_MEASURES, RUN_MEASURES, START_MEASURES } from "@capacity/lab";
+import { LOAD_GRID, LOAD_MEASURES, LOOP_MEASURES, RUN_MEASURES, START_MEASURES } from "@capacity/lab";
 import { describe, expect, it } from "vitest";
 import {
   FAMILIES,
@@ -57,7 +57,11 @@ describe("the lists of the page and of the lab", () => {
   });
 
   it("has the measures of the subject that each run of the lab records", () => {
-    expect(RECORD_MEASURES).toEqual([...Object.keys(RUN_MEASURES), ...Object.keys(LOAD_MEASURES).filter((each) => each.startsWith("latency."))]);
+    expect(RECORD_MEASURES).toEqual([
+      ...Object.keys(RUN_MEASURES),
+      ...Object.keys(LOAD_MEASURES).filter((each) => each.startsWith("latency.")),
+      ...Object.keys(LOOP_MEASURES),
+    ]);
     expect(RECORD_MEASURES.filter((each) => familyOf(each) === undefined)).toEqual(["elapsed"]);
   });
 

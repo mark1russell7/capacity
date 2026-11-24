@@ -117,12 +117,18 @@ Each run record has the measures of the container and the measures of the driver
 | `lag.max` | `ms` | The largest delay of a send after its planned time. |
 | `cpuset.busy`, `cpuset.user`, `cpuset.nice`, `cpuset.system`, `cpuset.irq`, `cpuset.softirq`, `cpuset.steal` | `{core}` | The use of the CPUs of the subject. The time of each process and interrupt on them counts. |
 | `others.cpuset.busy` and the same parts | `{core}` | The use of the CPUs of the driver and of the reader. |
+| `loop.lag.mean`, `loop.lag.max` | `ms` | The mean and the largest lag of the event loop of the subject. |
+| `loop.busy` | `%` | The busy part of the time of the event loop of the subject. |
 
 The measures of the driver are also in `classes`, for each class of the demand.
 
 - **An unfinished request** counts at its age at the end. Thus a quantile of a run with an unfinished request is a low bound. The CPU time of an unfinished request counts, thus `cpu.request` of such a run is too high.
 - **The idle cost** of the subject is in each measure of a run. A run of an idle subject needs a hold with no load in the harness. Thus the idle base is CAP-48.
 - **The cpuset measures** come from `/proc/stat` between the readings of the resources, in the window of `elapsed`. `busy` is the CPUs less their idle time and their wait for the disk. The other measures are the parts of `busy`. A record of a lab before harness 0.16.23 has no cpuset measures.
+- **The loop measures** come from the lines `loop` of the subject. Each subject writes one line each 100 ms with `watchEventLoop` of `@mark1russell7/lag/node`.
+  - The lag of a sample is its delay less the 10 ms step of the timer of the watch. A delay below the step gives a lag of 0.
+  - `loop.lag.mean` adds the mean of each span times its count. Thus the mean of a run has no error.
+  - Only the spans in the window of `elapsed` count. A record of a lab before CAP-68 has no loop measures.
 - **The lag of the driver** has no limit in the record. The checks `control` and `floor` give a limit at their light load: `LAG_LIMIT`. The check `rate` gives its own limit: `RATE_LAG_LIMIT`.
 
 ## The plans
@@ -177,6 +183,7 @@ The plan `floor` has 5 A/A pairs. The two cases of a pair are equal: each one is
 
 - Each run must answer each planned request, with no failure and no unfinished request. The driver of each run must have a lag of `LAG_LIMIT` or less.
 - Each floor must be `FLOOR_LIMITS` or less. A larger floor tells that the runners became noisier.
+- The loop measures (`LOOP_FLOOR_MEASURES`) get a floor, a level and a bias, but no limit. The part 2 of CAP-68 gives their limits from 5 runs.
 - The bias is information, not a limit.
 - A law keeps the floor of its measure in its field `noise`, with the CPU model and the runs. A difference below the floor is not a result.
 
@@ -216,7 +223,7 @@ The check `rate` (`rateCheck`) gives these values for each case:
 | Value | What it is |
 | --- | --- |
 | `<case>.cores` | The CPU use in cores: the median of the CPU time over the elapsed time of each run (`coresOf`). At the limit of one core, it is near 1. |
-| `<case>.<measure>` | The median of the runs, for each measure of `RATE_MEASURES`: `cpu.request`, `memory`, `memory.high`, `latency.p50`, `latency.p90`, `latency.p99`, `lag.max`, `cpuset.busy`, `cpuset.user`, `cpuset.system`, `cpuset.irq`, `cpuset.softirq` and `others.cpuset.busy`. |
+| `<case>.<measure>` | The median of the runs, for each measure of `RATE_MEASURES`: `cpu.request`, `memory`, `memory.high`, `latency.p50`, `latency.p90`, `latency.p99`, `lag.max`, `loop.lag.mean`, `loop.lag.max`, `loop.busy`, `cpuset.busy`, `cpuset.user`, `cpuset.system`, `cpuset.irq`, `cpuset.softirq` and `others.cpuset.busy`. |
 
 - Each run must answer each planned request, with no failure and no unfinished request. Past the limit, a run drains its queue in the 30 s of its drain.
 - `lag.max.worst` is the largest lag of the driver in a run of the plan.
@@ -252,10 +259,10 @@ The check `overhead` (`overheadCheck`) gives each value and each problem of the 
 | `<pair>.<measure>` | The overhead at the load of the pair: the value of the case `<pair>/service` less the value of the case `<pair>/bare`. |
 | `<measure>.overhead` | The median of the overheads of the pairs. |
 
-- The measures are the measures of `OVERHEAD_MEASURES`: `cpu.request`, `memory`, `memory.high`, `network.rx.request`, `network.tx.request`, `latency.p50`, `latency.p90` and `latency.p99`.
+- The measures are the measures of `OVERHEAD_MEASURES`: `cpu.request`, `memory`, `memory.high`, `network.rx.request`, `network.tx.request`, `latency.p50`, `latency.p90`, `latency.p99`, `loop.lag.mean`, `loop.lag.max` and `loop.busy`.
 - A pair has the cases `<pair>/bare` and `<pair>/service`, with the subjects of `OVERHEAD_SIDES` and one load. A case with no partner, another subject or another load is a problem.
 - The reply of the service subject has one more header, `content-type`. Thus `network.tx.request` has an overhead of approximately the size of that header.
-- The subjects have no measure of their event-loop lag. The latency overhead includes the lag that the runner adds. The lag of a subject is CAP-68.
+- Each subject measures the lag of its event loop (CAP-68). Thus `loop.lag.mean.overhead` is the lag that the runner adds. The law of that lag is the part 2 of CAP-68.
 - The plan has no trigger: a person starts it. Its time limit is 55 minutes.
 
 #### The laws of the overhead
