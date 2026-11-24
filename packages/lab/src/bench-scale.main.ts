@@ -6,6 +6,7 @@
  * node src/bench-scale.main.ts measure --case <id> --base <commit> --out <folder> [--rounds <count>]
  * node src/bench-scale.main.ts gate --records <folder> [--limit <ratio>] [--noise-cap <log ratio>] [--changes <file>]
  *   [--again-out <file>] [--again <folder>]
+ * node src/bench-scale.main.ts limits --runs <folder> [--out <file>]
  * ```
  *
  * - `cases` prints the matrix of the bench jobs as JSON: one entry for each case, with its index.
@@ -21,8 +22,11 @@
  * - With `--again-out`, a gate with no read of some cases does not decide. It writes these cases as the matrix `again`
  *   into the file of the outputs of the job, and a fresh job measures them again. A case beyond the limit is not measured again.
  * - With `--again`, the records of that folder replace the records of their cases. This gate decides.
+ * - The noise cap of the gate comes from `packages/lab/bench-limits.json`. The option `--noise-cap` replaces it.
+ * - `limits` reads the records of each subfolder of `--runs`. Each subfolder holds the records of one CI run, from
+ *   `gh run download <run> -p "bench-*"`. The command writes the limits of 5 or more runs into the file `--out`.
  */
-import { appendFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { appendFileSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -36,15 +40,18 @@ import {
   BENCH_FORMAT,
   BENCH_CHANGES,
   BENCH_LIMIT,
+  BENCH_LIMITS,
   BENCH_RECORD,
   HEAD_ARM,
   benchCases,
   benchAgainOf,
   benchGate,
+  benchLimitsOf,
   benchNotesOf,
   benchRecordsAgain,
   benchSummaryOf,
   readBenchChanges,
+  readBenchLimits,
   readBenchRecords,
   resultHash,
   type BenchApi,
@@ -65,6 +72,7 @@ const USAGE = [
   "node src/bench-scale.main.ts cases",
   "node src/bench-scale.main.ts measure --case <id> --base <commit> --out <folder> [--rounds <count>]",
   "node src/bench-scale.main.ts gate --records <folder> [--limit <ratio>] [--noise-cap <log ratio>] [--changes <file>] [--again-out <file>] [--again <folder>]",
+  "node src/bench-scale.main.ts limits --runs <folder> [--out <file>]",
 ].join("\n");
 
 const catalogOf = () => ({ laws: readLaws(join(CAPACITY, "laws")), compositions: readCompositions(join(CAPACITY, "compositions")) });
@@ -135,7 +143,7 @@ const gate = (args: readonly string[]): void => {
   const { values } = parseArgs({ args: [...args], options: { records: { type: "string" }, limit: { type: "string" }, "noise-cap": { type: "string" }, changes: { type: "string" }, again: { type: "string" }, "again-out": { type: "string" } } });
   if (values.records === undefined) throw new Error(`The command needs --records.\n${USAGE}`);
   const limit = positive(values.limit, "--limit") ?? BENCH_LIMIT;
-  const noiseCap = positive(values["noise-cap"], "--noise-cap");
+  const noiseCap = positive(values["noise-cap"], "--noise-cap") ?? readBenchLimits(join(ROOT, "packages", "lab", BENCH_LIMITS))?.noiseCap.limit;
   const first = readBenchRecords(values.records);
   const records = values.again === undefined ? first : benchRecordsAgain(first, readBenchRecords(values.again));
   const ids = benchCases(catalogOf()).map((each) => each.id);
@@ -163,11 +171,30 @@ const gate = (args: readonly string[]): void => {
   if (result.read.gate.outcome !== "pass" || result.missing.length > 0 || result.unexplained.length > 0) process.exitCode = 1;
 };
 
+/** The command `limits`: the limits of the gate from the records of earlier CI runs. */
+const limits = (args: readonly string[]): void => {
+  const { values } = parseArgs({ args: [...args], options: { runs: { type: "string" }, out: { type: "string" } } });
+  if (values.runs === undefined) throw new Error(`The command needs --runs.\n${USAGE}`);
+  const folder = values.runs;
+  const runs = new Map(
+    readdirSync(folder, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => [entry.name, readBenchRecords(join(folder, entry.name))] as const),
+  );
+  const found = benchLimitsOf(runs);
+  const out = values.out ?? join(ROOT, "packages", "lab", BENCH_LIMITS);
+  writeFileSync(out, `${JSON.stringify(found, null, 2)}\n`);
+  process.stdout.write(
+    `The noise cap is ${found.noiseCap.limit}: the worst A/A spread ${found.noiseCap.worst.toFixed(4)} plus the spread ${found.noiseCap.spread.toFixed(4)}, from ${found.jobs} jobs of ${found.runs.length} runs.\n`,
+  );
+};
+
 const main = async (): Promise<void> => {
   const [command, ...rest] = process.argv.slice(2);
   if (command === "cases") return cases();
   if (command === "measure") return measure(rest);
   if (command === "gate") return gate(rest);
+  if (command === "limits") return limits(rest);
   throw new Error(`The command "${command ?? ""}" is not a command of the bench.\n${USAGE}`);
 };
 

@@ -10,17 +10,21 @@ import {
   BASE_ARM,
   BENCH_CHANGES_FORMAT,
   BENCH_FORMAT,
+  BENCH_LIMITS_FORMAT,
+  BENCH_LIMIT_RUNS,
   BENCH_RECORD,
   HEAD_ARM,
   benchCases,
   benchAgainOf,
   benchGate,
+  benchLimitsOf,
   benchNotesOf,
   benchRecordsAgain,
   benchRead,
   benchSummaryOf,
   pairedTimes,
   readBenchChanges,
+  readBenchLimits,
   readBenchRecords,
   resultHash,
   type BenchChange,
@@ -206,6 +210,30 @@ describe("readBenchChanges", () => {
     expect(readBenchChanges(file)).toEqual(changes);
     writeFileSync(file, JSON.stringify({ format: "other", changes }));
     expect(() => readBenchChanges(file)).toThrow(/not a file of changes/);
+  });
+});
+
+describe("benchLimitsOf", () => {
+  it("gives the noise cap of the A/A pairs of 5 runs or more, and refuses fewer runs", () => {
+    const runs = new Map(Array.from({ length: BENCH_LIMIT_RUNS }, (_, run) => [`run-${run}`, [recordOf("x", 1), recordOf("y", 1)]] as const));
+    const limits = benchLimitsOf(runs);
+    expect(limits.format).toBe(BENCH_LIMITS_FORMAT);
+    expect(limits.runs).toHaveLength(BENCH_LIMIT_RUNS);
+    expect(limits.jobs).toBe(2 * BENCH_LIMIT_RUNS);
+    expect(limits.noiseCap.limit).toBeGreaterThanOrEqual(limits.noiseCap.worst);
+    runs.delete("run-0");
+    expect(() => benchLimitsOf(runs)).toThrow(/5 or more CI runs/);
+  });
+
+  it("reads the limits of a file, gives undefined for no file, and refuses a file of another format", () => {
+    folder = mkdtempSync(join(tmpdir(), "bench-limits-"));
+    const file = join(folder, "limits.json");
+    expect(readBenchLimits(file)).toBeUndefined();
+    const limits = benchLimitsOf(new Map(Array.from({ length: BENCH_LIMIT_RUNS }, (_, run) => [`run-${run}`, [recordOf("x", 1)]] as const)));
+    writeFileSync(file, JSON.stringify(limits));
+    expect(readBenchLimits(file)?.noiseCap.limit).toBe(limits.noiseCap.limit);
+    writeFileSync(file, JSON.stringify({ format: "other" }));
+    expect(() => readBenchLimits(file)).toThrow(/not a file of limits/);
   });
 });
 

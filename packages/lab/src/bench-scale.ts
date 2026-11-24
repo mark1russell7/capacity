@@ -2,7 +2,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import type * as Capacity from "@mark1russell7/capacity";
 import type { Composition, Demand, KneeRule, Law, ScaleModel, ScaleOptions } from "@mark1russell7/capacity";
-import { gateOf, limitVerdict, type Gate, type LimitVerdict, type PairedTime } from "@mark1russell7/rigor-bench";
+import { aaLimits, aaStats, gateOf, limitVerdict, type Gate, type LimitVerdict, type PairedTime, type RunLimit } from "@mark1russell7/rigor-bench";
 import { armTimes, type ArmProcess, type BenchEnv } from "@mark1russell7/rigor-bench/fresh";
 import { canonicalJson, sha256Hex } from "@mark1russell7/rigor-generators";
 import { escapeMarkdown } from "@mark1russell7/text";
@@ -406,4 +406,58 @@ export const benchNotesOf = (gate: BenchGate): string => {
   if (gate.unused.length > 0) lines.push(`These changes of \`${BENCH_CHANGES}\` name no changed case with their two hashes. Remove them: ${gate.unused.join(", ")}.`, "");
   if (gate.missing.length > 0) lines.push(`These cases have no record, so the gate has no read of them: ${gate.missing.join(", ")}.`, "");
   return lines.join("\n");
+};
+
+/** This text is the format of the file of the limits of the bench gate. */
+export const BENCH_LIMITS_FORMAT = "capacity-bench-limits/1";
+
+/** This name is the name of the file of the limits of the bench gate, in the folder of the package lab. */
+export const BENCH_LIMITS = "bench-limits.json";
+
+/** This number is the fewest CI runs that give the limits of the gate. */
+export const BENCH_LIMIT_RUNS = 5;
+
+/**
+ * The limits of the bench gate, from the A/A pairs of earlier CI runs. The noise cap is the worst A/A spread of a job
+ * plus the spread of those values, on a log scale. A job whose spread is an outlier goes out.
+ */
+export interface BenchLimits {
+  readonly format: typeof BENCH_LIMITS_FORMAT;
+  /** The ids of the CI runs of the records. */
+  readonly runs: readonly string[];
+  /** The count of the bench jobs of the runs. Each job is one case on one runner. */
+  readonly jobs: number;
+  readonly noiseCap: RunLimit;
+  /** The jobs that went out of the limits, each as `<run>/<case>`. */
+  readonly dropped: readonly string[];
+}
+
+/**
+ * This function gives the limits of the bench gate from the bench records of each CI run, with `aaLimits` of
+ * `@mark1russell7/rigor-bench`. It throws an `Error` for fewer than `BENCH_LIMIT_RUNS` runs.
+ */
+export const benchLimitsOf = (runs: ReadonlyMap<string, readonly BenchRecord[]>): BenchLimits => {
+  const ids = [...runs.keys()].filter((run) => (runs.get(run) ?? []).length > 0).sort();
+  if (ids.length < BENCH_LIMIT_RUNS) {
+    throw new Error(`The limits need the records of ${BENCH_LIMIT_RUNS} or more CI runs, and ${ids.length} runs have records.`);
+  }
+  const jobs = ids.flatMap((run) => (runs.get(run) ?? []).map((record) => ({ job: `${run}/${record.case}`, cases: aaStats(record.aa) })));
+  const limits = aaLimits(jobs);
+  return {
+    format: BENCH_LIMITS_FORMAT,
+    runs: ids,
+    jobs: jobs.length,
+    noiseCap: limits.fallback.noiseCap,
+    dropped: limits.fallback.dropped.map((each) => each.job),
+  };
+};
+
+/** This function gives the limits of a file, or undefined when the file does not exist. It throws an `Error` for a file of another format. */
+export const readBenchLimits = (file: string): BenchLimits | undefined => {
+  if (!existsSync(file)) return undefined;
+  const found = JSON.parse(readFileSync(file, "utf8")) as Partial<BenchLimits>;
+  if (found.format !== BENCH_LIMITS_FORMAT || typeof found.noiseCap?.limit !== "number") {
+    throw new Error(`The file ${file} is not a file of limits of the format "${BENCH_LIMITS_FORMAT}".`);
+  }
+  return found as BenchLimits;
 };
