@@ -2,7 +2,7 @@
  * The command of the gate of the laws. The job `gate` of the workflow `lab.yml` starts it after the jobs of the plans.
  *
  * ```text
- * node src/gate.main.ts --records <folder> [--records <folder>] [--laws <folder>]
+ * node src/gate.main.ts --records <folder> [--records <folder>] [--laws <folder>] [--latest]
  * ```
  *
  * - It reads each manifest `timed.json` in each folder `--records` and in its subfolders, and the records of each manifest.
@@ -28,15 +28,15 @@ const PLANS = fileURLToPath(new URL("../plans/", import.meta.url));
 /** This folder holds the law files of the package capacity. */
 const LAWS = fileURLToPath(new URL("../../capacity/laws/", import.meta.url));
 
-const USAGE = "node src/gate.main.ts --records <folder> [--records <folder>] [--laws <folder>]";
+const USAGE = "node src/gate.main.ts --records <folder> [--records <folder>] [--laws <folder>] [--latest]";
 
 const main = (): void => {
-  const { values } = parseArgs({ args: process.argv.slice(2), options: { records: { type: "string", multiple: true }, laws: { type: "string" } } });
+  const { values } = parseArgs({ args: process.argv.slice(2), options: { records: { type: "string", multiple: true }, laws: { type: "string" }, latest: { type: "boolean" } } });
   const folders = values.records;
   if (folders === undefined || folders.length === 0) throw new Error(`The command needs --records.\n${USAGE}`);
   const { plans, problems } = readPlans(PLANS);
   if (problems.length > 0) throw new Error(`The plan files have problems:\n${problems.map((each) => `  ${each.path}: ${each.message}`).join("\n")}`);
-  const jobs = folders.flatMap(readJobs);
+  const jobs = folders.flatMap((folder) => readJobs(folder, { latest: values.latest === true }));
   const laws = readLaws(values.laws ?? LAWS);
   const summary = process.env["GITHUB_STEP_SUMMARY"];
   const write = (text: string): void => {

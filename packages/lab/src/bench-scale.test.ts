@@ -33,7 +33,7 @@ import {
   type BenchChange,
   type BenchRecord,
 } from "./bench-scale.ts";
-import { readCompositions, readLaws } from "./jobs.ts";
+import { latestAttempts, readCompositions, readLaws } from "./jobs.ts";
 
 /** This folder holds the files of the package capacity. */
 const CAPACITY = fileURLToPath(new URL("../../capacity/", import.meta.url));
@@ -327,5 +327,23 @@ describe("readBenchRecords", () => {
     expect(readBenchRecords(folder).map((each) => each.case)).toEqual(["x", "y"]);
     writeFileSync(join(folder, "bench-0-1", BENCH_RECORD), JSON.stringify({ format: "other" }));
     expect(() => readBenchRecords(folder)).toThrow(/not a bench record/);
+  });
+
+  it("reads the records of the first attempt after a rerun of only the last job, with the option latest", () => {
+    folder = mkdtempSync(join(tmpdir(), "bench-records-"));
+    for (const [name, record] of [["bench-0-1", recordOf("x", 0.5)], ["bench-1-1", recordOf("y", 0.5)], ["bench-1-2", recordOf("z", 0.5)]] as const) {
+      mkdirSync(join(folder, name));
+      writeFileSync(join(folder, name, BENCH_RECORD), JSON.stringify(record));
+    }
+    expect(readBenchRecords(folder, { latest: true }).map((each) => each.case)).toEqual(["x", "z"]);
+  });
+});
+
+describe("latestAttempts", () => {
+  it("keeps the highest attempt of each artifact stem, on each separator, and each path with no artifact folder", () => {
+    const paths = ["bench-0-1/bench.json", "bench-1-1\\bench.json", "bench-1-3\\bench.json", "bench-1-2/bench.json", "bench-again-1-2/bench.json", "top.json", "plain/bench.json"];
+    expect(latestAttempts(paths)).toEqual(["bench-0-1/bench.json", "bench-1-3\\bench.json", "bench-again-1-2/bench.json", "top.json", "plain/bench.json"]);
+    // a stem with ten attempts compares them as numbers
+    expect(latestAttempts(["lab-gate-1-9/t.json", "lab-gate-1-10/t.json"])).toEqual(["lab-gate-1-10/t.json"]);
   });
 });

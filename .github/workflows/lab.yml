@@ -255,7 +255,7 @@ jobs:
       - name: The gate of the laws
         env:
           RECORDS: ${{ runner.temp }}/gate-records
-        run: node packages/lab/src/gate.main.ts --records "$RECORDS"
+        run: node packages/lab/src/gate.main.ts --records "$RECORDS" --latest
 
   # The bench of the scale query (bench-scale.main.ts): two jobs for each case, the slots 1 and 2, of 12 rounds each. Each
   # round starts a fresh child for the base commit, the head and a second base child, the A/A pair. The job uploads its
@@ -322,13 +322,13 @@ jobs:
       - name: The records of the bench
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          pattern: bench-[0-9]*-${{ github.run_attempt }}
+          pattern: bench-[0-9]*
           path: ${{ runner.temp }}/bench-records
       - name: The gate of the bench
         id: gate
         env:
           RECORDS: ${{ runner.temp }}/bench-records
-        run: node packages/lab/src/bench-scale.main.ts gate --records "$RECORDS" --again-out "$GITHUB_OUTPUT"
+        run: node packages/lab/src/bench-scale.main.ts gate --records "$RECORDS" --again-out "$GITHUB_OUTPUT" --latest
 
   # The second try of the cases with no read (CAP-89). A fresh runner measures the rounds that each slot of the case lacks
   # for its next look. The gate adds the rounds of each job to its slot, so the case keeps its two jobs.
@@ -389,18 +389,18 @@ jobs:
       - name: The records of the first try
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          pattern: bench-[0-9]*-${{ github.run_attempt }}
+          pattern: bench-[0-9]*
           path: ${{ runner.temp }}/bench-records
       - name: The records of the second try
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          pattern: bench-again-*-${{ github.run_attempt }}
+          pattern: bench-again-*
           path: ${{ runner.temp }}/bench-again
       - name: The gate of the bench after the second try
         env:
           RECORDS: ${{ runner.temp }}/bench-records
           AGAIN: ${{ runner.temp }}/bench-again
-        run: node packages/lab/src/bench-scale.main.ts gate --records "$RECORDS" --again "$AGAIN"
+        run: node packages/lab/src/bench-scale.main.ts gate --records "$RECORDS" --again "$AGAIN" --latest
 
   lab-ok:
     name: Lab OK

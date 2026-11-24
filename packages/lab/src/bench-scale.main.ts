@@ -5,7 +5,7 @@
  * node src/bench-scale.main.ts cases
  * node src/bench-scale.main.ts measure --case <id> --base <commit> --out <folder> [--slot <n>] [--try <n>] [--rounds <count>]
  * node src/bench-scale.main.ts gate --records <folder> [--limit <ratio>] [--noise-cap <log ratio>] [--changes <file>]
- *   [--again-out <file>] [--again <folder>]
+ *   [--again-out <file>] [--again <folder>] [--latest]
  * node src/bench-scale.main.ts limits --runs <folder> [--out <file>]
  * ```
  *
@@ -23,7 +23,9 @@
  * - With `--again-out`, a gate with no read of some cases does not decide. It writes the matrix `again` of `benchAgainOf` into the
  *   file of the outputs of the job. Its fresh jobs take each slot of these cases to their next look.
  *   A case beyond the limit is not measured again.
- * - With `--again`, the gate adds the records of that folder to the rounds of their slots. This gate decides.
+ * - With `--again`, the gate adds the records of that folder to the rounds of their slots.
+ * - With `--latest`, the gate reads only the latest try of each artifact folder `<name>-<attempt>` (`latestAttempts`).
+ *   This gate decides.
  * - The noise cap of the gate comes from `packages/lab/bench-limits.json`. The option `--noise-cap` replaces it.
  * - `limits` reads the records of each subfolder of `--runs`. Each subfolder holds the records of one CI run, from
  *   `gh run download <run> -p "bench-*"`. The command writes the limits of 5 or more runs into the file `--out`.
@@ -74,7 +76,7 @@ const CAPACITY = fileURLToPath(new URL("../../capacity/", import.meta.url));
 const USAGE = [
   "node src/bench-scale.main.ts cases",
   "node src/bench-scale.main.ts measure --case <id> --base <commit> --out <folder> [--slot <n>] [--try <n>] [--rounds <count>]",
-  "node src/bench-scale.main.ts gate --records <folder> [--limit <ratio>] [--noise-cap <log ratio>] [--changes <file>] [--again-out <file>] [--again <folder>]",
+  "node src/bench-scale.main.ts gate --records <folder> [--limit <ratio>] [--noise-cap <log ratio>] [--changes <file>] [--again-out <file>] [--again <folder>] [--latest]",
   "node src/bench-scale.main.ts limits --runs <folder> [--out <file>]",
 ].join("\n");
 
@@ -150,12 +152,13 @@ const measure = async (args: readonly string[]): Promise<void> => {
 };
 
 const gate = (args: readonly string[]): void => {
-  const { values } = parseArgs({ args: [...args], options: { records: { type: "string" }, limit: { type: "string" }, "noise-cap": { type: "string" }, changes: { type: "string" }, again: { type: "string" }, "again-out": { type: "string" } } });
+  const { values } = parseArgs({ args: [...args], options: { records: { type: "string" }, limit: { type: "string" }, "noise-cap": { type: "string" }, changes: { type: "string" }, again: { type: "string" }, "again-out": { type: "string" }, latest: { type: "boolean" } } });
   if (values.records === undefined) throw new Error(`The command needs --records.\n${USAGE}`);
   const limit = positive(values.limit, "--limit") ?? BENCH_LIMIT;
   const noiseCap = positive(values["noise-cap"], "--noise-cap") ?? readBenchLimits(join(ROOT, "packages", "lab", BENCH_LIMITS))?.noiseCap.limit;
-  const first = readBenchRecords(values.records);
-  const records = values.again === undefined ? first : [...first, ...readBenchRecords(values.again)];
+  const latest = { latest: values.latest === true };
+  const first = readBenchRecords(values.records, latest);
+  const records = values.again === undefined ? first : [...first, ...readBenchRecords(values.again, latest)];
   const ids = benchCases(catalogOf()).map((each) => each.id);
   const changes = readBenchChanges(values.changes ?? join(ROOT, "packages", "lab", BENCH_CHANGES));
   const result = benchGate(records, ids, { limit, changes, ...(noiseCap === undefined ? {} : { noiseCap }) });
