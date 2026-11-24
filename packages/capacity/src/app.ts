@@ -105,6 +105,33 @@ export interface AppProcess extends AppCommand {
   readonly ready: AppReady;
 }
 
+/** The kinds of the lines of a run that the lab records. The lab knows the fields of each kind. */
+export const APP_LINE_KINDS = ["pass", "write"] as const;
+
+/**
+ * The kind of a line of a run.
+ *
+ * - `pass`: the end of one pass of the loop of the app. The lab counts the passes in the watch after ready.
+ * - `write`: one write of the snapshot of the start. The fields `longestMs`, `writeMs`, `rowsMs`, `wallMs` and `cpuMs`
+ *   give its times in milliseconds. The lab keeps the longest value of each time.
+ */
+export type AppLineKind = (typeof APP_LINE_KINDS)[number];
+
+/**
+ * A line of a run is a JSON line of the output of the run that the lab records. The line is a JSON object, and its
+ * field `ev` has the text `ev`. `kind` tells what the lab reads from it.
+ */
+export interface AppLine {
+  readonly kind: AppLineKind;
+  readonly ev: string;
+  readonly title: string;
+}
+
+/** The run of an app is its process, and the lines of its output that the lab records. A run with no `lines` gives no pass and no write. */
+export interface AppRun extends AppProcess {
+  readonly lines?: readonly AppLine[] | undefined;
+}
+
 /**
  * The start of an app tells how to make it run in a tree of its repository.
  *
@@ -113,13 +140,13 @@ export interface AppProcess extends AppCommand {
  * - `seed` writes the store of a start case at the amounts of the store variables. An app with no store variable has no seed.
  *   The last line of the output of the seed is a JSON record. Its field `amounts` gives the amount of each store variable
  *   that the seed wrote, by its id, in the unit of the variable.
- * - `run` is the process of the app.
+ * - `run` is the process of the app, and the lines of its output that the lab records.
  */
 export interface AppStart {
   readonly install?: AppCommand | undefined;
   readonly check?: AppCommand | undefined;
   readonly seed?: AppCommand | undefined;
-  readonly run: AppProcess;
+  readonly run: AppRun;
 }
 
 /**

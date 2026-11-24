@@ -2,7 +2,7 @@ import { err, ok, type Result } from "@mark1russell7/optional";
 import { parse, type Expr } from "@mark1russell7/vex";
 import { z } from "zod";
 import { checkApp } from "./app-check.ts";
-import { APP_FORMAT, type AppContract, type AppProblem } from "./app.ts";
+import { APP_FORMAT, APP_LINE_KINDS, type AppContract, type AppProblem } from "./app.ts";
 import { checkLaw } from "./check.ts";
 import { COMPOSITION_FORMAT, checkComposition, type Composition, type CompositionProblem } from "./composition.ts";
 import { checkInstance, checkLimits } from "./instance-check.ts";
@@ -232,7 +232,9 @@ export const appSchema: z.ZodType<AppContract> = z.strictObject({
     install: commandSchema.optional(),
     check: commandSchema.optional(),
     seed: commandSchema.optional(),
-    run: processSchema,
+    run: processSchema.extend({
+      lines: z.array(z.strictObject({ kind: z.enum(APP_LINE_KINDS), ev: z.string(), title: z.string() })).optional(),
+    }),
   }),
   services: z.array(z.strictObject({ id: z.string(), title: z.string(), fake: processSchema })),
   metrics: z.array(

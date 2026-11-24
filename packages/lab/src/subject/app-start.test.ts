@@ -3,10 +3,11 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { AppProcess } from "@mark1russell7/capacity";
+import type { AppRun } from "@mark1russell7/capacity";
 import { afterAll, describe, expect, it } from "vitest";
 import { FIXTURE } from "../app-fixtures.ts";
 import { APP_START_PROGRAM, appRunOf, readTreeApp, type TreeApp } from "../start-app.ts";
+import { lineRecorder, runLineFields } from "./ready.ts";
 
 const PROGRAM = fileURLToPath(new URL(`./${APP_START_PROGRAM}`, import.meta.url));
 
@@ -16,7 +17,7 @@ afterAll(() => {
 });
 
 /** This function gives the tree of the tests with another run. */
-const treeWith = (run: Partial<AppProcess> = {}): TreeApp => {
+const treeWith = (run: Partial<AppRun> = {}): TreeApp => {
   const tree = readTreeApp("base", FIXTURE);
   return { ...tree, app: { ...tree.app, start: { ...tree.app.start, run: { ...tree.app.start.run, ...run } } } };
 };
@@ -62,6 +63,26 @@ describe("the program app-start", () => {
     expect(end.line?.["limit"]).toBeGreaterThan(0);
   });
 
+  it("records the lines of the run that the contract names: the passes in the watch, and each write with its times", () => {
+    const end = launch(
+      treeWith({
+        env: { FIXTURE_STORE: "{store}", FIXTURE_MODE: "lines" },
+        lines: [
+          { kind: "pass", ev: "fixture-pass", title: "The end of a pass" },
+          { kind: "write", ev: "fixture-write", title: "A write of the snapshot" },
+        ],
+      }),
+    );
+    expect(end.stderr).toBe("");
+    expect(end.code).toBe(0);
+    expect(end.line?.["passes"]).toBeGreaterThan(0);
+    const writes = end.line?.["writes"] as readonly Record<string, number>[];
+    expect(writes).toHaveLength(2);
+    expect(writes[0]).toMatchObject({ longestMs: 3, writeMs: 2, rowsMs: 1, wallMs: 4, cpuMs: 2 });
+    expect(writes[1]).toEqual({ ms: writes[1]!["ms"], longestMs: 7 });
+    expect(writes[0]!["ms"]).toBeLessThanOrEqual(writes[1]!["ms"]!);
+  });
+
   it("opens the store in place with --home, with no copy", () => {
     const end = launch(treeWith(), true);
     expect(end.code).toBe(0);
@@ -93,5 +114,44 @@ describe("the program app-start", () => {
     expect(broken.code).toBe(1);
     expect(broken.stderr).toContain('The import of the app "fixture-app" failed');
     expect(broken.stderr).toContain("The fixture fails at its import.");
+  });
+});
+
+describe("the recorder of the lines of a run", () => {
+  const kinds = [
+    { kind: "pass", ev: "p" },
+    { kind: "write", ev: "w" },
+  ];
+
+  it("keeps the JSON lines of the named events, also a line in two chunks, with the time of its last chunk", () => {
+    const recorder = lineRecorder(kinds);
+    recorder.write('{"ev":"w","writeMs":5}\nnot JSON\n{"ev":"x"}\n{"ev":"p"', 1);
+    recorder.write('}\n[1]\n{"ev":', 2);
+    expect(recorder.lines()).toEqual([
+      { kind: "write", ms: 1, fields: { ev: "w", writeMs: 5 } },
+      { kind: "pass", ms: 2, fields: { ev: "p" } },
+    ]);
+  });
+
+  it("keeps at most the limit of lines of each kind, and keeps nothing with no named line", () => {
+    const recorder = lineRecorder(kinds, 2);
+    recorder.write('{"ev":"p"}\n{"ev":"p"}\n{"ev":"p"}\n{"ev":"w"}\n', 0);
+    expect(recorder.lines().map((line) => line.kind)).toEqual(["pass", "pass", "write"]);
+    const none = lineRecorder([]);
+    none.write('{"ev":"p"}\n', 0);
+    expect(none.lines()).toEqual([]);
+  });
+
+  it("counts the passes from ready to the end of the watch, keeps the writes to the end with their times, and gives null for a kind with no line", () => {
+    const lines = [
+      { kind: "write", ms: 1, fields: { ev: "w", writeMs: 4, longestMs: "slow", other: 1 } },
+      { kind: "pass", ms: 1, fields: { ev: "p" } },
+      { kind: "pass", ms: 5, fields: { ev: "p" } },
+      { kind: "pass", ms: 9, fields: { ev: "p" } },
+      { kind: "write", ms: 12, fields: { ev: "w", writeMs: 6 } },
+    ];
+    expect(runLineFields(kinds, lines, 2, 10)).toEqual({ passes: 2, writes: [{ ms: 1, writeMs: 4 }] });
+    expect(runLineFields([{ kind: "pass" }], lines, 0, 20)).toEqual({ passes: 3, writes: null });
+    expect(runLineFields([], lines, 0, 20)).toEqual({ passes: null, writes: null });
   });
 });
