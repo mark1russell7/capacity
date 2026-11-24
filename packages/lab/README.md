@@ -635,14 +635,35 @@ The second run is the Lab run [45351701555](https://github.com/metrograph-labs/c
 - The memory binds first, not the CPU. At 48 events each second, the law of the cores gives 0.28 cores of the 2 CPUs of the target.
 - The two limits of the memory are at 48 and 52 events each second, and their intervals overlap. Thus the lab cannot tell which limit comes first.
 - The two reaches are outside the range of the fit. The failures at 100 events each second agree with them: each child reached the heap limit of V8.
-- CAP-86 replaces the rung 100 with the rungs 40, 45, 50, 55, 60 and 70. The rungs near 48 and 52 tell which limit comes first.
-- The plan then has 5 jobs of 263 minutes. The fit pools the new runs with the two runs above, because each record holds its own case.
+- CAP-86 replaces the rung 100 with the rungs 40, 45, 50, 55, 60 and 70. The rungs near 48 and 52 tell which limit comes first. The text after this list gives the result.
 - At 30 events each second, two jobs give 0.31 and 0.33 cores, two times the median of 0.155. The line still has the smallest error on the held-out jobs.
 - The rule `floor` with the share 1 gives the knees in events each second:
   - `watchCores` at 2.4 [1.4, 3.5]
   - `watchHeapPeak` at 23.0 [19.2, 25.4]
   - `watchPeak` at 33.2 [32.0, 34.3].
 - The CPU time of one event is less than the 7 ms of the first run. That value was a median over 3 CPU models.
+
+The third run is the Lab run [45449194236](https://github.com/metrograph-labs/capacity/actions/runs/45449194236), with the rungs from 40 to 70 and 5 jobs of 263 minutes (CAP-86). The run [45479208486](https://github.com/metrograph-labs/capacity/actions/runs/45479208486) of `laws.yml` fits the laws over the three runs. Each record holds its own case, thus the fit pools the runs.
+
+- Each of the 5 jobs reached the heap limit of V8 (556 MB) at the rung 60. The jobs were on three CPU models: Intel Xeon 6975P-C, AMD EPYC 9V74 and AMD EPYC 7763.
+- At the rung 55, the used heap was 451 to 465 MiB, and the peak RSS was 346 to 393 MiB. Thus no rung reached the memory limit of the target.
+- Thus the heap limit is the first limit of alerts under events, between 55 and 60 events each second.
+- The jobs on the Intel Xeon 6975P-C give 4 laws, with 93 points from 0 to 55 events each second. The other CPU models have too few jobs.
+
+| The measure | The law | The limit that it reaches |
+| --- | --- | --- |
+| `watchCores` | A hinge: 0.0116 [0.0097, 0.0159] cores, and 5.66 ms [4.35, 6.28] of CPU time for each event to the bend at 47.8 [10.0, 49.0] events each second. After the bend, 70.8 ms. | 1 core at 58.0 [57.5, 187] events each second |
+| `watchHeapPeak` | A hinge: 205.5 MB [199.1, 215.5], and 20.8 MB [13.0, 24.9] for each event each second to the bend at 6.7 [5.6, 16.8] events each second. After the bend, 3.7 MB. | The heap limit of V8 at 64 [50, 110] events each second |
+| `watchPeak` | A hinge: 400.8 MB [396.4, 405.1], and 17.8 MB [16.0, 19.7] for each event each second to the bend at 18.2 [11.7, 20.8] events each second. After the bend, 3.0 MB. | The memory limit of the target at 115 [60, 133] events each second |
+| `ready` | A hinge: 5.38 s [4.92, 5.68]. The interval of its slope holds 0. | None. The rate of events does not change the time to ready. |
+
+- The heap limit comes first. Its reach of 64 [50, 110] events each second holds the rung 60, where each job reached the limit.
+- The line of the memory of the second run was an extrapolation. The rungs past 30 show that the memory bends, and its reach moves from 48 to 115 events each second.
+- After the bend at 48 events each second, each event costs 12 times more CPU time. The GC works hard near the heap limit.
+- The rule `floor` with the share 1 gives the knees in events each second:
+  - `watchCores` at 2.1 [1.6, 3.6]
+  - `watchHeapPeak` at 24.7 [15.9, 27.7]
+  - `watchPeak` at 44.2 [35.0, 48.5].
 
 #### The load ladder of updates
 
