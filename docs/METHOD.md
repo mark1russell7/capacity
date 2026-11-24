@@ -53,8 +53,8 @@ plan file  ->  Lab run (lab.yml)  ->  records  ->  fit (laws.yml)  ->  law file 
 A law needs 40 points or more and 5 jobs or more on one CPU model. Thus start a plan with 5 runs or more:
 
 ```sh
-gh workflow run lab.yml -R mark1russell7/capacity -f plans=<plan> -f runs='[1,2,3,4,5]'
-gh workflow run laws.yml -R mark1russell7/capacity -f runs='<Lab run> <more Lab runs>'
+gh workflow run lab.yml -R metrograph-labs/capacity -f plans=<plan> -f runs='[1,2,3,4,5]'
+gh workflow run laws.yml -R metrograph-labs/capacity -f runs='<Lab run> <more Lab runs>'
 ```
 
 The fit can pool the runs of one plan. Each record holds its own case. Thus a later run with more points adds to the earlier runs. The details are in [The laws](../packages/lab/README.md#the-laws) and [The laws of the start cases](../packages/lab/README.md#the-laws-of-the-start-cases).

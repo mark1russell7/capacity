@@ -4,8 +4,8 @@
 # the raw results and the manifest timed.json of each job. It keeps the records and the manifests only. The command
 # laws.main.ts fits the laws of each plan with a law set. The jobs of the check floor give the noise of each law. The job uploads the law files as the artifact laws-<run>.
 # Then a person puts the files in a pull request. For example:
-#     gh workflow run laws.yml -R mark1russell7/capacity -f runs='<lab run> <lab run of the plan floor>'
-#     gh run download <laws run> -R mark1russell7/capacity -n laws-<laws run> -D packages/capacity/laws
+#     gh workflow run laws.yml -R metrograph-labs/capacity -f runs='<lab run> <lab run of the plan floor>'
+#     gh run download <laws run> -R metrograph-labs/capacity -n laws-<laws run> -D packages/capacity/laws
 name: Laws
 
 on:

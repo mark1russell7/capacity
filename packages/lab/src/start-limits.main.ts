@@ -35,7 +35,7 @@ const limits = (args: readonly string[]): void => {
   if (folders === undefined || folders.length === 0 || out === undefined) throw new Error(`The command needs --runs and --out.\n${USAGE}`);
   const { plans, problems } = readPlans(PLANS);
   if (problems.length > 0) throw new Error(`The plan files have problems:\n${problems.map((each) => `  ${each.path}: ${each.message}`).join("\n")}`);
-  const jobs = folders.flatMap(readJobs);
+  const jobs = folders.flatMap((folder) => readJobs(folder));
   const ids = [...new Set(jobs.map((job) => job.timed.plan))].sort();
   const id = values.plan ?? (ids.length === 1 ? ids[0] : undefined);
   if (id === undefined) throw new Error(`The jobs are of the plans ${ids.join(", ") || "(none)"}. Give one with --plan.\n${USAGE}`);
