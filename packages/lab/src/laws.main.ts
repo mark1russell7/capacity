@@ -51,7 +51,7 @@ const fit = (args: readonly string[]): void => {
   const options: LawsOptions = { ...(runs === undefined ? {} : { runs }), ...(seed === undefined ? {} : { seed }) };
   const { plans, problems } = readPlans(PLANS);
   if (problems.length > 0) throw new Error(`The plan files have problems:\n${problems.map((each) => `  ${each.path}: ${each.message}`).join("\n")}`);
-  const jobs = folders.flatMap(readJobs);
+  const jobs = folders.flatMap((folder) => readJobs(folder));
   const floors = jobs.map((job) => job.timed);
   const summaries: string[] = [];
   let count = 0;

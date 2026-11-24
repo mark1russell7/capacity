@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import type * as Capacity from "@mark1russell7/capacity";
 import type { Composition, Demand, KneeRule, Law, ScaleModel, ScaleOptions } from "@mark1russell7/capacity";
@@ -6,6 +6,7 @@ import { aaLimits, aaStats, gateOf, limitVerdict, pooledLimitVerdict, type Gate,
 import { armTimes, type ArmProcess, type BenchEnv } from "@mark1russell7/rigor-bench/fresh";
 import { canonicalJson, sha256Hex } from "@mark1russell7/rigor-generators";
 import { escapeMarkdown } from "@mark1russell7/text";
+import { recordPaths, type ReadOptions } from "./jobs.ts";
 
 /** This text is the format of the record of a bench of the scale query. */
 export const BENCH_FORMAT = "capacity-bench-scale/1";
@@ -302,10 +303,10 @@ export interface BenchRecord {
 
 /**
  * This function gives each bench record of a folder: each file `bench.json` in the folder or in a subfolder, in the order
- * of their paths. It throws an `Error` for a file of another format.
+ * of their paths. With the option `latest`, each artifact gives only its latest try. It throws an `Error` for a file of another format.
  */
-export const readBenchRecords = (folder: string): readonly BenchRecord[] =>
-  readdirSync(folder, { recursive: true, encoding: "utf8" })
+export const readBenchRecords = (folder: string, options: ReadOptions = {}): readonly BenchRecord[] =>
+  recordPaths(folder, options)
     .filter((name) => basename(name) === BENCH_RECORD)
     .sort()
     .map((name) => {
