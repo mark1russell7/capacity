@@ -1,7 +1,7 @@
 {
   "format": "capacity-plan/1",
   "id": "alerts-start-event",
-  "title": "The load of alerts from its contract at 6 rungs of the rate of new events from its feeds, with the levels at the base point",
+  "title": "The load of alerts from its contract at 11 rungs of the rate of new events from its feeds, with the levels at the base point",
   "check": null,
   "triggers": [],
   "jobs": 5,
@@ -228,7 +228,7 @@
           }
         },
         {
-          "id": "event-100",
+          "id": "event-40",
           "at": {
             "log": {
               "value": 16777216,
@@ -247,7 +247,172 @@
               "unit": "{incident}"
             },
             "event": {
-              "value": 100,
+              "value": 40,
+              "unit": "{event}/s"
+            },
+            "update": {
+              "value": 0,
+              "unit": "{event}/s"
+            },
+            "eventBytes": {
+              "value": 2000,
+              "unit": "B"
+            }
+          }
+        },
+        {
+          "id": "event-45",
+          "at": {
+            "log": {
+              "value": 16777216,
+              "unit": "B"
+            },
+            "feeds": {
+              "value": 10,
+              "unit": "{feed}"
+            },
+            "persons": {
+              "value": 10,
+              "unit": "{person}"
+            },
+            "incidents": {
+              "value": 10,
+              "unit": "{incident}"
+            },
+            "event": {
+              "value": 45,
+              "unit": "{event}/s"
+            },
+            "update": {
+              "value": 0,
+              "unit": "{event}/s"
+            },
+            "eventBytes": {
+              "value": 2000,
+              "unit": "B"
+            }
+          }
+        },
+        {
+          "id": "event-50",
+          "at": {
+            "log": {
+              "value": 16777216,
+              "unit": "B"
+            },
+            "feeds": {
+              "value": 10,
+              "unit": "{feed}"
+            },
+            "persons": {
+              "value": 10,
+              "unit": "{person}"
+            },
+            "incidents": {
+              "value": 10,
+              "unit": "{incident}"
+            },
+            "event": {
+              "value": 50,
+              "unit": "{event}/s"
+            },
+            "update": {
+              "value": 0,
+              "unit": "{event}/s"
+            },
+            "eventBytes": {
+              "value": 2000,
+              "unit": "B"
+            }
+          }
+        },
+        {
+          "id": "event-55",
+          "at": {
+            "log": {
+              "value": 16777216,
+              "unit": "B"
+            },
+            "feeds": {
+              "value": 10,
+              "unit": "{feed}"
+            },
+            "persons": {
+              "value": 10,
+              "unit": "{person}"
+            },
+            "incidents": {
+              "value": 10,
+              "unit": "{incident}"
+            },
+            "event": {
+              "value": 55,
+              "unit": "{event}/s"
+            },
+            "update": {
+              "value": 0,
+              "unit": "{event}/s"
+            },
+            "eventBytes": {
+              "value": 2000,
+              "unit": "B"
+            }
+          }
+        },
+        {
+          "id": "event-60",
+          "at": {
+            "log": {
+              "value": 16777216,
+              "unit": "B"
+            },
+            "feeds": {
+              "value": 10,
+              "unit": "{feed}"
+            },
+            "persons": {
+              "value": 10,
+              "unit": "{person}"
+            },
+            "incidents": {
+              "value": 10,
+              "unit": "{incident}"
+            },
+            "event": {
+              "value": 60,
+              "unit": "{event}/s"
+            },
+            "update": {
+              "value": 0,
+              "unit": "{event}/s"
+            },
+            "eventBytes": {
+              "value": 2000,
+              "unit": "B"
+            }
+          }
+        },
+        {
+          "id": "event-70",
+          "at": {
+            "log": {
+              "value": 16777216,
+              "unit": "B"
+            },
+            "feeds": {
+              "value": 10,
+              "unit": "{feed}"
+            },
+            "persons": {
+              "value": 10,
+              "unit": "{person}"
+            },
+            "incidents": {
+              "value": 10,
+              "unit": "{incident}"
+            },
+            "event": {
+              "value": 70,
               "unit": "{event}/s"
             },
             "update": {
