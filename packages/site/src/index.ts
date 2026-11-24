@@ -1,10 +1,24 @@
 import { constantIntervals, type Law } from "@mark1russell7/capacity";
 import { byId, copyText, setupTheme } from "@mark1russell7/site-pages/chrome";
-import { curveChart, stackChart } from "./chart.ts";
+import { curveChart, stackChart, stepChart, type StepChart } from "./chart.ts";
 import { coverage, cpuModels, cpuName, goalCells, kneeRuleOf, nextItem, tally, type Cell, type SubjectMatrix } from "./coverage.ts";
 import { amountText, curveOf, significant as amount, unitWords } from "./curves.ts";
 import { COMPOSITIONS, LAWS, PLANS, loadLaw, loadLaws } from "./data.ts";
-import { lawIdsOf, stackBaseOf, stackOf } from "./stack.ts";
+import {
+  DEFAULT_SETTING,
+  LIMIT_NAMES,
+  SETTING_CHOICES,
+  SUBJECT_NAMES,
+  pointSentences,
+  positionOf,
+  rateAt,
+  scaleSubjects,
+  sliderOf,
+  stepsOfSlider,
+  type InstanceSetting,
+  type Slider,
+} from "./scale.ts";
+import { RATE_UNIT, lawIdsOf, stackBaseOf, stackOf } from "./stack.ts";
 
 const ROADMAP = "https://github.com/mark1russell7/capacity/blob/main/docs/ROADMAP.md";
 const STATE_TEXT = { law: "A law with its interval", measured: "Measured in CI, no law yet", none: "Not measured" } as const;
@@ -201,6 +215,18 @@ const showMatrices = (matrices: readonly SubjectMatrix[]): void => {
   );
 };
 
+/** This function starts `load` one time, when the element comes within 400 pixels of the screen. */
+const whenNear = (element: HTMLElement, load: () => void): void => {
+  new IntersectionObserver(
+    (entries, observer) => {
+      if (!entries.some((each) => each.isIntersecting)) return;
+      observer.disconnect();
+      load();
+    },
+    { rootMargin: "400px" },
+  ).observe(element);
+};
+
 const stacks = byId<HTMLDivElement>("stacks");
 
 /** These titles name the measure of a composition. The axis of the chart gives the unit. */
@@ -247,15 +273,156 @@ const loadStacks = (): void => {
     stacks.replaceChildren(make("p", "quiet", `The law files of the charts did not load: ${String(error)}`));
   });
 };
-new IntersectionObserver(
-  (entries, observer) => {
-    if (!entries.some((each) => each.isIntersecting)) return;
-    observer.disconnect();
-    stacksSeen = true;
-    loadStacks();
-  },
-  { rootMargin: "400px" },
-).observe(stacks);
+whenNear(stacks, () => {
+  stacksSeen = true;
+  loadStacks();
+});
+
+const scaleBox = byId<HTMLDivElement>("scale");
+const scaleSubject = byId<HTMLSelectElement>("scale-subject");
+const scaleRate = byId<HTMLInputElement>("scale-rate");
+const scaleRateText = byId<HTMLOutputElement>("scale-rate-text");
+const SETTING_SELECTS = {
+  cores: byId<HTMLSelectElement>("scale-cores"),
+  memory: byId<HTMLSelectElement>("scale-memory"),
+  headroom: byId<HTMLSelectElement>("scale-headroom"),
+} as const;
+const SETTING_TEXT = {
+  cores: (value: number) => `${value} ${value === 1 ? "core" : "cores"}`,
+  memory: (value: number) => (value >= 1024 ? `${value / 1024} GiB` : `${value} MiB`),
+  headroom: (value: number) => `${Math.round(value * 100)} %`,
+} as const;
+for (const key of ["cores", "memory", "headroom"] as const) {
+  for (const value of SETTING_CHOICES[key]) SETTING_SELECTS[key].append(new Option(SETTING_TEXT[key](value), String(value), false, value === DEFAULT_SETTING[key]));
+}
+
+/** This rate is the load of the slider before the reader moves it. */
+const DEFAULT_RATE = 5000;
+scaleRate.value = String(Math.round(positionOf(DEFAULT_RATE) * 1000));
+
+/** This function gives the rate of the slider, at two significant digits, thus the text and the count agree. */
+const sliderRate = (): number => Number(rateAt(Number(scaleRate.value) / 1000).toPrecision(2));
+
+const settingOf = (): InstanceSetting => ({
+  cores: Number(SETTING_SELECTS.cores.value),
+  memory: Number(SETTING_SELECTS.memory.value),
+  headroom: Number(SETTING_SELECTS.headroom.value),
+});
+
+// A ladder takes most of a second to build. The page keeps each one, thus a setting that comes back is at once ready.
+const sliders = new Map<string, Slider | string>();
+let shown: { readonly slider: Slider; readonly chart: StepChart; readonly result: HTMLElement } | undefined;
+
+/** This function shows the scale rule at the rate of the slider: the count, the fill of each limit and the sentences. */
+const showPoint = (): void => {
+  const rate = sliderRate();
+  scaleRateText.textContent = amountText(rate, RATE_UNIT);
+  if (shown === undefined) return;
+  const { slider, chart, result } = shown;
+  const point = slider.at(rate);
+  if (typeof point === "string") {
+    result.replaceChildren(make("p", "quiet", point));
+    return;
+  }
+  const most = slider.ladder.most;
+  chart.mark(rate, point.count.value);
+  const count = make("div", "scale-count");
+  const { low, high } = point.count.interval;
+  count.append(
+    make("span", "scale-number", point.count.value === null ? `> ${most}` : String(point.count.value)),
+    make("span", "scale-unit", point.count.value === 1 ? "instance" : "instances"),
+    make("span", "quiet", `interval ${low ?? `> ${most}`} to ${high ?? `> ${most}`}`),
+  );
+  const meters = make("ul", "scale-meters");
+  meters.setAttribute("aria-label", "The use of each resource of one instance, as a share of the part that the headroom leaves");
+  for (const fill of point.fills) {
+    const item = make("li", fill.limit === point.binding ? "scale-meter binding" : "scale-meter");
+    const name = LIMIT_NAMES[fill.limit] ?? fill.limit;
+    const percent = fill.use === null ? null : Math.round(fill.use * 100);
+    const head = make("div", "bar-head");
+    head.append(make("span", "bar-name", fill.limit === point.binding ? `${name}, sets the count` : name), make("span", "bar-count", percent === null ? "more than the search" : `${percent} %`));
+    const track = make("div", "scale-track");
+    const bar = make("span", `scale-fill scale-${fill.limit}`);
+    bar.style.width = `${Math.min(100, percent ?? 100)}%`;
+    track.append(bar);
+    track.setAttribute("role", "meter");
+    track.setAttribute("aria-label", name);
+    track.setAttribute("aria-valuemin", "0");
+    track.setAttribute("aria-valuemax", "100");
+    track.setAttribute("aria-valuenow", String(Math.min(100, percent ?? 100)));
+    item.append(head, track);
+    meters.append(item);
+  }
+  const caption = make("p", "quiet scale-caption", "Each bar is the use of a resource of one instance, as a share of the part that the headroom leaves.");
+  const sentences = make("div", "scale-sentences");
+  sentences.id = "scale-sentences";
+  sentences.append(...pointSentences(point, slider.measured, most).map((each) => make("p", "", each)));
+  const tiles = make("div", "scale-tiles");
+  const fills = make("div", "scale-fills");
+  fills.append(meters, caption);
+  tiles.append(count, fills);
+  result.replaceChildren(tiles, sentences);
+  if (point.extrapolated || rate > slider.measured.max) result.classList.add("past");
+  else result.classList.remove("past");
+};
+
+/** This function shows the slider of the selected subject and instance on a CPU model. It loads the law files of the subject. */
+const showScale = async (cpu: string): Promise<void> => {
+  const subjects = scaleSubjects(COMPOSITIONS, LAWS, cpu);
+  if (subjects.length === 0) {
+    shown = undefined;
+    scaleBox.replaceChildren(make("p", "quiet", `No composition of a resource is on the ${cpuName(cpu)} yet.`));
+    return;
+  }
+  const names = subjects.map((each) => each.subject);
+  if (scaleSubject.options.length !== names.length || [...scaleSubject.options].some((option, index) => option.value !== names[index])) {
+    const keep = scaleSubject.value;
+    scaleSubject.replaceChildren(...names.map((subject) => new Option(SUBJECT_NAMES[subject] ?? subject, subject)));
+    scaleSubject.value = names.includes(keep) ? keep : (names.find((each) => each === "node-http-service") ?? names[0]!);
+  }
+  const subject = subjects.find((each) => each.subject === scaleSubject.value)!;
+  const setting = settingOf();
+  const key = JSON.stringify([cpu, subject.subject, setting]);
+  let slider = sliders.get(key);
+  if (slider === undefined) {
+    const laws = await loadLaws(subject.laws);
+    scaleBox.setAttribute("aria-busy", "true");
+    // The page paints its old state before the search, thus the controls do not freeze with no sign.
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    slider = sliderOf(subject.compositions, setting, { laws, compositions: COMPOSITIONS });
+    sliders.set(key, slider);
+    scaleBox.removeAttribute("aria-busy");
+  }
+  if (key !== JSON.stringify([select.value, scaleSubject.value, settingOf()])) return;
+  if (typeof slider === "string") {
+    shown = undefined;
+    scaleBox.replaceChildren(make("p", "quiet", slider));
+    return;
+  }
+  const title = `${SUBJECT_NAMES[subject.subject] ?? subject.subject}, ${SETTING_TEXT.cores(setting.cores)} and ${SETTING_TEXT.memory(setting.memory)} for each instance`;
+  const chart = stepChart(stepsOfSlider(slider), slider.measured, slider.ladder.most, title);
+  const result = make("div", "scale-result");
+  result.setAttribute("aria-live", "polite");
+  shown = { slider, chart, result };
+  scaleBox.replaceChildren(result, chart.figure);
+  showPoint();
+};
+
+// The slider loads about 0.3 MB of law files. They load when its section comes near the screen, not before.
+let scaleSeen = false;
+const loadScale = (): void => {
+  if (!scaleSeen) return;
+  showScale(select.value).catch((error: unknown) => {
+    scaleBox.replaceChildren(make("p", "quiet", `The slider did not load: ${String(error)}`));
+  });
+};
+whenNear(scaleBox, () => {
+  scaleSeen = true;
+  loadScale();
+});
+scaleRate.addEventListener("input", showPoint);
+for (const control of [scaleSubject, ...Object.values(SETTING_SELECTS)]) control.addEventListener("change", loadScale);
+showPoint();
 
 /** This function shows the page for the selected CPU model. */
 const render = (): void => {
@@ -263,6 +430,7 @@ const render = (): void => {
   showDone(matrices);
   showMatrices(matrices);
   loadStacks();
+  loadScale();
 };
 
 select.addEventListener("change", () => {
