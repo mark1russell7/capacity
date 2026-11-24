@@ -1,7 +1,7 @@
 import { err, ok, type Result } from "@mark1russell7/optional";
 import { quantile } from "@mark1russell7/rigor-statistics";
 import { DEFAULT_LEVEL, leastCount, type Law, type LawProblem } from "./law.ts";
-import { recordOf, valuesOf } from "./program.ts";
+import { recordOf, valuesAt, valuesOf } from "./program.ts";
 
 /** A load point gives one value for each variable of a law, in the unit of the variable. */
 export type LoadPoint = Readonly<Record<string, number>>;
@@ -71,6 +71,30 @@ export const runOf = (law: Law, interval: Range, level: number): Range => {
   return { low: Math.min(...corners), high: Math.max(...corners) };
 };
 
+/**
+ * This function gives the nearest point of a load point in the ranges of the variables of a law. A point in each range
+ * gives undefined. A name that is not a variable of the law, or a value that is not a number, does not change.
+ */
+export const edgePointOf = (law: Law, point: LoadPoint): LoadPoint | undefined => {
+  let edge: Record<string, number> | undefined;
+  for (const variable of law.variables) {
+    const value = point[variable.id];
+    if (typeof value !== "number" || Number.isNaN(value)) continue;
+    const held = Math.min(variable.max, Math.max(variable.min, value));
+    if (held !== value) (edge ??= { ...point })[variable.id] = held;
+  }
+  return edge;
+};
+
+/**
+ * This function holds a value of a law past its measures. Each measure of a law is a cost, and no run measured the
+ * cost past the edge. Thus the value is the higher of the value of the law and its value at the nearest edge. A
+ * cost that falls with the load then stays flat past the edge, and a cost that rises keeps its law. A missing value
+ * stays missing, and a missing value at the edge keeps the value of the law.
+ */
+export const heldValue = (value: number | undefined, edge: number | undefined): number | undefined =>
+  value === undefined || edge === undefined || !Number.isFinite(edge) ? value : Math.max(value, edge);
+
 /** These values are the value of a law at a point with its constants, then with each replicate, and the variables outside their ranges. */
 export interface PointValues {
   readonly values: readonly [number, ...number[]];
@@ -81,6 +105,7 @@ export interface PointValues {
  * This function evaluates a law at a load point with its constants, then with each replicate. The
  * point gives each variable of the law, and no other name.
  *
+ * Past the range of a variable, each value holds, as heldValue tells.
  * It gives a problem for a point that the law cannot read, and for a value that is not finite.
  */
 export const pointValuesOf = (law: Law, point: LoadPoint): Result<PointValues, LawProblem> => {
@@ -97,14 +122,21 @@ export const pointValuesOf = (law: Law, point: LoadPoint): Result<PointValues, L
   }
 
   const names = law.constants.map((constant) => constant.id);
-  const estimate = recordOf(names, law.constants.map((constant) => constant.value), load);
-  const records = [estimate, ...law.replicates.map((row) => recordOf(names, row, load))];
-  const values = valuesOf(law.form.program, records);
+  const constants = law.constants.map((constant) => constant.value);
+  const recordsAt = (at: LoadPoint): Readonly<Record<string, number>>[] => [
+    recordOf(names, constants, at),
+    ...law.replicates.map((row) => recordOf(names, row, at)),
+  ];
+  const values = valuesOf(law.form.program, recordsAt(load));
   if (values.tag === "err") return err(problem("value", "form.program", `The law has no value at this point: ${values.error}.`));
   const outside = law.variables
     .filter((variable) => (load[variable.id] as number) < variable.min || (load[variable.id] as number) > variable.max)
     .map((variable) => variable.id);
-  return ok({ values: values.value as readonly [number, ...number[]], outside });
+  const edge = outside.length === 0 ? undefined : edgePointOf(law, load);
+  if (edge === undefined) return ok({ values: values.value as readonly [number, ...number[]], outside });
+  const atEdge = valuesAt(law.form.program, recordsAt(edge));
+  const held = values.value.map((value, row) => heldValue(value, atEdge[row]) ?? value);
+  return ok({ values: held as readonly number[] as readonly [number, ...number[]], outside });
 };
 
 /** This function gives the interval of some replicate values at the share `level`, made wider to hold `value`. */

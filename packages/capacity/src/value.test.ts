@@ -2,7 +2,7 @@ import { quantile } from "@mark1russell7/rigor-statistics";
 import { app, lit, ref } from "@mark1russell7/vex";
 import { describe, expect, it } from "vitest";
 import type { Law } from "./law.ts";
-import { hinge, hingeOf, sampleLaw } from "./sample.fixture.ts";
+import { fallingLaw, hinge, hingeOf, sampleLaw } from "./sample.fixture.ts";
 import { constantIntervals, lawValue, type LawValue } from "./value.ts";
 
 const valueOf = (law: Law, rate: number, level?: number): LawValue => {
@@ -153,5 +153,41 @@ describe("constantIntervals", () => {
     const law = sampleLaw();
     expect(constantIntervals(law, { level: 0.99 })).toMatchObject({ tag: "ok" });
     expect(constantIntervals(law, { level: 0.999 })).toMatchObject({ tag: "err", error: { code: "level", path: "replicates" } });
+  });
+});
+
+describe("lawValue past the measures", () => {
+  it("holds a cost that falls with the load at its value at the edge of the range", () => {
+    const law = fallingLaw();
+    const edge = valueOf(law, 4000);
+    const past = valueOf(law, 10_000);
+    // The program gives 0.08 - 0.1 = -0.02 at 10000. No run measured a cost below the cost at 4000.
+    expect(edge.value).toBeCloseTo(0.04, 12);
+    expect(past).toEqual({ ...edge, outside: ["rate"] });
+  });
+
+  it("keeps the law of a cost that rises past the range", () => {
+    const law = sampleLaw();
+    const spread = law.replicates.map(([c0, c1, c2, knee]) => hingeOf(c0 as number, c1 as number, c2 as number, knee as number, 6000));
+    const past = valueOf(law, 6000);
+    expect(past.value).toBeCloseTo(hingeOf(0.08, 0.000_01, 0.000_05, 2500, 6000), 12);
+    expect(past.interval.low).toBeCloseTo(quantile(spread, 0.025), 12);
+    expect(past.interval.high).toBeCloseTo(quantile(spread, 0.975), 12);
+    expect(past.outside).toEqual(["rate"]);
+  });
+
+  it("holds a cost below the range at its value at the lower edge", () => {
+    const law = sampleLaw();
+    expect(valueOf(law, 50)).toEqual({ ...valueOf(law, 100), outside: ["rate"] });
+  });
+
+  it("holds each replicate by itself", () => {
+    // Half of the replicates fall with the rate and half rise. Only the rows that fall hold at the edge.
+    const rows = Array.from({ length: 200 }, (_, row) => [0.08 + row * 1e-5, row % 2 === 0 ? 0.000_01 : -0.000_01]);
+    const law = fallingLaw(rows);
+    const spread = rows.map(([c0, c1]) => Math.max((c0 as number) - (c1 as number) * 10_000, (c0 as number) - (c1 as number) * 4000));
+    const past = valueOf(law, 10_000);
+    expect(past.interval.low).toBeCloseTo(Math.min(quantile(spread, 0.025), past.value), 12);
+    expect(past.interval.high).toBeCloseTo(quantile(spread, 0.975), 12);
   });
 });

@@ -4,6 +4,9 @@ import { catalogLaws, costLaw, cpuComposition, layer1, layer2, memoryLaw, rowsOf
 import {
   checkComposition,
   compositionValue,
+  flatPartsOf,
+  preparedOf,
+  rowValuesOf,
   type Catalog,
   type Composition,
   type CompositionProblem,
@@ -13,8 +16,8 @@ import {
 } from "./composition.ts";
 import { instancePointOf, loadPointOf } from "./demand.ts";
 import type { Law } from "./law.ts";
-import { hingeOf, sampleLaw } from "./sample.fixture.ts";
-import { lawValue, rangeOf } from "./value.ts";
+import { fallingLaw, hingeOf, sampleLaw } from "./sample.fixture.ts";
+import { intervalOf, lawValue, rangeOf } from "./value.ts";
 import { sampleWorkload } from "./workload.fixture.ts";
 import { NO_DEMAND, type Demand } from "./workload.ts";
 
@@ -327,5 +330,33 @@ describe("the problems of compositionValue", () => {
     const law: Law = sampleLaw();
     const problem = problemOf(compositionValue(cpuComposition("node-http/cpu", [{ law: law.id, over: "instance" }]), { laws: [law] }, mixed));
     expect(problem).toEqual(expect.objectContaining({ code: "unit", path: "terms[0].instance.rate" }));
+  });
+});
+
+describe("a composition past the measures", () => {
+  const falling = fallingLaw();
+  const catalog: Catalog = { laws: [falling], compositions: [] };
+  const composition = cpuComposition("falling/cpu", [{ law: falling.id, over: "each" }]);
+  const at = (rate: number): Demand => ({ classes: [{ id: "reply", rate: { value: rate, unit: "{request}/s" }, request: {} }], levels: {} });
+
+  it("holds the cost of each request at its value at the edge of the range", () => {
+    // At 10000 requests each second, each request costs 0.04 ms, the cost at the edge of 4000. That is 0.4 core.
+    const past = value(composition, at(10_000), catalog);
+    expect(past.value).toBeCloseTo(0.4, 12);
+    expect(past.extrapolated).toBe(true);
+  });
+
+  it("gives the same rows on the path of the scale query and in compositionValue", () => {
+    const prepared = must(preparedOf(composition, catalog, 0.95));
+    for (const rate of [50, 1000, 10_000, 1e6]) {
+      const rows = rowValuesOf(must(flatPartsOf(prepared, at(rate))), 0, prepared.rows);
+      const found = value(composition, at(rate), catalog);
+      const estimate = rows[0] as number;
+      const spread = rows.slice(1) as number[];
+      expect(estimate, `rate ${rate}`).toBeCloseTo(found.value, 12);
+      const interval = intervalOf(estimate, spread, 0.95);
+      expect(interval.low, `rate ${rate}`).toBeCloseTo(found.interval.low, 12);
+      expect(interval.high, `rate ${rate}`).toBeCloseTo(found.interval.high, 12);
+    }
   });
 });

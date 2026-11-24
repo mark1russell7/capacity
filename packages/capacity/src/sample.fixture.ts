@@ -72,3 +72,15 @@ export const sampleLaw = (): Law => ({
     ],
   },
 });
+
+/** This law is a cost that falls with the rate, `c0 - c1 · rate`. Past its range, the value of its program goes below 0. */
+export const fallingLaw = (rows?: readonly (readonly number[])[]): Law => {
+  const law = sampleLaw();
+  return {
+    ...law,
+    id: "node-http/reply/falling",
+    form: { id: "line", program: app("subtract", ref("c0"), app("multiply", ref("c1"), ref("rate"))) },
+    constants: law.constants.slice(0, 2),
+    replicates: rows ?? law.replicates.map((row) => row.slice(0, 2)),
+  };
+};
