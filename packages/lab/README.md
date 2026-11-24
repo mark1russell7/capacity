@@ -544,7 +544,7 @@ The plan `alerts-start-event` starts alerts at 6 rungs of the rate of new events
 
 - The fake of the feeds gives the events of each class at a constant rate, from the first request of the app.
 - The fakes run in a sidecar on the other CPUs. Thus the CPU time of the fakes is not in `watchCores`.
-- The ladder of the class `update` comes with CAP-35. The laws of the alerts come with CAP-36.
+- The plan `alerts-start-update` gives the ladder of the class `update` (CAP-35). The laws of the alerts come with CAP-36.
 
 The first run of the plan is [Lab run 45247869988](https://github.com/mark1russell7/capacity/actions/runs/45247869988), with 5 jobs. Each value is the median of 10 readings, from the 2 arms of each job.
 
@@ -561,6 +561,41 @@ The first run of the plan is [Lab run 45247869988](https://github.com/mark1russe
 - The live heap and the GC time increase with the rate. At 100 events each second, each of the 10 starts reached the heap limit of V8 (556 MB).
 - Thus the heap limit is the first resource that binds, at a rate from 30 to 100 events each second.
 - The jobs are on 3 CPU models. A law needs 5 jobs and 40 points on one CPU model, thus this run gives no law. CAP-36 adds runs and fits the laws.
+
+#### The load ladder of updates
+
+The plan `alerts-start-update` starts alerts at 6 rungs of the rate of updates from the fake of its feeds (CAP-35). An update is a new version of a live alert. The law of `watchCores` gives the CPU time of one update.
+
+| Part | The value | Why |
+| --- | --- | --- |
+| The rungs | `update`: 0, 1, 3, 10, 30 and 100 updates each second. Each update has 2000 B. | The rungs cover the range of the class `update` of the contract, from 0 to 100 each second. The rung 0 gives the cores with no update. |
+| The new events | `event` is 1 at each rung. Each event has 2000 B. | The fake of the feeds skips an update when no alert is live. Each live alert comes from an event, thus the ladder needs events. |
+| The base point | 16 MiB of log, 10 feeds, 10 persons and 10 incidents | These are the base levels of the ladders of the levels. |
+| The watch | 180 s | This is the watch of the ladder of events. A long watch holds many polls, thus the CPU time over the watch is near its mean. |
+| The measures | `watchCores`, `watchPeak`, `watchHeapPeak` and `ready` | The slope of `watchCores` over the rate is the CPU seconds of one update. Its intercept is the cores at 1 event each second. |
+
+- The rung `update-0` is the rung `event-1` of the ladder of events. The two ladders meet at this point, thus their readings there must agree.
+- The rate of events is constant, thus the law over the rate of updates holds no effect of the events.
+- Each alert lives one hour. Thus the live alerts increase by 1 each second, and the seeded random of the fake picks the alert of each update.
+- The first event comes 1 s after the first request of the app. The fake skips the updates before it, thus less than 1 s of updates.
+- The plan has 5 jobs of 162 minutes, as the plan `alerts-start-event`.
+
+The first run of the plan is [Lab run 45362275890](https://github.com/mark1russell7/capacity/actions/runs/45362275890), with 5 jobs. Each value is the median of 10 readings, from the 2 arms of each job. No start failed.
+
+| Updates each second | `watchCores` | The live heap | `watchHeapPeak` | `watchPeak` | The GC time in the watch |
+| --- | --- | --- | --- | --- | --- |
+| 0 | 0.023 | 185 MiB | 233 MiB | 401 MiB | 197 ms |
+| 1 | 0.020 | 179 MiB | 221 MiB | 396 MiB | 129 ms |
+| 3 | 0.021 | 183 MiB | 224 MiB | 394 MiB | 164 ms |
+| 10 | 0.022 | 179 MiB | 224 MiB | 395 MiB | 169 ms |
+| 30 | 0.021 | 183 MiB | 225 MiB | 398 MiB | 162 ms |
+| 100 | 0.022 | 183 MiB | 239 MiB | 399 MiB | 169 ms |
+
+- The cores do not increase with the rate of updates. The slope of the least squares line is 0.002 ms of CPU time for each update.
+- The cause is in the fake and in the app. Each answer of the fake has only the last version of each live alert. Alerts polls its feeds.
+- Thus all the updates of an alert between two polls give one change of that alert. The rate of updates does not set the work of a poll.
+- The rung `update-0` agrees with the rung `event-1` of the ladder of events. The cores are 0.023 and 0.026, and `watchPeak` is 401 and 396 MiB.
+- The jobs are on 3 CPU models: 3 Xeon 6975P-C, 1 Xeon 6973P-C and 1 EPYC 7763. CAP-36 adds runs and fits the laws.
 
 #### The ladders of the levels and of the log
 
