@@ -28,8 +28,17 @@ export const BENCH_OPTIONS: ScaleOptions = { steps: 16, most: 64 };
 /** This ratio is the largest time of the head over the time of the base that the gate permits for each case. */
 export const BENCH_LIMIT = 1.1;
 
-/** The functions of the package capacity that the bench times. The arm of the base imports them from its own checkout. */
-export type BenchApi = Pick<typeof Capacity, "scaleRule" | "countReach" | "lawKnee">;
+/**
+ * The functions of the package capacity that the bench times. The arm of the base imports them from its own checkout. A base
+ * before CAP-77 has no `scaleLadder`.
+ */
+export type BenchApi = Pick<typeof Capacity, "scaleRule" | "countReach" | "lawKnee" | "scaleDemand"> & Partial<Pick<typeof Capacity, "scaleLadder">>;
+
+/** These factors of the demand are the moves of the slider case. */
+export const SLIDER_FACTORS: readonly number[] = [0.25, 0.5, 2, 4];
+
+/** This range of the demand holds each move of the slider case. */
+const SLIDER_RANGE = { low: 0.25, high: 4 };
 
 /** The laws and the compositions of a bench. Both arms read the same files. */
 export interface BenchCatalog {
@@ -51,10 +60,10 @@ const KNEE_RULES: readonly KneeRule[] = [
 ];
 
 /** This function gives a demand of one class of requests at a rate, with no levels. */
-const demandAt = (rate: number): Demand => ({ classes: [{ id: "request", rate: { value: rate, unit: "{request}/s" }, request: {} }], levels: {} });
+export const demandAt = (rate: number): Demand => ({ classes: [{ id: "request", rate: { value: rate, unit: "{request}/s" }, request: {} }], levels: {} });
 
 /** This function gives a scale model with one limit: the processors of an instance of 2 cores, with a headroom of 0.3. */
-const cpuModel = (composition: Composition, catalog: BenchCatalog): ScaleModel => ({
+export const cpuModel = (composition: Composition, catalog: BenchCatalog): ScaleModel => ({
   instance: { resources: { cpu: { value: 2, unit: "{core}" } } },
   limits: [{ id: "cpu", measure: composition.measure.id, ceiling: { kind: "resource", resource: "cpu" }, headroom: 0.3 }],
   compositions: [composition],
@@ -68,7 +77,20 @@ const valueOf = <T>(id: string, result: { readonly tag: "ok"; readonly value: T 
 };
 
 /**
- * This function gives the cases of the bench. Each composition of the processor time gives a scale case and a reach case. The
+ * This function gives the scale rule at each move of the slider case. With a ladder, the work is one search and then
+ * arithmetic for each move. A base with no ladder sends one query of the scale rule for each move. This branch ends
+ * when the base of each bench has `scaleLadder`: the PR of CAP-74 removes it.
+ */
+const sliderOf = (id: string, api: BenchApi, model: ScaleModel, demand: Demand): unknown => {
+  if (api.scaleLadder === undefined) {
+    return SLIDER_FACTORS.map((factor) => valueOf(id, api.scaleRule(model, valueOf(id, api.scaleDemand(demand, factor)), BENCH_OPTIONS)));
+  }
+  const ladder = valueOf(id, api.scaleLadder(model, demand, SLIDER_RANGE, BENCH_OPTIONS));
+  return SLIDER_FACTORS.map((factor) => valueOf(id, ladder.ruleAt(factor)));
+};
+
+/**
+ * This function gives the cases of the bench. Each composition of the processor time gives a scale case, a reach case and a slider case. The
  * case `knee` gives the knee of each law by each rule. The order of the cases is the order of the compositions.
  */
 export const benchCases = (catalog: BenchCatalog): readonly BenchCase[] => {
@@ -81,6 +103,7 @@ export const benchCases = (catalog: BenchCatalog): readonly BenchCase[] => {
     return [
       { id: scaleId, run: (api) => valueOf(scaleId, api.scaleRule(model, demand, BENCH_OPTIONS)) },
       { id: reachId, run: (api) => valueOf(reachId, api.countReach(model, 3, demand, BENCH_OPTIONS)) },
+      { id: `slider:${composition.id}`, run: (api) => sliderOf(`slider:${composition.id}`, api, model, demand) },
     ];
   });
   const knee: BenchCase = {

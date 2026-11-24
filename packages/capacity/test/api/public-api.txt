@@ -83,6 +83,7 @@ type LawValue: build/instance.chunk.d.ts#LawValue
 type LevelOptions: build/instance.chunk.d.ts#LevelOptions
 type Limit: build/instance.chunk.d.ts#Limit
 type LimitCount: build/index.d.ts#LimitCount
+type LimitLadder: build/index.d.ts#LimitLadder
 type LimitProblem: build/instance.chunk.d.ts#LimitProblem
 type LimitProblemCode: build/instance.chunk.d.ts#LimitProblemCode
 type LimitReach: build/index.d.ts#LimitReach
@@ -126,6 +127,7 @@ SCALE_MOST: build/index.d.ts#SCALE_MOST
 SCALE_STEPS: build/index.d.ts#SCALE_STEPS
 SLUG: build/index.d.ts#SLUG
 type Scale: build/instance.chunk.d.ts#Scale
+type ScaleLadder: build/index.d.ts#ScaleLadder
 type ScaleModel: build/index.d.ts#ScaleModel
 type ScaleOptions: build/index.d.ts#ScaleOptions
 type ScaleProblem: build/index.d.ts#ScaleProblem
@@ -194,6 +196,7 @@ placeholdersOf: build/index.d.ts#placeholdersOf
 programOf: build/index.d.ts#programOf
 requestPath: build/index.d.ts#requestPath
 scaleDemand: build/instance.chunk.d.ts#scaleDemand
+scaleLadder: build/index.d.ts#scaleLadder
 scaleRule: build/index.d.ts#scaleRule
 separableOf: build/index.d.ts#separableOf
 shareOf: build/instance.chunk.d.ts#shareOf
@@ -422,6 +425,14 @@ interface LimitCount {
   readonly extrapolated: boolean;
 }
 
+### build/index.d.ts#LimitLadder
+interface LimitLadder {
+  readonly limit: string;
+  readonly measure: string;
+  readonly rows: readonly number[];
+  readonly edge: boolean;
+}
+
 ### build/index.d.ts#LimitReach
 interface LimitReach {
   readonly limit: string;
@@ -515,6 +526,17 @@ export declare const SCALE_STEPS: number;
 
 ### build/index.d.ts#SLUG
 export declare const SLUG: RegExp;
+
+### build/index.d.ts#ScaleLadder
+interface ScaleLadder {
+  readonly level: number;
+  readonly most: number;
+  readonly range: Range;
+  readonly search: Range;
+  readonly limits: readonly LimitLadder[];
+  readonly ruleAt: (factor: number) => Result<ScaleRule, ScaleProblem>;
+  readonly reachAt: (count: number, factor: number) => Result<CountReach, ScaleProblem>;
+}
 
 ### build/index.d.ts#ScaleModel
 interface ScaleModel {
@@ -691,6 +713,9 @@ export declare const programOf: (form: CatalogForm, binding: Binding) => Expr;
 
 ### build/index.d.ts#requestPath
 export declare const requestPath: (entry: HttpEntry, values: Readonly<Record<string, number>>) => string | undefined;
+
+### build/index.d.ts#scaleLadder
+export declare const scaleLadder: (model: ScaleModel, demand: Demand, range: Range, options?: ScaleOptions) => Result<ScaleLadder, ScaleProblem>;
 
 ### build/index.d.ts#scaleRule
 export declare const scaleRule: (model: ScaleModel, demand: Demand, options?: ScaleOptions) => Result<ScaleRule, ScaleProblem>;

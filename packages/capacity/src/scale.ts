@@ -14,7 +14,7 @@ import {
 } from "./composition.ts";
 import { portionOf } from "./demand.ts";
 import type { Instance, Limit, LimitProblemCode } from "./instance.ts";
-import { amountTest, openValueOf, rowOf, searchGrid, type Curve, type OpenValue } from "./knee.ts";
+import { MAX_STEPS, amountTest, openValueOf, rowOf, searchGrid, type Curve, type OpenValue } from "./knee.ts";
 import { DEFAULT_LEVEL, type Problem } from "./law.ts";
 import { limitAmount } from "./limit.ts";
 import { repeated } from "./names.ts";
@@ -337,9 +337,42 @@ const outsideAt = (setup: Setup, each: LimitSetup, demandAt: DemandAt, load: num
   return parts !== undefined && partsOutside(parts);
 };
 
+/** This function tells if a law of the composition of a limit reads a variable outside its range at one load. */
+type OutsideAt = (each: LimitSetup, load: number) => boolean;
+
+/** This function gives the reach of a count of instances from the breaks of each limit along the factor of the demand. */
+const reachFrom = (setup: Setup, count: number, breaks: readonly LimitBreaks[], outside: OutsideAt): CountReach => {
+  const { most, level } = setup;
+  const summary = summaryOf(breaks, setup.rows);
+  const at = (value: number | null): number => value ?? most;
+  const limits = summary.order.map((index): LimitReach => {
+    const each = setup.limits[index] as LimitSetup;
+    const found = breaks[index] as LimitBreaks;
+    const factor = openValueOf(found.rows, level, most);
+    return {
+      limit: each.limit.id,
+      measure: each.limit.measure,
+      factor,
+      binds: summary.binds[index] as number,
+      edge: found.edge,
+      extrapolated: outside(each, at(factor.value)),
+    };
+  });
+  const factor = openValueOf(summary.rows, level, most);
+  return {
+    count,
+    level,
+    search: { low: 1 / most, high: most },
+    factor,
+    binding: summary.binding === null ? null : (setup.limits[summary.binding] as LimitSetup).limit.id,
+    extrapolated: setup.limits.some((each) => outside(each, at(factor.value))),
+    limits,
+  };
+};
+
 /** This function gives the reach of a count of instances, from a correct setup. */
 const reachOf = (setup: Setup, count: number): Result<CountReach, ScaleProblem> => {
-  const { most, level, whole } = setup;
+  const { most, whole } = setup;
   const grid = searchGrid(1 / most, most, setup.steps, true, "The factor of the demand");
   if (grid.tag === "err") return grid;
   const demandAt: DemandAt = (factor) => {
@@ -348,31 +381,7 @@ const reachOf = (setup: Setup, count: number): Result<CountReach, ScaleProblem> 
   };
   const breaks = breaksOf(setup, grid.value, demandAt);
   if (breaks.tag === "err") return breaks;
-  const summary = summaryOf(breaks.value, setup.rows);
-  const at = (value: number | null): number => value ?? most;
-  const limits = summary.order.map((index): LimitReach => {
-    const each = setup.limits[index] as LimitSetup;
-    const found = breaks.value[index] as LimitBreaks;
-    const factor = openValueOf(found.rows, level, most);
-    return {
-      limit: each.limit.id,
-      measure: each.limit.measure,
-      factor,
-      binds: summary.binds[index] as number,
-      edge: found.edge,
-      extrapolated: outsideAt(setup, each, demandAt, at(factor.value)),
-    };
-  });
-  const factor = openValueOf(summary.rows, level, most);
-  return ok({
-    count,
-    level,
-    search: { low: 1 / most, high: most },
-    factor,
-    binding: summary.binding === null ? null : (setup.limits[summary.binding] as LimitSetup).limit.id,
-    extrapolated: setup.limits.some((each) => outsideAt(setup, each, demandAt, at(factor.value))),
-    limits,
-  });
+  return ok(reachFrom(setup, count, breaks.value, (each, factor) => outsideAt(setup, each, demandAt, factor)));
 };
 
 /**
@@ -434,7 +443,7 @@ const countsOf = (share: OpenValue, most: number): OpenValue => ({
 export const scaleRule = (model: ScaleModel, demand: Demand, options: ScaleOptions = {}): Result<ScaleRule, ScaleProblem> => {
   const setup = setupOf(model, demand, options);
   if (setup.tag === "err") return setup;
-  const { most, level, whole } = setup.value;
+  const { most, whole } = setup.value;
   const grid = searchGrid(1 / most, 1, setup.value.steps, true, "The share of one instance");
   if (grid.tag === "err") return grid;
   const demandAt: DemandAt = (share) => {
@@ -443,11 +452,27 @@ export const scaleRule = (model: ScaleModel, demand: Demand, options: ScaleOptio
   };
   const breaks = breaksOf(setup.value, grid.value, demandAt);
   if (breaks.tag === "err") return breaks;
-  const summary = summaryOf(breaks.value, setup.value.rows);
+  return ruleFrom(
+    setup.value,
+    breaks.value,
+    (each, share) => outsideAt(setup.value, each, demandAt, share),
+    (count) => reachOf(setup.value, count),
+  );
+};
+
+/** This function gives the scale rule from the breaks of each limit along the share of one instance, and the reach of a count. */
+const ruleFrom = (
+  setup: Setup,
+  breaks: readonly LimitBreaks[],
+  outside: OutsideAt,
+  reachAt: (count: number) => Result<CountReach, ScaleProblem>,
+): Result<ScaleRule, ScaleProblem> => {
+  const { most, level } = setup;
+  const summary = summaryOf(breaks, setup.rows);
   const shareOfCount = (count: number | null): number => 1 / (count ?? most);
   const limits = summary.order.map((index): LimitCount => {
-    const each = setup.value.limits[index] as LimitSetup;
-    const found = breaks.value[index] as LimitBreaks;
+    const each = setup.limits[index] as LimitSetup;
+    const found = breaks[index] as LimitBreaks;
     const count = countsOf(openValueOf(found.rows, level, 1), most);
     return {
       limit: each.limit.id,
@@ -455,13 +480,13 @@ export const scaleRule = (model: ScaleModel, demand: Demand, options: ScaleOptio
       count,
       binds: summary.binds[index] as number,
       edge: found.edge,
-      extrapolated: outsideAt(setup.value, each, demandAt, shareOfCount(count.value)),
+      extrapolated: outside(each, shareOfCount(count.value)),
     };
   });
   const count = countsOf(openValueOf(summary.rows, level, 1), most);
   let next: CountReach | null = null;
   if (count.value !== null) {
-    const reach = reachOf(setup.value, count.value);
+    const reach = reachAt(count.value);
     if (reach.tag === "err") return reach;
     next = reach.value;
   }
@@ -469,9 +494,124 @@ export const scaleRule = (model: ScaleModel, demand: Demand, options: ScaleOptio
     level,
     most,
     count,
-    binding: summary.binding === null ? null : (setup.value.limits[summary.binding] as LimitSetup).limit.id,
-    extrapolated: setup.value.limits.some((each) => outsideAt(setup.value, each, demandAt, shareOfCount(count.value))),
+    binding: summary.binding === null ? null : (setup.limits[summary.binding] as LimitSetup).limit.id,
+    extrapolated: setup.limits.some((each) => outside(each, shareOfCount(count.value))),
     limits,
     next,
   });
+};
+
+/** A limit ladder holds, for each row of one limit, the first load on one instance where the row breaks the limit. */
+export interface LimitLadder {
+  readonly limit: string;
+  readonly measure: string;
+  /**
+   * Each value is the first load on one instance, as a factor of the demand, where one row breaks the limit. Row 0 is the
+   * estimate. A load where the composition has no value also breaks the row. Infinity tells that the row holds on all of the search.
+   */
+  readonly rows: readonly number[];
+  /** This flag tells that the edge of the composition sets the load of row 0. */
+  readonly edge: boolean;
+}
+
+/**
+ * A scale ladder is the scale rule of a service at each load of a range, from one search. With no level in `whole`, the
+ * demand on one of `n` instances at `f` times the load is the demand at `f / n` times the load. Thus each row of each
+ * limit breaks at one load on one instance, and a count needs only arithmetic.
+ *
+ * The function `ruleAt(f)` gives the value of `scaleRule` at the demand `scaleDemand(demand, f)`. The function
+ * `reachAt(n, f)` gives the value of `countReach` for `n` instances at the same demand. Each of them reads the
+ * compositions only for the flags `extrapolated`, one value for each limit.
+ */
+export interface ScaleLadder {
+  readonly level: number;
+  readonly most: number;
+  /** This range holds the factors of the demand that the ladder answers. */
+  readonly range: Range;
+  /** This range holds the loads on one instance of the search, as factors of the demand. */
+  readonly search: Range;
+  /** The limits are in the order of the model. */
+  readonly limits: readonly LimitLadder[];
+  readonly ruleAt: (factor: number) => Result<ScaleRule, ScaleProblem>;
+  readonly reachAt: (count: number, factor: number) => Result<CountReach, ScaleProblem>;
+}
+
+/**
+ * This function changes the loads on one instance of a ladder to the loads of a search from `low` to `high`. A load
+ * past `high` holds on all of that search, and a load before `low` breaks at its start, as in `rowOf`.
+ */
+const loadsIn = (rows: readonly number[], times: number, low: number, high: number): number[] =>
+  rows.map((load) => {
+    const found = load * times;
+    return found > high ? Infinity : Math.max(found, low);
+  });
+
+/**
+ * This function gives the scale ladder of a service over the factors of the demand from `range.low` to `range.high`.
+ * The search covers the loads on one instance that `scaleRule` and `countReach` read at each factor of the range: from
+ * `range.low / most` to `range.high * most`. Its grid has the density of the grid of `scaleRule`, up to the largest
+ * count of steps.
+ *
+ * The values of the ladder agree with `scaleRule` and `countReach` to the precision of their bisections. They can differ
+ * when two crossings are in one step of a grid, because the grids are different.
+ *
+ * The function gives each problem of `scaleRule`. It also gives a problem for a level in `options.whole`. With such a level,
+ * the demand on one instance does not depend only on the load over the count. It gives a problem for a range that does not
+ * go from a number above 0 to a larger finite number.
+ */
+export const scaleLadder = (model: ScaleModel, demand: Demand, range: Range, options: ScaleOptions = {}): Result<ScaleLadder, ScaleProblem> => {
+  const found = setupOf(model, demand, options);
+  if (found.tag === "err") return found;
+  const setup = found.value;
+  if (setup.whole.length > 0) {
+    return err(problem("variable", "whole", "A ladder needs a demand that divides between the instances. Use scaleRule for a level in whole."));
+  }
+  if (!(range.low > 0 && Number.isFinite(range.high) && range.low < range.high)) {
+    return err(problem("factor", "range", `The range goes from ${range.low} to ${range.high}. It must go from a number above 0 to a larger finite number.`));
+  }
+  const { most, level } = setup;
+  const search: Range = { low: range.low / most, high: range.high * most };
+  // The grid of scaleRule has `steps` steps over the factor `most`. This grid keeps that count of steps for each factor.
+  const steps = Math.min(MAX_STEPS, Math.max(setup.steps, Math.ceil((setup.steps * Math.log(search.high / search.low)) / Math.log(most))));
+  const grid = searchGrid(search.low, search.high, steps, true, "The load on one instance");
+  if (grid.tag === "err") return grid;
+  const demandAt: DemandAt = (load) => {
+    const portion = portionOf(setup.demand, load, load, []);
+    return portion.tag === "ok" ? portion.value : undefined;
+  };
+  const breaks = breaksOf(setup, grid.value, demandAt);
+  if (breaks.tag === "err") return breaks;
+  const ladder = breaks.value;
+  const outsideOn = (each: LimitSetup, load: number): boolean => outsideAt(setup, each, demandAt, load);
+  const inRange = (factor: number): Result<number, ScaleProblem> =>
+    factor >= range.low && factor <= range.high
+      ? ok(factor)
+      : err(problem("factor", "factor", `The factor ${factor} is outside the range of the ladder, from ${range.low} to ${range.high}.`));
+  /** This function gives the breaks of each limit along the factor of a search from `low` to `high`. The load on one instance is `times` the factor. */
+  const breaksIn = (times: number, low: number, high: number): LimitBreaks[] =>
+    ladder.map((each) => {
+      const rows = loadsIn(each.rows, 1 / times, low, high);
+      return { rows, edge: each.edge && Number.isFinite(rows[0] as number) };
+    });
+  const reachIn = (count: number, factor: number): CountReach =>
+    reachFrom(setup, count, breaksIn(factor / count, 1 / most, most), (each, at) => outsideOn(each, (factor * at) / count));
+  const reachAt = (count: number, factor: number): Result<CountReach, ScaleProblem> => {
+    if (!Number.isSafeInteger(count) || count < 1) {
+      return err(problem("factor", "count", `The count of instances ${count} is not a whole number of 1 or more.`));
+    }
+    const at = inRange(factor);
+    return at.tag === "err" ? at : ok(reachIn(count, factor));
+  };
+  const ruleAt = (factor: number): Result<ScaleRule, ScaleProblem> => {
+    const at = inRange(factor);
+    if (at.tag === "err") return at;
+    return ruleFrom(
+      setup,
+      breaksIn(factor, 1 / most, 1),
+      (each, share) => outsideOn(each, factor * share),
+      (count) => ok(reachIn(count, factor)),
+    );
+  };
+  const limits = setup.limits.map((each, index): LimitLadder => ({ limit: each.limit.id, measure: each.limit.measure, ...(ladder[index] as LimitBreaks) }));
+  return ok({ level, most, range, search, limits, ruleAt, reachAt });
 };
