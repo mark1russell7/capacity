@@ -33,6 +33,7 @@ describe("the layers of a composition", () => {
     expect(rateRangeOf([lawWith("a", rate(100, 200)), lawWith("b", rate(1, 300, "linear"))])).toEqual({ min: 100, max: 200, scale: "linear" });
     expect(rateRangeOf([])).toMatch(/no law/);
     expect(rateRangeOf([lawWith("a", undefined)])).toMatch(/no variable rate/);
+    expect(rateRangeOf([lawWith("a", undefined)], "event")).toMatch(/no variable event/);
     expect(rateRangeOf([lawWith("a", rate(1, 10)), lawWith("b", rate(20, 30))])).toMatch(/no common range/);
   });
 });
