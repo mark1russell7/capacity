@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CASE_FORMAT, MAX_ARRIVALS, arrivalsOf, caseCost, caseLevel, caseProblems, requestClassOf, type Case } from "./case.ts";
+import { CASE_FORMAT, IDLE_MIN_HOLD, MAX_ARRIVALS, arrivalsOf, caseCost, caseLevel, caseProblems, isIdleCase, requestClassOf, type Case } from "./case.ts";
 
 const CASE: Case = {
   format: CASE_FORMAT,
@@ -103,6 +103,25 @@ describe("the check of a case", () => {
     expect(codes({ ...CASE, connections: { mode: "keep" } } as unknown as Case)).toEqual(["connections connections"]);
     expect(codes({ ...CASE, connections: null } as unknown as Case)).toEqual(["connections connections"]);
     expect(codes({ ...CASE, connections: "pool" } as unknown as Case)).toEqual(["connections connections"]);
+  });
+
+  it("takes an idle case: each class at the rate 0, no cost and a hold of IDLE_MIN_HOLD or more", () => {
+    const one = CASE.demand.classes[0]!;
+    const idle: Case = { ...CASE, idle: true, demand: { ...CASE.demand, classes: [{ ...one, rate: { value: 0, unit: "{request}/s" } }] } };
+    expect(isIdleCase(idle)).toBe(true);
+    expect(isIdleCase(CASE)).toBe(false);
+    expect(isIdleCase({ ...idle, idle: false })).toBe(false);
+    expect(caseProblems(idle)).toEqual([]);
+    expect(arrivalsOf(idle)).toBe(0);
+    expect(caseProblems({ ...idle, duration: IDLE_MIN_HOLD })).toEqual([]);
+    // a case of load keeps its rule: a rate above 0
+    expect(codes({ ...idle, idle: false })).toEqual(["demand demand.classes[0].rate"]);
+    expect(caseProblems({ ...idle, demand: CASE.demand }).map((each) => each.message)).toEqual(['The rate of the class "work" is not 0. An idle case sends no request.']);
+    expect(caseProblems({ ...idle, duration: { value: 9.5, unit: "s" } }).map((each) => each.message)).toEqual([
+      "The hold of the idle case is 9.5 s. An idle case holds for 10 s or more.",
+    ]);
+    expect(codes({ ...idle, cost: { value: 10, unit: "us" } })).toEqual(["idle cost"]);
+    expect(codes({ ...idle, idle: "yes" } as unknown as Case)).toEqual(["demand demand.classes[0].rate", "idle idle"]);
   });
 
   it("refuses a case that plans more than MAX_ARRIVALS arrivals in its runs and its warm-up run", () => {

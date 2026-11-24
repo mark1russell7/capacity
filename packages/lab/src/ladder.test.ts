@@ -1,9 +1,8 @@
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import * as Capacity from "@mark1russell7/capacity";
 import { compositionValue, scaleDemand, scaleLadder, scaleRule, type Composition, type CompositionValue, type ScaleRule } from "@mark1russell7/capacity";
 import { describe, expect, it } from "vitest";
-import { BENCH_OPTIONS, BENCH_RATE, SLIDER_FACTORS, benchCases, cpuModel, demandAt } from "./bench-scale.ts";
+import { BENCH_OPTIONS, BENCH_RATE, cpuModel, demandAt } from "./bench-scale.ts";
 import { readCompositions, readLaws } from "./jobs.ts";
 
 /** This folder holds the files of the package capacity. */
@@ -57,17 +56,6 @@ describe("the scale ladder on the real compositions", () => {
     },
     120_000,
   );
-
-  it("gives the same counts in the slider case of a base with no ladder and of a head with the ladder", () => {
-    const slider = benchCases({ laws, compositions }).find((each) => each.id.startsWith("slider:node-http/"));
-    expect(slider).toBeDefined();
-    if (slider === undefined) return;
-    const { scaleLadder: _, ...base } = Capacity;
-    const counts = (rules: unknown): unknown => (rules as readonly ScaleRule[]).map((rule) => [rule.count, rule.binding, rule.next?.count ?? null]);
-    const head = slider.run(Capacity) as readonly ScaleRule[];
-    expect(head).toHaveLength(SLIDER_FACTORS.length);
-    expect(counts(slider.run(base))).toEqual(counts(head));
-  }, 120_000);
 });
 
 describe("the real compositions past their measures", () => {

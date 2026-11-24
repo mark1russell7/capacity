@@ -46,6 +46,21 @@
     <div id="stacks" class="stacks"><p class="quiet">The law files of the charts load.</p></div>
   </section>
 
+  <section aria-labelledby="scale-title">
+    <h2 id="scale-title">How many instances a load needs</h2>
+    <p class="note">Set the size of one instance, then move the load. The page finds the lowest count of instances that keeps each resource below its headroom. The laws give the count and its interval.</p>
+    <div class="scale-controls">
+      <label>Service <select id="scale-subject"></select></label>
+      <label>Cores <select id="scale-cores"></select></label>
+      <label>Memory <select id="scale-memory"></select></label>
+      <label>Headroom <select id="scale-headroom"></select></label>
+    </div>
+    <label class="scale-rate" for="scale-rate">Load <output id="scale-rate-text" for="scale-rate"></output></label>
+    <input id="scale-rate" class="scale-slider" type="range" min="0" max="1000" step="1" value="425" aria-describedby="scale-sentences">
+    <div class="scale-ends quiet" aria-hidden="true"><span>100 requests/s</span><span>1 million requests/s</span></div>
+    <div id="scale" class="scale"><p class="quiet">The law files of the slider load.</p></div>
+  </section>
+
   <section aria-labelledby="matrix-title">
     <h2 id="matrix-title">The coverage matrix</h2>
     <ul class="legend" aria-label="The states of a cell">

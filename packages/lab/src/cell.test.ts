@@ -143,6 +143,34 @@ describe("the cell of a case", () => {
     expect(environmentProblems(half)).toEqual([]);
   });
 
+  it("gives an idle case streams at the rate 0 with their requests, and a hold between the two readings of each run", () => {
+    const idle: Case = {
+      ...CASE,
+      idle: true,
+      duration: { value: 60, unit: "s" },
+      demand: { ...CASE.demand, classes: [{ ...CASE.demand.classes[0]!, rate: { value: 0, unit: "{request}/s" } }] },
+      connections: { mode: "pool", size: 64 },
+    };
+    const cell = cellOf(idle, { cpus: 4 });
+    expect(cell.idleBefore).toEqual({ value: 60, unit: "s" });
+    expect(cell.probe.streams).toEqual([
+      {
+        key: "work",
+        plan: { profile: constant(0, 60_000), options: { arrivals: "poisson", seed: "work-500us/work" } },
+        requests: [`GET /?work=500&reply=1024 HTTP/1.1\r\nhost: node-http:${SUBJECT_PORT}\r\n\r\n`],
+        connections: { mode: "pool", size: 64 },
+      },
+    ]);
+    // the driver takes a stream with no arrival, and it has its request text
+    expect(loadPlanOf(cell.probe.streams ?? []).streams.map((stream) => stream.schedule.times.length)).toEqual([0]);
+    // the harness waits the hold, then the drain for the driver: the window of the run is the hold and the drain
+    expect(cell.prediction).toMatchObject({ detects: null, window: DRAIN });
+    expect(windowOf(idle)).toEqual({ value: 60 + 30, unit: "s" });
+    expect(environmentProblems(cell)).toEqual([]);
+    // a case of load has no hold
+    expect(cellOf(CASE, { cpus: 4 }).idleBefore).toBeUndefined();
+  });
+
   it("refuses a case with a problem, and a host with too few CPUs", () => {
     expect(() => cellOf({ ...CASE, runs: 0 }, { cpus: 4 })).toThrow(/runs: The count of runs/);
     expect(() => cellOf(CASE, { cpus: 1 })).toThrow(/needs 2 CPUs/);

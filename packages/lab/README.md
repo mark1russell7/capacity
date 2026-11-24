@@ -36,13 +36,15 @@ The case uses the records of `@mark1russell7/capacity`. Thus a measurement and a
 | `arrivals` | The arrivals of each stream: `uniform`, or `poisson` with a seed. They are the options of a schedule of `@mark1russell7/rigor-chaos`. |
 | `connections` | Optional. The connections of each stream: `pipeline`, `pool` with a `size`, or `fresh`. With no value, each stream is a pipeline. |
 | `runs` | The count of the runs that the record counts, from 1 to 20. One warm-up run comes before them. |
+| `idle` | Optional. The value `true` makes an idle case: each run holds its connections for the duration and sends no request. Refer to "The idle base". |
 
 - **The variables of a request** are the fields of a request class. Each amount converts to the unit of its field, and it is a whole number in that unit. Thus `0.5 ms` of `work` is `500 us`. A field that the request does not name is 0. `requestClassOf` gives the request class.
 - **The levels of a demand** are the amounts that the subject holds. The level `heap` is the live heap of the subject, in bytes: the flag `--ballast`. `caseLevel` gives a level in its unit.
 - **The check.** `caseProblems` gives each problem of a case, with its path. It uses `instanceProblems` and `demandProblems` of `@mark1russell7/capacity`. Then it examines what the lab can do:
   - The lab limits the CPU and the memory of a container, and not the network. An instance with `network` is a problem.
   - The driver holds no open connection with no request. A level `connections` is a problem.
-  - Each class has a rate above 0.
+  - Each class of a case of load has a rate above 0. Each class of an idle case has the rate 0.
+  - An idle case has no cost, and its hold is `IDLE_MIN_HOLD` (10 s) or more.
   - The connections are correct for `connectionsProblems` of `@mark1russell7/harness`: a pool has 1 to 1024 connections.
   - A case plans `MAX_ARRIVALS` (150000) arrivals or fewer in its runs and its warm-up run. `arrivalsOf` gives the arrivals of one run.
 - **The connections of a class.** Each class is one stream of the driver, and the field `connections` of the case gives the connections of each stream. The driver sends each request at its planned time, and each latency counts from that time.
@@ -275,6 +277,36 @@ The values of one job are not a law. The law set of the plan has the field `base
 - The gate of the laws does not read an overhead law. The gate of the runner laws is CAP-33.
 - A law needs 5 jobs on one CPU model. A runner gets a random CPU model. Thus the laws pool the jobs of more than one run of the plan.
 - The conditions of a law do not identify the files of the subjects (CAP-69). Pool only the runs of one commit of the subjects.
+
+### The idle base
+
+The plan `idle` measures the idle base of each subject (CAP-48): the CPU time and the memory of the process with no request. A case of load mixes the idle part and the part of the requests. Thus the idle base comes from its own kind of case.
+
+- **The idle case.** A case with `"idle": true` is an idle case. Each class keeps its request and has the rate 0. The duration of the case is the hold of each run.
+- **The cell.** `cellOf` gives each class a stream at the rate 0, with its request, and it sets `idleBefore` of the harness to the hold. The harness takes the start reading, holds the open connections with no request, then takes the end reading. The series of the resources continues for all of the run.
+- **The window.** The window of an idle run is the hold and the drain (`windowOf`). The driver has no arrival, thus it stops at the end of the hold.
+- **The laws.** A plan with a law set has no idle case. An idle run answers no request, thus each measure for each request is null.
+
+| Part | The value | Why |
+| --- | --- | --- |
+| The cases | `idle/bare` with `node-http`, and `idle/service` with `node-http-service` | The two subjects of the plan `overhead`. The difference of the two is the idle cost of the service runner. |
+| The load | One core, 512 MiB, a pool of 64 open connections, the class `rate` with the bare request, at the rate 0 | The conditions of the plan `overhead`. Thus a base applies to the points of that plan. |
+| The hold | 60 s, in each of 5 runs after one warm-up run | The longest period of the service subject is its liveness window of 45 s. The hold also gives 240 readings at the reading period of 250 ms. |
+
+The check `idle` (`idleCheck`) gives these values. The measures are the measures of `IDLE_MEASURES`.
+
+| Value | What it is |
+| --- | --- |
+| `<case>.cpu.rate` | The CPU time of the container over the elapsed time of a run, in cores. It is the median over the runs. |
+| `<case>.memory` | The memory at the end of a run, in bytes. It is the median over the runs. |
+| `<case>.memory.high` | The highest reading of the series of a run, in bytes. It is the median over the runs. |
+| `<pair>.<measure>.overhead` | The base of the case `<pair>/service` less the base of the case `<pair>/bare`. |
+
+- Each run of an idle case sends no request, and it lasts the hold or more. A run that is shorter shows a harness with no hold. Each run has a read of each idle measure.
+- `idleBaseOf` gives the base of one record. `idleBasesOf` gives the base of each idle record of some jobs (`readJobs`), with the name of the job and the CPU model. It uses only a job with no problem in its verdict.
+- `netRequestCpu` gives the CPU time of one request less the idle CPU time of its run. At a low rate, the idle part of `cpu.request` is large.
+- No law reads the base yet. A later fit subtracts the base of the same job or of the same CPU model from the totals of each point.
+- The plan has no trigger: a person starts it. Its time limit is 38 minutes.
 
 ## The timed runs
 
@@ -512,7 +544,7 @@ The plan `alerts-start-event` starts alerts at 6 rungs of the rate of new events
 
 - The fake of the feeds gives the events of each class at a constant rate, from the first request of the app.
 - The fakes run in a sidecar on the other CPUs. Thus the CPU time of the fakes is not in `watchCores`.
-- The ladder of the class `update` comes with CAP-35. The laws of the alerts come with CAP-36.
+- The plan `alerts-start-update` gives the ladder of the class `update` (CAP-35). The laws of the alerts come with CAP-36.
 
 The first run of the plan is [Lab run 45247869988](https://github.com/mark1russell7/capacity/actions/runs/45247869988), with 5 jobs. Each value is the median of 10 readings, from the 2 arms of each job.
 
@@ -529,6 +561,41 @@ The first run of the plan is [Lab run 45247869988](https://github.com/mark1russe
 - The live heap and the GC time increase with the rate. At 100 events each second, each of the 10 starts reached the heap limit of V8 (556 MB).
 - Thus the heap limit is the first resource that binds, at a rate from 30 to 100 events each second.
 - The jobs are on 3 CPU models. A law needs 5 jobs and 40 points on one CPU model, thus this run gives no law. CAP-36 adds runs and fits the laws.
+
+#### The load ladder of updates
+
+The plan `alerts-start-update` starts alerts at 6 rungs of the rate of updates from the fake of its feeds (CAP-35). An update is a new version of a live alert. The law of `watchCores` gives the CPU time of one update.
+
+| Part | The value | Why |
+| --- | --- | --- |
+| The rungs | `update`: 0, 1, 3, 10, 30 and 100 updates each second. Each update has 2000 B. | The rungs cover the range of the class `update` of the contract, from 0 to 100 each second. The rung 0 gives the cores with no update. |
+| The new events | `event` is 1 at each rung. Each event has 2000 B. | The fake of the feeds skips an update when no alert is live. Each live alert comes from an event, thus the ladder needs events. |
+| The base point | 16 MiB of log, 10 feeds, 10 persons and 10 incidents | These are the base levels of the ladders of the levels. |
+| The watch | 180 s | This is the watch of the ladder of events. A long watch holds many polls, thus the CPU time over the watch is near its mean. |
+| The measures | `watchCores`, `watchPeak`, `watchHeapPeak` and `ready` | The slope of `watchCores` over the rate is the CPU seconds of one update. Its intercept is the cores at 1 event each second. |
+
+- The rung `update-0` is the rung `event-1` of the ladder of events. The two ladders meet at this point, thus their readings there must agree.
+- The rate of events is constant, thus the law over the rate of updates holds no effect of the events.
+- Each alert lives one hour. Thus the live alerts increase by 1 each second, and the seeded random of the fake picks the alert of each update.
+- The first event comes 1 s after the first request of the app. The fake skips the updates before it, thus less than 1 s of updates.
+- The plan has 5 jobs of 162 minutes, as the plan `alerts-start-event`.
+
+The first run of the plan is [Lab run 45362275890](https://github.com/mark1russell7/capacity/actions/runs/45362275890), with 5 jobs. Each value is the median of 10 readings, from the 2 arms of each job. No start failed.
+
+| Updates each second | `watchCores` | The live heap | `watchHeapPeak` | `watchPeak` | The GC time in the watch |
+| --- | --- | --- | --- | --- | --- |
+| 0 | 0.023 | 185 MiB | 233 MiB | 401 MiB | 197 ms |
+| 1 | 0.020 | 179 MiB | 221 MiB | 396 MiB | 129 ms |
+| 3 | 0.021 | 183 MiB | 224 MiB | 394 MiB | 164 ms |
+| 10 | 0.022 | 179 MiB | 224 MiB | 395 MiB | 169 ms |
+| 30 | 0.021 | 183 MiB | 225 MiB | 398 MiB | 162 ms |
+| 100 | 0.022 | 183 MiB | 239 MiB | 399 MiB | 169 ms |
+
+- The cores do not increase with the rate of updates. The slope of the least squares line is 0.002 ms of CPU time for each update.
+- The cause is in the fake and in the app. Each answer of the fake has only the last version of each live alert. Alerts polls its feeds.
+- Thus all the updates of an alert between two polls give one change of that alert. The rate of updates does not set the work of a poll.
+- The rung `update-0` agrees with the rung `event-1` of the ladder of events. The cores are 0.023 and 0.026, and `watchPeak` is 401 and 396 MiB.
+- The jobs are on 3 CPU models: 3 Xeon 6975P-C, 1 Xeon 6973P-C and 1 EPYC 7763. CAP-36 adds runs and fits the laws.
 
 #### The ladders of the levels and of the log
 

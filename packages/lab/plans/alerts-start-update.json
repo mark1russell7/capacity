@@ -1,0 +1,319 @@
+{
+  "format": "capacity-plan/1",
+  "id": "alerts-start-update",
+  "title": "The load of alerts from its contract at 6 rungs of the rate of updates from its feeds, with 1 new event each second and the levels at the base point",
+  "check": null,
+  "triggers": [],
+  "jobs": 5,
+  "cases": [
+    {
+      "format": "capacity-start/1",
+      "id": "alerts-start-update/ladder",
+      "title": "Alerts under a constant rate of updates of 2000 bytes and 1 new event each second from the fake of its feeds. The watch after ready holds the load.",
+      "subject": "alerts-runtime",
+      "app": "https://github.com/metrograph-labs/alerts.git",
+      "arms": [
+        {
+          "id": "main",
+          "commit": "ca8fc9e1a08926138d9c40f5317116cf54d13e31"
+        }
+      ],
+      "seeder": "ca8fc9e1a08926138d9c40f5317116cf54d13e31",
+      "seed": "cap66",
+      "rounds": 1,
+      "watch": {
+        "value": 180,
+        "unit": "s"
+      },
+      "probe": {
+        "value": 500,
+        "unit": "ms"
+      },
+      "target": {
+        "image": "node:24.21.0-bookworm-slim",
+        "node": "v24.21.0",
+        "memory": {
+          "value": 1011425280,
+          "unit": "B"
+        },
+        "swap": {
+          "value": 2147483648,
+          "unit": "B"
+        },
+        "cpus": 2,
+        "heapLimit": {
+          "value": 556269568,
+          "unit": "B"
+        }
+      },
+      "fakes": {
+        "value": 1,
+        "unit": "GiB"
+      },
+      "limit": {
+        "value": 360,
+        "unit": "s"
+      },
+      "windows": [
+        {
+          "value": 90,
+          "unit": "s"
+        }
+      ],
+      "observed": [],
+      "points": [
+        {
+          "id": "update-0",
+          "at": {
+            "log": {
+              "value": 16777216,
+              "unit": "B"
+            },
+            "feeds": {
+              "value": 10,
+              "unit": "{feed}"
+            },
+            "persons": {
+              "value": 10,
+              "unit": "{person}"
+            },
+            "incidents": {
+              "value": 10,
+              "unit": "{incident}"
+            },
+            "event": {
+              "value": 1,
+              "unit": "{event}/s"
+            },
+            "update": {
+              "value": 0,
+              "unit": "{event}/s"
+            },
+            "eventBytes": {
+              "value": 2000,
+              "unit": "B"
+            }
+          }
+        },
+        {
+          "id": "update-1",
+          "at": {
+            "log": {
+              "value": 16777216,
+              "unit": "B"
+            },
+            "feeds": {
+              "value": 10,
+              "unit": "{feed}"
+            },
+            "persons": {
+              "value": 10,
+              "unit": "{person}"
+            },
+            "incidents": {
+              "value": 10,
+              "unit": "{incident}"
+            },
+            "event": {
+              "value": 1,
+              "unit": "{event}/s"
+            },
+            "update": {
+              "value": 1,
+              "unit": "{event}/s"
+            },
+            "eventBytes": {
+              "value": 2000,
+              "unit": "B"
+            }
+          }
+        },
+        {
+          "id": "update-3",
+          "at": {
+            "log": {
+              "value": 16777216,
+              "unit": "B"
+            },
+            "feeds": {
+              "value": 10,
+              "unit": "{feed}"
+            },
+            "persons": {
+              "value": 10,
+              "unit": "{person}"
+            },
+            "incidents": {
+              "value": 10,
+              "unit": "{incident}"
+            },
+            "event": {
+              "value": 1,
+              "unit": "{event}/s"
+            },
+            "update": {
+              "value": 3,
+              "unit": "{event}/s"
+            },
+            "eventBytes": {
+              "value": 2000,
+              "unit": "B"
+            }
+          }
+        },
+        {
+          "id": "update-10",
+          "at": {
+            "log": {
+              "value": 16777216,
+              "unit": "B"
+            },
+            "feeds": {
+              "value": 10,
+              "unit": "{feed}"
+            },
+            "persons": {
+              "value": 10,
+              "unit": "{person}"
+            },
+            "incidents": {
+              "value": 10,
+              "unit": "{incident}"
+            },
+            "event": {
+              "value": 1,
+              "unit": "{event}/s"
+            },
+            "update": {
+              "value": 10,
+              "unit": "{event}/s"
+            },
+            "eventBytes": {
+              "value": 2000,
+              "unit": "B"
+            }
+          }
+        },
+        {
+          "id": "update-30",
+          "at": {
+            "log": {
+              "value": 16777216,
+              "unit": "B"
+            },
+            "feeds": {
+              "value": 10,
+              "unit": "{feed}"
+            },
+            "persons": {
+              "value": 10,
+              "unit": "{person}"
+            },
+            "incidents": {
+              "value": 10,
+              "unit": "{incident}"
+            },
+            "event": {
+              "value": 1,
+              "unit": "{event}/s"
+            },
+            "update": {
+              "value": 30,
+              "unit": "{event}/s"
+            },
+            "eventBytes": {
+              "value": 2000,
+              "unit": "B"
+            }
+          }
+        },
+        {
+          "id": "update-100",
+          "at": {
+            "log": {
+              "value": 16777216,
+              "unit": "B"
+            },
+            "feeds": {
+              "value": 10,
+              "unit": "{feed}"
+            },
+            "persons": {
+              "value": 10,
+              "unit": "{person}"
+            },
+            "incidents": {
+              "value": 10,
+              "unit": "{incident}"
+            },
+            "event": {
+              "value": 1,
+              "unit": "{event}/s"
+            },
+            "update": {
+              "value": 100,
+              "unit": "{event}/s"
+            },
+            "eventBytes": {
+              "value": 2000,
+              "unit": "B"
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "startLaws": {
+    "variable": {
+      "id": "update",
+      "unit": "{event}/s",
+      "scale": "linear"
+    },
+    "measures": [
+      {
+        "id": "watchCores",
+        "law": "watch-cores",
+        "title": "The CPU cores of the process over the watch, under the load of the updates",
+        "residual": "absolute",
+        "forms": [
+          "constant",
+          "linear",
+          "hinge"
+        ]
+      },
+      {
+        "id": "watchPeak",
+        "law": "watch-peak",
+        "title": "The highest memory of the process in the watch, under the load of the updates",
+        "residual": "relative",
+        "forms": [
+          "constant",
+          "linear",
+          "hinge"
+        ]
+      },
+      {
+        "id": "watchHeapPeak",
+        "law": "watch-heap-peak",
+        "title": "The highest used heap in the watch, under the load of the updates",
+        "residual": "relative",
+        "forms": [
+          "constant",
+          "linear",
+          "hinge"
+        ]
+      },
+      {
+        "id": "ready",
+        "law": "ready",
+        "title": "The time from the start of the process to the ready line",
+        "residual": "relative",
+        "forms": [
+          "constant",
+          "linear",
+          "hinge"
+        ]
+      }
+    ]
+  }
+}

@@ -32,7 +32,7 @@ import { isCanonicalUnit, isQuantity, valueIn } from "@mark1russell7/quantity";
 import { cpuEntry } from "@mark1russell7/rigor-bench";
 import { canonicalJson } from "@mark1russell7/rigor-generators";
 import { escapeMarkdown } from "@mark1russell7/text";
-import type { Case } from "./case.ts";
+import { isIdleCase, type Case } from "./case.ts";
 import { FLOOR_MEASURES, type FloorMeasure } from "./floor.ts";
 import { caseValue, runValues } from "./reads.ts";
 import { CPUSET_MEASURES, LOAD_MEASURES, QUANTILE_MEASURES, RECORD_FORMAT, RUN_MEASURES, type CaseRecord, type QuantileMeasure } from "./record.ts";
@@ -262,7 +262,7 @@ const measureProblems = (value: unknown, path: string, seen: Set<string>): reado
 
 /**
  * This function examines the law set of a plan and gives each problem that it finds. It examines the
- * class, the variable, each measure and the conditions. Each case must be a case of load with one
+ * class, the variable, each measure and the conditions. Each case must be a case of load, not idle, with one
  * class, the class of the set, and its demand must give the variable. A correct set gives an empty list.
  */
 export const lawSetProblems = (laws: unknown, cases: readonly (Case | StartCase)[]): readonly LawSetProblem[] => {
@@ -291,6 +291,7 @@ export const lawSetProblems = (laws: unknown, cases: readonly (Case | StartCase)
   cases.forEach((value, index) => {
     const path = `cases[${index}]`;
     if (isStartCase(value)) return void problems.push({ code: "laws", path, message: `The case "${value.id}" is a start case. A plan with laws has only cases of load.` });
+    if (isIdleCase(value)) return void problems.push({ code: "laws", path: `${path}.idle`, message: `The case "${value.id}" is an idle case. A plan with laws has only cases of load.` });
     if (set.base !== undefined) {
       const { pair, side } = sideOf(value.id);
       if (pair === "") return void problems.push({ code: "laws", path: `${path}.id`, message: `The case "${value.id}" is not a side of a pair. With a base, each case id is <pair>/<side>.` });

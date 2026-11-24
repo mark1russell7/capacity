@@ -105,6 +105,11 @@ describe("the text of an amount and the unit of an axis", () => {
     expect(amountText(0.238, "ms")).toBe("0.24 ms");
     expect(amountText(6840.16, "{request}/s")).toBe("6840 requests/s");
     expect(amountText(0.01778, "{core}·ms/{request}")).toBe("0.0178 cores·ms/request");
+    expect(amountText(1_000_000, "{request}/s")).toBe("1 million requests/s");
+    expect(amountText(15_550_000, "{request}/s")).toBe("15.6 million requests/s");
+    expect(amountText(999_600_000, "{request}/s")).toBe("1 billion requests/s");
+    expect(amountText(2.5e12, "{request}/s")).toBe("2.50e+12 requests/s");
+    expect(amountText(0.0004, "{request}/s")).toBe("4.00e-4 requests/s");
   });
 
   it("gives an axis of bytes the largest binary unit that its top fills, and keeps other units", () => {

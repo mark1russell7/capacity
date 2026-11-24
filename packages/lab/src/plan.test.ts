@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { valueIn } from "@mark1russell7/quantity";
 import { afterEach, describe, expect, it } from "vitest";
-import { CASE_FORMAT, MAX_ARRIVALS, arrivalsOf, type Case } from "./case.ts";
+import { CASE_FORMAT, MAX_ARRIVALS, arrivalsOf, isIdleCase, type Case } from "./case.ts";
 import { windowOf } from "./cell.ts";
 import { CONTROL_CASES } from "./control.ts";
 import { FLOOR_IDS, FLOOR_PAIRS, floorPair } from "./floor.ts";
@@ -76,6 +76,36 @@ describe("the plan files of the lab", () => {
       expect(gatePlanProblems(each, plans)).toEqual([]);
     }
     expect([expectedOf(pass!), expectedOf(block!)]).toEqual(["pass", "block"]);
+  });
+
+  it("have the plan of the idle base, with its check, by hand only: the two subjects of the plan overhead with no request", () => {
+    const { plans } = readPlans(PLANS);
+    const idle = plans.find((each) => each.id === "idle");
+    expect(idle?.check).toBe("idle");
+    expect(idle?.triggers).toEqual([]);
+    expect(planProblems(idle!)).toEqual([]);
+    const cases = (idle?.cases ?? []) as readonly Case[];
+    expect(cases.map((each) => [each.id, each.subject, isIdleCase(each)])).toEqual([
+      ["idle/bare", "node-http", true],
+      ["idle/service", "node-http-service", true],
+    ]);
+    // each case has the instance, the connections and the class of a case of the plan overhead, at the rate 0
+    const load = plans.find((each) => each.id === "overhead")!.cases[0] as Case;
+    for (const each of cases) {
+      expect([each.instance, each.connections, each.demand.levels]).toEqual([load.instance, load.connections, load.demand.levels]);
+      expect(each.demand.classes).toEqual([{ ...load.demand.classes[0], rate: { value: 0, unit: "{request}/s" } }]);
+      expect(arrivalsOf(each)).toBe(0);
+    }
+    // 2 cases: each one 6 runs with the warm-up, each run in a window of the hold of 60 s and a drain of 30 s
+    expect(cases.map((each) => valueIn(windowOf(each), "s"))).toEqual([90, 90]);
+    expect(planMinutes(idle!)).toBe(SETUP_MINUTES + Math.ceil((2 * 6 * 90) / 60));
+  });
+
+  it("refuses an idle case in a plan with a law set", () => {
+    const { plans } = readPlans(PLANS);
+    const overhead = plans.find((each) => each.id === "overhead")!;
+    const idle = plans.find((each) => each.id === "idle")!.cases[0] as Case;
+    expect(paths({ ...overhead, cases: [...overhead.cases, { ...idle, id: "overhead/0/bare" }] })).toEqual([`laws cases[${overhead.cases.length}].idle`]);
   });
 
   it("have the plan of the request rate, with its check, by hand only: the bare request at a sweep of rates", () => {
