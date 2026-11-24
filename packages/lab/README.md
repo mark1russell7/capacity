@@ -539,6 +539,7 @@ The lines of the run in the contract give the passes and the writes of the snaps
 
 - `passes` is the count of the lines `pass` from ready to the end of the watch.
 - `writes` is each line `write` to the end of the watch, with its times. The measures `writes` to `writeCpu` read them.
+- `readings` is each line `readings` to the end of the watch, with its time and its readings. Each reading of the record keeps them in `metrics`.
 - A run with no line of a kind gives null for its field. The recorder keeps at most 100,000 lines of each kind.
 
 The lab examines the contract of each tree before the seed, with `appCaseProblems`:

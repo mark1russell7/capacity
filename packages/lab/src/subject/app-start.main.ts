@@ -32,7 +32,8 @@
 //   the signal ends the process at once. It is also null when the app does not end in 10 seconds. `closeCode` is the
 //   exit code of the app after the close.
 // - `passes` is the count of the lines `pass` of the run in the watch, and `writes` is each line `write` of the run, with its
-//   times and `ms` from the start of the process. The lines of the run in the contract name them. With no such line, each is null.
+//   times and `ms` from the start of the process. `readings` is each line `readings` of the run, with its readings and
+//   `ms`. The lines of the run in the contract name them. With no such line, each is null.
 // - `ballasts` is each ballast, and `samples` is each sample of the worker, with `ms` from the start of the process.
 // - `open` names the resources at the line. `endMs` is the time from the start of the process to the line.
 //
@@ -242,6 +243,7 @@ const line = {
   ballasts: held,
   samples,
   writes: recorded.writes,
+  readings: recorded.readings,
 };
 
 /** This function writes the line of the child, and it removes the copy of --seeded. It does only synchronous work, for the event `exit`. */
