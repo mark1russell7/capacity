@@ -2,7 +2,7 @@ import { valueIn } from "@mark1russell7/quantity";
 import { median } from "@mark1russell7/rigor-statistics";
 import { arrivalsOf } from "./case.ts";
 import type { CheckProblem } from "./check.ts";
-import type { CaseRecord, CpusetMeasure, LoadMeasure, RunMeasure } from "./record.ts";
+import { LOOP_MEASURES, type CaseRecord, type CpusetMeasure, type LoadMeasure, type LoopMeasure, type RunMeasure } from "./record.ts";
 
 /**
  * This time is the most lag of the driver in one run of the plans `control` and `floor`, in ms.
@@ -39,7 +39,7 @@ export const countProblems = (record: CaseRecord): readonly CheckProblem[] => {
  * This function gives the value of a measure in each run of a record. A run with no read of the
  * measure gives a problem, and a record with no run gives a problem.
  */
-export const runValues = (record: CaseRecord, name: RunMeasure | LoadMeasure | CpusetMeasure): readonly number[] | CheckProblem => {
+export const runValues = (record: CaseRecord, name: RunMeasure | LoadMeasure | CpusetMeasure | LoopMeasure): readonly number[] | CheckProblem => {
   const values: number[] = [];
   for (const run of record.runs) {
     // a record of an older lab has no key for a newer measure
@@ -51,10 +51,17 @@ export const runValues = (record: CaseRecord, name: RunMeasure | LoadMeasure | C
 };
 
 /**
+ * This function tells if the lab of a record gives a measure. A lab before CAP-68 gives no loop measures, thus its records
+ * have no key for them. The checks skip such a measure, with no problem. A key with the value null is a run with no read.
+ */
+export const measured = (record: CaseRecord, name: string): boolean =>
+  !Object.hasOwn(LOOP_MEASURES, name) || record.runs.some((run) => Object.hasOwn(run.measures, name));
+
+/**
  * This function gives the value of a measure for a case: the median over the runs of its record. A run
  * with no read of the measure gives a problem.
  */
-export const caseValue = (record: CaseRecord, name: RunMeasure | LoadMeasure | CpusetMeasure): number | CheckProblem => {
+export const caseValue = (record: CaseRecord, name: RunMeasure | LoadMeasure | CpusetMeasure | LoopMeasure): number | CheckProblem => {
   const values = runValues(record, name);
   return "code" in values ? values : median(values);
 };

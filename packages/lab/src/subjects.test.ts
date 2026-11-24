@@ -6,7 +6,6 @@ import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
 import { afterAll, describe, expect, it } from "vitest";
 import { APP_START_PROGRAM, FAKES_PROGRAM } from "./start-app.ts";
-import { ALERTS } from "./subject/alerts.ts";
 import { NODE_HTTP, NODE_HTTP_SERVICE, SUBJECT_FOLDER, packageFiles, subjectFiles, type LabSubject } from "./subjects.ts";
 
 type Line = { readonly ev: string; readonly t: number } & Readonly<Record<string, unknown>>;
@@ -31,50 +30,83 @@ const copyOf = (subject: LabSubject): string => {
   return folder;
 };
 
-/** This function starts the program of a subject from a copy of its files. It gives the process, its lines and its end. */
+type Kind = "loop" | "other";
+
+/**
+ * This function starts the program of a subject from a copy of its files. It gives the process, its next line and its end.
+ * The lines `loop` of the watch of the event loop go to `loop`, not to `next`.
+ */
 const start = (
   args: readonly string[],
   subject: LabSubject = NODE_HTTP,
-): { child: ChildProcess; next: () => Promise<Line>; ended: Promise<number | null> } => {
+): { child: ChildProcess; next: () => Promise<Line>; loop: () => Promise<Line>; ended: Promise<number | null> } => {
   const child = spawn(process.execPath, [join(copyOf(subject), subject.program), ...args], { stdio: ["ignore", "pipe", "inherit"] });
   children.push(child);
-  const lines = createInterface({ input: child.stdout as NodeJS.ReadableStream })[Symbol.asyncIterator]();
-  const next = async (): Promise<Line> => {
-    const line = await lines.next();
-    if (line.done === true) throw new Error("the program ended before its next line");
-    return JSON.parse(line.value) as Line;
+  const queues: Record<Kind, Line[]> = { loop: [], other: [] };
+  const waiters: Record<Kind, ((line: Line | undefined) => void)[]> = { loop: [], other: [] };
+  let closed = false;
+  const lines = createInterface({ input: child.stdout as NodeJS.ReadableStream });
+  lines.on("line", (text) => {
+    const line = JSON.parse(text) as Line;
+    const kind: Kind = line.ev === "loop" ? "loop" : "other";
+    const waiter = waiters[kind].shift();
+    if (waiter === undefined) queues[kind].push(line);
+    else waiter(line);
+  });
+  lines.on("close", () => {
+    closed = true;
+    for (const waiter of [...waiters.loop.splice(0), ...waiters.other.splice(0)]) waiter(undefined);
+  });
+  const take = async (kind: Kind): Promise<Line> => {
+    const queued = queues[kind].shift();
+    if (queued !== undefined) return queued;
+    const line = closed ? undefined : await new Promise<Line | undefined>((resolve) => waiters[kind].push(resolve));
+    if (line === undefined) throw new Error(`the program ended before its next line (${kind})`);
+    return line;
   };
-  return { child, next, ended: new Promise((resolve) => child.once("exit", resolve)) };
+  return { child, next: () => take("other"), loop: () => take("loop"), ended: new Promise((resolve) => child.once("exit", resolve)) };
+};
+
+/** This function checks a line `loop` of the watch of the event loop of a subject (`subject/loop.ts`). */
+const expectLoop = (line: Line): void => {
+  expect(line).toMatchObject({ ev: "loop", resolution: 10 });
+  expect(line["ms"]).toBeGreaterThan(0);
+  expect(Number.isSafeInteger(line["count"])).toBe(true);
+  for (const name of ["active", "idle"]) expect(typeof line[name]).toBe("number");
+  if (Number(line["count"]) > 0) expect(Number(line["max"])).toBeGreaterThanOrEqual(Number(line["mean"]));
 };
 
 describe("NODE_HTTP", () => {
   it("names each file of the folder of the subjects in one subject or as the start program of an app, and its program is one of them", () => {
     const folder = fileURLToPath(new URL("./subject/", import.meta.url));
     const programs = readdirSync(folder).filter((name) => name.endsWith(".ts") && !name.endsWith(".test.ts"));
-    // The folder holds three subjects and the programs of the app cases. The service subject has its program and its
-    // server, and the files of the bare subject that it uses. The subject of alerts has its declaration and its two
-    // programs. The app cases have the start program, the program of the sidecar of the fakes, and their ready checks.
+    // The folder holds two subjects and the programs of the app cases. The service subject has its program and its
+    // server, and the files of the bare subject that it uses. The app cases have the start program, the program of
+    // the sidecar of the fakes, and their ready checks.
     const service = NODE_HTTP_SERVICE.files.filter((name) => !NODE_HTTP.files.includes(name));
     expect(service).toEqual(["node-http-service.main.ts", "node-http-service.ts"]);
-    const alerts = ["alerts.ts", ALERTS.seed, ALERTS.start];
-    expect([...NODE_HTTP.files, ...service, ...alerts, APP_START_PROGRAM, FAKES_PROGRAM, "ready.ts"].sort()).toEqual(programs.sort());
+    expect([...NODE_HTTP.files, ...service, APP_START_PROGRAM, FAKES_PROGRAM, "ready.ts"].sort()).toEqual(programs.sort());
     expect(NODE_HTTP.files).toContain(NODE_HTTP.program);
     expect(NODE_HTTP.image).toMatch(/^node:\d+\.\d+\.\d+-alpine@sha256:[0-9a-f]{64}$/);
   });
 
-  it("has files that import only Node and each other", () => {
+  it("has files that import only Node, the watch of the event loop and each other", () => {
     const files = subjectFiles(NODE_HTTP);
-    expect(Object.keys(files)).toEqual(NODE_HTTP.files.map((name) => `${SUBJECT_FOLDER}/${name}`));
-    for (const content of Object.values(files)) {
+    const modules = `${SUBJECT_FOLDER}/node_modules/`;
+    expect(Object.keys(files).filter((path) => !path.startsWith(modules))).toEqual(NODE_HTTP.files.map((name) => `${SUBJECT_FOLDER}/${name}`));
+    expect(NODE_HTTP.packages).toEqual(["@mark1russell7/lag/node"]);
+    const packages = new Set(NODE_HTTP.packages);
+    for (const name of NODE_HTTP.files) {
+      const content = files[`${SUBJECT_FOLDER}/${name}`] as string;
       const imports = [...content.matchAll(/^import .* from "([^"]+)";$/gm)].map((match) => match[1] as string);
-      for (const name of imports) {
-        expect(name.startsWith("node:") || (NODE_HTTP.files as readonly string[]).includes(name.replace(/^\.\//, ""))).toBe(true);
+      for (const each of imports) {
+        expect(each.startsWith("node:") || packages.has(each) || (NODE_HTTP.files as readonly string[]).includes(each.replace(/^\.\//, ""))).toBe(true);
       }
     }
   });
 
   it("starts from a copy of its files, serves a class and stops at a signal", async () => {
-    const { child, next, ended } = start(["--port", "0", "--ballast", "1048576", "--keep-alive-timeout", "0"]);
+    const { child, next, loop, ended } = start(["--port", "0", "--ballast", "1048576", "--keep-alive-timeout", "0"]);
     const listening = await next();
     expect(JSON.stringify(listening)).toContain(NODE_HTTP.ready);
     expect(listening).toMatchObject({ ev: "listening", node: process.version, keepAliveTimeout: 0, ballast: 1_048_576 });
@@ -85,6 +117,7 @@ describe("NODE_HTTP", () => {
     const response = await fetch(`http://127.0.0.1:${String(listening["port"])}/?reply=10`);
     expect(response.status).toBe(200);
     expect(await response.text()).toBe("xxxxxxxxxx");
+    expectLoop(await loop());
 
     if (process.platform === "win32") {
       // Windows has no signals: a kill ends the process at once, and the program writes no line.
@@ -145,7 +178,7 @@ describe("NODE_HTTP_SERVICE", () => {
   });
 
   it("starts from its files and its packages, gives the reply of the bare subject to each class, answers its probes and stops at a signal", async () => {
-    const { child, next, ended } = start(["--port", "0", "--ballast", "1048576", "--keep-alive-timeout", "0"], NODE_HTTP_SERVICE);
+    const { child, next, loop, ended } = start(["--port", "0", "--ballast", "1048576", "--keep-alive-timeout", "0"], NODE_HTTP_SERVICE);
     const listening = await next();
     expect(JSON.stringify(listening)).toContain(NODE_HTTP_SERVICE.ready);
     expect(listening).toMatchObject({ ev: "listening", node: process.version, keepAliveTimeout: 0, ballast: 1_048_576, state: "running" });
@@ -161,6 +194,7 @@ describe("NODE_HTTP_SERVICE", () => {
     await other.text();
     const ready = await fetch(`${base}/health/readiness`);
     expect([ready.status, (await ready.json()) as unknown]).toMatchObject([200, { status: "pass", service: NODE_HTTP_SERVICE.name }]);
+    expectLoop(await loop());
 
     if (process.platform === "win32") {
       child.kill();

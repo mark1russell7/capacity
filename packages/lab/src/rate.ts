@@ -1,6 +1,6 @@
 import { median } from "@mark1russell7/rigor-statistics";
 import type { Check, CheckProblem } from "./check.ts";
-import { caseValue, countProblems, lagProblems, worstLag } from "./reads.ts";
+import { caseValue, countProblems, lagProblems, measured, worstLag } from "./reads.ts";
 import type { CaseRecord } from "./record.ts";
 
 /** A rate measure is the name of a measure that the check `rate` gives for each case. Each one is a measure of a law of the rate. */
@@ -12,6 +12,9 @@ export type RateMeasure =
   | "latency.p90"
   | "latency.p99"
   | "lag.max"
+  | "loop.lag.mean"
+  | "loop.lag.max"
+  | "loop.busy"
   | "cpuset.busy"
   | "cpuset.user"
   | "cpuset.system"
@@ -20,8 +23,8 @@ export type RateMeasure =
   | "others.cpuset.busy";
 
 /**
- * These measures are the measures that the check `rate` gives for each case, in the order of the summary. The
- * cpuset measures tell if the CPU of the subject is full, and which work fills it.
+ * These measures are the measures that the check `rate` gives for each case, in the order of the summary. The loop
+ * measures tell the lag of the event loop of the subject. The cpuset measures tell if the CPU of the subject is full, and which work fills it.
  */
 export const RATE_MEASURES: readonly RateMeasure[] = [
   "cpu.request",
@@ -31,6 +34,9 @@ export const RATE_MEASURES: readonly RateMeasure[] = [
   "latency.p90",
   "latency.p99",
   "lag.max",
+  "loop.lag.mean",
+  "loop.lag.max",
+  "loop.busy",
   "cpuset.busy",
   "cpuset.user",
   "cpuset.system",
@@ -91,7 +97,7 @@ export const rateCheck: Check = (records) => {
   for (const record of records) {
     const id = record.case.id;
     read(`${id}.cores`, coresOf(record));
-    for (const name of RATE_MEASURES) read(`${id}.${name}`, caseValue(record, name));
+    for (const name of RATE_MEASURES) if (measured(record, name)) read(`${id}.${name}`, caseValue(record, name));
   }
   const lag = worstLag(records);
   if (lag !== undefined) values["lag.max.worst"] = lag;

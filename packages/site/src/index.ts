@@ -20,7 +20,7 @@ import {
 } from "./scale.ts";
 import { RATE_UNIT, lawIdsOf, stackBaseOf, stackOf } from "./stack.ts";
 
-const ROADMAP = "https://github.com/mark1russell7/capacity/blob/main/docs/ROADMAP.md";
+const ROADMAP = "https://github.com/metrograph-labs/capacity/blob/main/docs/ROADMAP.md";
 const STATE_TEXT = { law: "A law with its interval", measured: "Measured in CI, no law yet", none: "Not measured" } as const;
 const STATE_MARK = { law: "●", measured: "◐", none: "·" } as const;
 

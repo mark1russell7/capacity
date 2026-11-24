@@ -2,7 +2,6 @@ import { SLUG, isHttps, type Amounts, type Problem } from "@mark1russell7/capaci
 import { isRecord } from "@mark1russell7/optional/read";
 import { convertible, isQuantity, kindOf, quantity, valueIn, type Quantity } from "@mark1russell7/quantity";
 import { MIN_CONTAINER_MEMORY } from "@mark1russell7/rigor-bench/fresh";
-import { ALERTS } from "./subject/alerts.ts";
 
 /** This text is the format of a start case. */
 export const START_FORMAT = "capacity-start/1";
@@ -65,69 +64,32 @@ export const NODE_VERSION: RegExp = /^v\d+\.\d+\.\d+$/;
 export const TREE_MARGIN: Quantity = { value: 300, unit: "s" };
 
 /**
- * This rate is the lowest rate of a seed program, in bytes each second. The plan uses it for the time of the
+ * This rate is the lowest rate of the seed of an app, in bytes each second. The plan uses it for the time of the
  * seeds. The first timed run records the real rate.
  */
 export const SEED_RATE: number = 1024 * 1024;
 
-/** A variable of a start subject: the unit of its amounts, and the range that the subject can seed. */
+/** A variable of a point of a start case: the unit of its amounts, and its range. */
 export interface StartVariable {
   readonly unit: string;
   readonly min: number;
   readonly max: number;
 }
 
-/**
- * A start subject is an application that a start case measures, as data. The case clones its repository
- * at each commit. Two programs in the folder `src/subject` of this package do the work.
- *
- * - The seed program writes the store of one point into a folder, at the amounts of the point. It gives
- *   the amounts that it wrote and the arguments of the start program for that store.
- * - The start program opens a copy of a store in a fresh process. It gives the time to ready and the
- *   memory of the process, as one line of `@mark1russell7/rigor-bench/fresh`.
- */
-export interface StartSubject {
-  /** This name is the id of the subject in a law and in a record, for example `alerts`. */
-  readonly name: string;
-  /** This URL is the public HTTPS URL of the repository of the subject. */
-  readonly repository: string;
-  /** This command installs the dependencies of a tree, in the folder of the tree. */
-  readonly install: readonly string[];
-  /**
-   * This command type-checks a tree with a graft, in the folder of the tree, after the install. The start program
-   * strips the types. Thus a graft that does not fit its tree stops the case here, and not in a child.
-   */
-  readonly check: readonly string[];
-  /** These variables are the variables of a store, by their names. A point that does not name a variable gets its `min`. */
+/** The variables of a point by their names: the variables of the points of an app case, or of its contract (`appVariables`). */
+export interface StartVariables {
+  /** These variables are the variables of a point, by their names. A point that does not name a variable gets its `min`. */
   readonly variables: Readonly<Record<string, StartVariable>>;
-  /** This name is the file of the seed program, in the folder `src/subject`. */
-  readonly seed: string;
-  /** This name is the file of the start program, in the folder `src/subject`. */
-  readonly start: string;
-}
-
-/** The variables of a point by their names: the variables of a subject, or the variables of the points of an app case (`appVariables`). */
-export type StartVariables = Pick<StartSubject, "variables">;
-
-/** These subjects are the start subjects that a start case can name, by their names. */
-export const START_SUBJECTS: Readonly<Record<string, StartSubject>> = { [ALERTS.name]: ALERTS };
-
-/** A graft puts one file of another commit into the tree of an arm, after the checkout. */
-export interface Graft {
-  /** This path is the path of the file in the repository, with `/` and no `..`. */
-  readonly path: string;
-  readonly commit: string;
 }
 
 /**
- * This moment is the start of a ballast: `start`, before the import of the runtime, or `ready`, at the end of the first pass.
- * The measured runtime gives control back only at ready. Thus a ballast cannot start between the open and the end of the first pass.
+ * This moment is the start of a ballast: `start`, before the import of the app, or `ready`, at the ready signal of the app.
  */
 export type BallastMoment = "start" | "ready";
 
 /**
  * A ballast is a process in the container of a child that holds memory and does nothing more. It models a
- * process of the target that the start program does not run. That is another process of the machine, or a step of
+ * process of the target that the app does not run. That is another process of the machine, or a step of
  * the live start, for example a bundler.
  */
 export interface StartBallast {
@@ -138,16 +100,12 @@ export interface StartBallast {
   readonly models: string;
 }
 
-/** An arm of a start case is one tree of the subject: a commit, and the files that it takes from other commits. */
+/** An arm of a start case is one tree of the app at a commit. */
 export interface StartArm {
   readonly id: string;
   readonly commit: string;
-  /** These grafts give a file to an old commit, for example the entry of the measure. The default is no graft. */
-  readonly graft?: readonly Graft[];
-  /** These ballasts model the steps of the live start of this tree that the start program does not run. The default is none. */
+  /** These ballasts model the steps of the live start of this tree that the app does not run. The default is none. */
   readonly ballast?: readonly StartBallast[];
-  /** This flag tells that the start reads and writes the snapshot of the start in its home, as the live start of this tree does. The default is false. */
-  readonly snapshot?: boolean;
 }
 
 /**
@@ -219,20 +177,20 @@ export interface StartObservation {
   readonly source: string;
 }
 
-/** A point of a start case is one store: the amount of each variable of the subject. */
+/** A point of a start case is one store: the amount of each variable of the app. */
 export interface StartPoint {
   readonly id: string;
   readonly at: Amounts;
   /**
    * This id names an earlier point of the case. Then the store of this point is the home after one start of each
    * arm on that point. The `at` of this point is the `at` of that point. Thus a second start reads what a first start wrote, for
-   * example its snapshot. The default is the store of the seed program.
+   * example its snapshot. The default is the store of the seed.
    */
   readonly after?: string;
 }
 
 /**
- * A start case is the measure of the start of an application as data. One seed program writes the store of
+ * A start case is the measure of the start of an app as data. The seed of the contract of the app writes the store of
  * each point. Then each arm opens a copy of each store in a fresh process, in each round. A start case file
  * is this record as JSON, in a plan.
  *
@@ -243,15 +201,14 @@ export interface StartCase {
   readonly format: typeof START_FORMAT;
   readonly id: string;
   readonly title: string;
-  /** This name is the name of a subject of `START_SUBJECTS`, or the id of the contract of the app of the field `app`. */
+  /** This name is the id of the contract of the app of the field `app`. */
   readonly subject: string;
   /**
-   * This URL is the public HTTPS URL of the repository of an app with a contract file, `capacity-app.json`. Then the contract
-   * at each arm gives the steps of the start, and the lab program `app-start` starts the app. The default is no app: the
-   * subject is a subject of `START_SUBJECTS`.
+   * This URL is the public HTTPS URL of the repository of an app with a contract file, `capacity-app.json`. The contract
+   * at each arm gives the steps of the start, and the lab program `app-start` starts the app.
    */
-  readonly app?: string;
-  /** This commit is the tree of the seed program. Each arm opens the same stores. */
+  readonly app: string;
+  /** This commit is the tree of the seed. Each arm opens the same stores. */
   readonly seeder: string;
   readonly arms: readonly StartArm[];
   readonly points: readonly StartPoint[];
@@ -259,9 +216,9 @@ export interface StartCase {
   readonly seed: string;
   /** This count is the rounds of one job. Each round starts one child of each arm on each point, and one A/A child. */
   readonly rounds: number;
-  /** This time is the watch after the ready time. The child does the passes of a live loop in it. */
+  /** This time is the watch after the ready time. The app continues in it, and the child reads its memory. */
   readonly watch: Quantity;
-  /** This time is the longest start, to the end of the first pass. A start that does not end in this time fails with the kind `time`. */
+  /** This time is the longest start, to the ready signal of the app. A start that does not end in this time fails with the kind `time`. */
   readonly limit: Quantity;
   /**
    * These times are the ready windows of the supervisor of the subject, from the start of the process to the first
@@ -297,12 +254,11 @@ const problem = (code: StartProblemCode, path: string, message: string): StartPr
 const isTimeUpTo = (value: unknown, limit: Quantity): value is Quantity =>
   isQuantity(value) && kindOf(value.unit) === "time" && value.value > 0 && valueIn(value, "s") <= valueIn(limit, "s");
 
-/** This function tells if a path is a relative path in a repository, with `/` and no part `..` or `.`. */
-const isRepositoryPath = (path: unknown): path is string =>
-  typeof path === "string" && path !== "" && !path.startsWith("/") && path.split("/").every((part) => part !== "" && part !== "." && part !== ".." && !part.includes("\\"));
+/** These fields of an arm are the fields of the old start subject. An arm with one of them is out of date. */
+const GONE_ARM_FIELDS = ["graft", "snapshot"] as const;
 
 /** This function gives the problems of the arms of a start case. */
-const armProblems = (arms: unknown, app: boolean): readonly StartProblem[] => {
+const armProblems = (arms: unknown): readonly StartProblem[] => {
   if (!Array.isArray(arms) || arms.length === 0) return [problem("arm", "arms", "The case has no arm. The first arm is the base, and each other arm is compared with it.")];
   const problems: StartProblem[] = [];
   const ids = new Set<string>();
@@ -312,41 +268,19 @@ const armProblems = (arms: unknown, app: boolean): readonly StartProblem[] => {
       problems.push(problem("shape", path, "The arm is not a record."));
       return;
     }
-    const { id, commit, graft, ballast, snapshot } = arm as Partial<StartArm>;
+    const { id, commit, ballast } = arm as Partial<StartArm>;
     if (typeof id !== "string" || !START_ID.test(id)) problems.push(problem("id", `${path}.id`, 'The id of the arm is not lower-case words joined by "-".'));
     else if (ids.has(id)) problems.push(problem("id", `${path}.id`, `The arm id "${id}" is in the case two times.`));
     else ids.add(id);
     if (typeof commit !== "string" || !COMMIT.test(commit)) problems.push(problem("commit", `${path}.commit`, "The commit is not 40 lower-case hexadecimal digits."));
     problems.push(...ballastProblems(ballast, `${path}.ballast`, "arm"));
-    if (app && snapshot !== undefined) {
-      problems.push(problem("arm", `${path}.snapshot`, "An arm of an app case has no field snapshot. The run of the contract of the app tells if it reads a snapshot."));
-    } else if (snapshot !== undefined && typeof snapshot !== "boolean") {
-      problems.push(problem("arm", `${path}.snapshot`, "The field snapshot is not true or false."));
+    // The old start subject read these fields. The contract of the app gives the tree and the snapshot now, thus a plan with them is out of date.
+    for (const gone of GONE_ARM_FIELDS) {
+      if (Object.hasOwn(arm, gone)) problems.push(problem("arm", `${path}.${gone}`, `An arm has no field ${gone}. The contract of the app at the commit of the arm gives its tree and its start.`));
     }
-    if (graft === undefined) return;
-    if (!Array.isArray(graft)) {
-      problems.push(problem("arm", `${path}.graft`, "The graft is not a list."));
-      return;
-    }
-    graft.forEach((entry: unknown, at) => {
-      const where = `${path}.graft[${at}]`;
-      if (!isRecord(entry) || !isRepositoryPath(entry["path"])) problems.push(problem("arm", `${where}.path`, 'The path is not a relative path with "/" and no "." or "..".'));
-      if (!isRecord(entry) || typeof entry["commit"] !== "string" || !COMMIT.test(entry["commit"])) {
-        problems.push(problem("commit", `${where}.commit`, "The commit is not 40 lower-case hexadecimal digits."));
-      }
-    });
   });
   return problems;
 };
-
-/**
- * The scope of the points of a start case: the name of the subject and its variables. The variables of an app case are
- * the variables that its first point names, with no range. The measure reads the ranges from the contract of the app.
- */
-interface PointScope extends StartVariables {
-  readonly name: string;
-  readonly ranged: boolean;
-}
 
 /** This function gives the variables that the first point of an app case names: each amount, in its unit. The range starts at 0 and has no end. */
 const appVariablesOf = (points: unknown): Readonly<Record<string, StartVariable>> => {
@@ -356,8 +290,11 @@ const appVariablesOf = (points: unknown): Readonly<Record<string, StartVariable>
   return Object.fromEntries(Object.entries(at).flatMap(([name, amount]) => (isQuantity(amount) ? [[name, { unit: amount.unit, min: 0, max: Infinity }]] : [])));
 };
 
-/** This function gives the problems of the points of a start case for its subject. */
-const pointProblems = (points: unknown, subject: PointScope | undefined): readonly StartProblem[] => {
+/**
+ * This function gives the problems of the points of a start case. The variables are the variables that the first point names,
+ * with no range. The measure reads the ranges from the contract of the app.
+ */
+const pointProblems = (points: unknown, scope: StartVariables): readonly StartProblem[] => {
   if (!Array.isArray(points) || points.length === 0) return [problem("point", "points", "The case has no point. A case measures one store or more.")];
   const problems: StartProblem[] = [];
   const ids = new Set<string>();
@@ -375,31 +312,21 @@ const pointProblems = (points: unknown, subject: PointScope | undefined): readon
       // The store of the point comes from the starts on an earlier point. Thus the order of the points is the order of their stores.
       const earlier: unknown = points.slice(0, index).find((each: unknown) => isRecord(each) && each["id"] === after);
       if (!isRecord(earlier)) problems.push(problem("point", `${path}.after`, "The field after is not the id of an earlier point of the case."));
-      else if (subject !== undefined && !sameAmounts(subject, at, earlier["at"])) {
+      else if (!sameAmounts(scope, at, earlier["at"])) {
         problems.push(problem("point", `${path}.at`, `The amounts of the point are not the amounts of the point "${String(after)}". Its store is the home of a start on that point.`));
       }
     }
-    if (subject === undefined) return;
-    if (!subject.ranged) {
-      // Each point of an app case names the same variables: the store variables of the app and the level variables of its seed.
-      for (const name of Object.keys(subject.variables).filter((each) => !Object.hasOwn(at, each))) {
-        problems.push(problem("point", `${path}.at`, `The point does not name "${name}". Each point of an app case names the variables of its first point.`));
-      }
+    // Each point of an app case names the same variables: the store variables of the app and the level variables of its seed.
+    for (const name of Object.keys(scope.variables).filter((each) => !Object.hasOwn(at, each))) {
+      problems.push(problem("point", `${path}.at`, `The point does not name "${name}". Each point of an app case names the variables of its first point.`));
     }
     for (const [name, amount] of Object.entries(at)) {
       const where = `${path}.at.${name}`;
-      const variable = Object.hasOwn(subject.variables, name) ? subject.variables[name] : undefined;
+      const variable = Object.hasOwn(scope.variables, name) ? scope.variables[name] : undefined;
       if (variable === undefined) {
-        const known = Object.keys(subject.variables).join(", ");
-        const why = subject.ranged ? `The subject "${subject.name}" has no variable "${name}". Its variables are ${known}.` : `The first point of the app case does not name "${name}". It names ${known}.`;
-        problems.push(problem("point", where, why));
+        problems.push(problem("point", where, `The first point of the app case does not name "${name}". It names ${Object.keys(scope.variables).join(", ")}.`));
       } else if (!isQuantity(amount) || !convertible(amount.unit, variable.unit)) {
         problems.push(problem("point", where, `"${name}" is not an amount in a unit that converts to "${variable.unit}".`));
-      } else if (subject.ranged) {
-        const value = valueIn(amount, variable.unit);
-        if (!(value >= variable.min && value <= variable.max)) {
-          problems.push(problem("point", where, `"${name}" is ${value} ${variable.unit}. It must be from ${variable.min} to ${variable.max} ${variable.unit}.`));
-        }
       }
     }
   });
@@ -410,8 +337,8 @@ const pointProblems = (points: unknown, subject: PointScope | undefined): readon
  * This function examines a start case and gives each problem that it finds. A case with no problem gives
  * an empty list.
  *
- * It examines the format, the id, the title, the subject and each commit. It examines the arms and the
- * points: each id is different, and each amount is in the range of a variable of the subject. Then it
+ * It examines the format, the id, the title, the app, the subject and each commit. It examines the arms and the
+ * points: each id is different, and each point names the variables of the first point. Then it
  * examines the seed, the rounds, the times, the ready windows, the target and the observations.
  */
 export const startCaseProblems = (value: StartCase): readonly StartProblem[] => {
@@ -420,21 +347,14 @@ export const startCaseProblems = (value: StartCase): readonly StartProblem[] => 
   if (value.format !== START_FORMAT) problems.push(problem("format", "format", `The format is not "${START_FORMAT}".`));
   if (typeof value.id !== "string" || !SLUG.test(value.id)) problems.push(problem("id", "id", 'The id is not lower-case words joined by ".", "-" or "/".'));
   if (typeof value.title !== "string" || value.title.trim() === "") problems.push(problem("id", "title", "The case has no title."));
-  const app = value.app !== undefined;
-  let scope: PointScope | undefined;
-  if (app) {
-    if (typeof value.app !== "string" || !isHttps(value.app)) problems.push(problem("subject", "app", "The app is not the HTTPS URL of a repository."));
-    if (typeof value.subject !== "string" || !SLUG.test(value.subject)) {
-      problems.push(problem("subject", "subject", 'The subject of an app case is the id of its contract: lower-case words joined by ".", "-" or "/".'));
-    }
-    scope = { name: String(value.subject), variables: appVariablesOf(value.points), ranged: false };
-  } else {
-    const subject = typeof value.subject === "string" && Object.hasOwn(START_SUBJECTS, value.subject) ? START_SUBJECTS[value.subject] : undefined;
-    if (subject === undefined) problems.push(problem("subject", "subject", `The subject is not one of ${Object.keys(START_SUBJECTS).join(", ")}.`));
-    else scope = { ...subject, ranged: true };
+  // Each start case starts an app from its contract. The lab has no other kind of start subject.
+  if (value.app === undefined) problems.push(problem("subject", "app", "The case has no app. Give the HTTPS URL of the repository of an app with a contract file."));
+  else if (typeof value.app !== "string" || !isHttps(value.app)) problems.push(problem("subject", "app", "The app is not the HTTPS URL of a repository."));
+  if (typeof value.subject !== "string" || !SLUG.test(value.subject)) {
+    problems.push(problem("subject", "subject", 'The subject of a start case is the id of the contract of its app: lower-case words joined by ".", "-" or "/".'));
   }
   if (typeof value.seeder !== "string" || !COMMIT.test(value.seeder)) problems.push(problem("commit", "seeder", "The seeder is not a commit of 40 lower-case hexadecimal digits."));
-  problems.push(...armProblems(value.arms, app), ...pointProblems(value.points, scope));
+  problems.push(...armProblems(value.arms), ...pointProblems(value.points, { variables: appVariablesOf(value.points) }));
   if (typeof value.seed !== "string" || value.seed.trim() === "") problems.push(problem("seed", "seed", "The case has no seed: a text that is not empty."));
   if (!Number.isInteger(value.rounds) || value.rounds < 1 || value.rounds > MAX_START_ROUNDS) {
     problems.push(problem("rounds", "rounds", `The count of rounds is not a whole number from 1 to ${MAX_START_ROUNDS}.`));
@@ -445,11 +365,8 @@ export const startCaseProblems = (value: StartCase): readonly StartProblem[] => 
   if (value.samples !== undefined && !(isTimeUpTo(value.samples, MAX_SAMPLES) && valueIn(value.samples, "s") >= valueIn(MIN_SAMPLES, "s"))) {
     problems.push(problem("time", "samples", `The sample interval is not a time from ${MIN_SAMPLES.value} ${MIN_SAMPLES.unit} to ${MAX_SAMPLES.value} ${MAX_SAMPLES.unit}.`));
   }
-  if (value.fakes !== undefined) {
-    if (!app) problems.push(problem("target", "fakes", "The field fakes is a field of an app case. A case with no app has no fakes."));
-    else if (!isBytesFrom(value.fakes, valueIn(MIN_FAKES_MEMORY, "B"))) {
-      problems.push(problem("target", "fakes", `The memory of the fakes is not a whole count of bytes of ${MIN_FAKES_MEMORY.value} ${MIN_FAKES_MEMORY.unit} or more.`));
-    }
+  if (value.fakes !== undefined && !isBytesFrom(value.fakes, valueIn(MIN_FAKES_MEMORY, "B"))) {
+    problems.push(problem("target", "fakes", `The memory of the fakes is not a whole count of bytes of ${MIN_FAKES_MEMORY.value} ${MIN_FAKES_MEMORY.unit} or more.`));
   }
   problems.push(...windowProblems(value.windows, isTimeUpTo(value.limit, MAX_START) ? value.limit : MAX_START), ...targetProblems(value.target), ...observedProblems(value));
   return problems;
@@ -562,11 +479,11 @@ const amountOf = (at: Readonly<Record<string, unknown>>, name: string, variable:
   return isQuantity(amount) && convertible(amount.unit, variable.unit) ? valueIn(amount, variable.unit) : Number.NaN;
 };
 
-/** This function gives the amount of each variable of the subject at a point: the amount of the point, or the `min` of the variable. */
+/** This function gives the amount of each variable at a point: the amount of the point, or the `min` of the variable. */
 export const pointAmounts = (subject: StartVariables, point: StartPoint): Readonly<Record<string, number>> =>
   Object.fromEntries(Object.entries(subject.variables).map(([name, variable]) => [name, amountOf(point.at, name, variable)]));
 
-/** This function tells if two records of amounts give the same amount of each variable of a subject. A variable that a record does not name has its `min`. */
+/** This function tells if two records of amounts give the same amount of each variable. A variable that a record does not name has its `min`. */
 const sameAmounts = (subject: StartVariables, a: unknown, b: unknown): boolean =>
   isRecord(a) && isRecord(b) && Object.entries(subject.variables).every(([name, variable]) => amountOf(a, name, variable) === amountOf(b, name, variable));
 
@@ -580,21 +497,11 @@ export const pointBytes = (subject: StartVariables, point: StartPoint): number =
 /** This function tells if a case of a plan is a start case: a record with the format `capacity-start/1`. */
 export const isStartCase = (value: unknown): value is StartCase => isRecord(value) && value["format"] === START_FORMAT;
 
-/** This function gives the subject of a start case. It throws a `RangeError` for a subject that `START_SUBJECTS` does not have. */
-export const startSubjectOf = (value: StartCase): StartSubject => {
-  const subject = Object.hasOwn(START_SUBJECTS, value.subject) ? START_SUBJECTS[value.subject] : undefined;
-  if (subject === undefined) throw new RangeError(`The lab has no start subject "${value.subject}".`);
-  return subject;
-};
+/** This function gives the variables of the points of a start case: the variables that its first point names. */
+export const startVariablesOf = (value: StartCase): StartVariables => ({ variables: appVariablesOf(value.points) });
 
-/** This function gives the variables of the points of a start case. For an app case, they are the variables that its first point names. */
-export const startVariablesOf = (value: StartCase): StartVariables => (value.app === undefined ? startSubjectOf(value) : { variables: appVariablesOf(value.points) });
-
-/** This function gives the count of the trees of a start case: one for each arm. The seeder gets one more tree when no arm without a graft has its commit. */
-export const treesOf = (value: StartCase): number => value.arms.length + (value.arms.some((arm) => arm.commit === value.seeder && (arm.graft ?? []).length === 0) ? 0 : 1);
-
-/** This function gives the count of the type checks of a start case: one for each arm with a graft. */
-export const checksOf = (value: StartCase): number => value.arms.filter((arm) => (arm.graft ?? []).length > 0).length;
+/** This function gives the count of the trees of a start case: one for each arm. The seeder gets one more tree when no arm has its commit. */
+export const treesOf = (value: StartCase): number => value.arms.length + (value.arms.some((arm) => arm.commit === value.seeder) ? 0 : 1);
 
 /** This function gives the count of the children of a start case in one job. Each point has one child of each arm and one A/A child in each round. */
 export const childrenOf = (value: StartCase): number => value.points.length * value.rounds * (value.arms.length + 1);
@@ -603,14 +510,14 @@ export const childrenOf = (value: StartCase): number => value.points.length * va
 export const firstStartsOf = (value: StartCase): number => value.points.filter((point) => point.after !== undefined).length * value.arms.length;
 
 /**
- * This function gives the longest time of one job of a start case. It is the margin of each step of the image, of each tree
- * and of each type check. It also has the time of the seeds at `SEED_RATE`, and the longest time of each child and of each first start.
+ * This function gives the longest time of one job of a start case. It is the margin of each step of the image and of each tree.
+ * It also has the time of the seeds at `SEED_RATE`, and the longest time of each child and of each first start.
  * The longest child is the limit, the watch and `CHILD_MARGIN`. A job in this time cannot stop a child. A point with the field `after` has no seed.
  */
 export const startWindowOf = (value: StartCase): Quantity => {
   const subject = startVariablesOf(value);
   const bytes = value.points.filter((point) => point.after === undefined).reduce((sum, point) => sum + pointBytes(subject, point), 0);
   const child = valueIn(value.limit, "s") + valueIn(value.watch, "s") + valueIn(CHILD_MARGIN, "s");
-  const steps = IMAGE_STEPS * valueIn(IMAGE_MARGIN, "s") + (treesOf(value) + checksOf(value)) * valueIn(TREE_MARGIN, "s");
+  const steps = IMAGE_STEPS * valueIn(IMAGE_MARGIN, "s") + treesOf(value) * valueIn(TREE_MARGIN, "s");
   return quantity(steps + bytes / SEED_RATE + (childrenOf(value) + firstStartsOf(value)) * child, "s");
 };

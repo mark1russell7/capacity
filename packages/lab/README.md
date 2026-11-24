@@ -117,12 +117,18 @@ Each run record has the measures of the container and the measures of the driver
 | `lag.max` | `ms` | The largest delay of a send after its planned time. |
 | `cpuset.busy`, `cpuset.user`, `cpuset.nice`, `cpuset.system`, `cpuset.irq`, `cpuset.softirq`, `cpuset.steal` | `{core}` | The use of the CPUs of the subject. The time of each process and interrupt on them counts. |
 | `others.cpuset.busy` and the same parts | `{core}` | The use of the CPUs of the driver and of the reader. |
+| `loop.lag.mean`, `loop.lag.max` | `ms` | The mean and the largest lag of the event loop of the subject. |
+| `loop.busy` | `%` | The busy part of the time of the event loop of the subject. |
 
 The measures of the driver are also in `classes`, for each class of the demand.
 
 - **An unfinished request** counts at its age at the end. Thus a quantile of a run with an unfinished request is a low bound. The CPU time of an unfinished request counts, thus `cpu.request` of such a run is too high.
 - **The idle cost** of the subject is in each measure of a run. A run of an idle subject needs a hold with no load in the harness. Thus the idle base is CAP-48.
 - **The cpuset measures** come from `/proc/stat` between the readings of the resources, in the window of `elapsed`. `busy` is the CPUs less their idle time and their wait for the disk. The other measures are the parts of `busy`. A record of a lab before harness 0.16.23 has no cpuset measures.
+- **The loop measures** come from the lines `loop` of the subject. Each subject writes one line each 100 ms with `watchEventLoop` of `@mark1russell7/lag/node`.
+  - The lag of a sample is its delay less the 10 ms step of the timer of the watch. A delay below the step gives a lag of 0.
+  - `loop.lag.mean` adds the mean of each span times its count. Thus the mean of a run has no error.
+  - Only the spans in the window of `elapsed` count. A record of a lab before CAP-68 has no loop measures.
 - **The lag of the driver** has no limit in the record. The checks `control` and `floor` give a limit at their light load: `LAG_LIMIT`. The check `rate` gives its own limit: `RATE_LAG_LIMIT`.
 
 ## The plans
@@ -177,6 +183,7 @@ The plan `floor` has 5 A/A pairs. The two cases of a pair are equal: each one is
 
 - Each run must answer each planned request, with no failure and no unfinished request. The driver of each run must have a lag of `LAG_LIMIT` or less.
 - Each floor must be `FLOOR_LIMITS` or less. A larger floor tells that the runners became noisier.
+- The loop measures (`LOOP_FLOOR_MEASURES`) get a floor, a level and a bias, but no limit. The part 2 of CAP-68 gives their limits from 5 runs.
 - The bias is information, not a limit.
 - A law keeps the floor of its measure in its field `noise`, with the CPU model and the runs. A difference below the floor is not a result.
 
@@ -216,7 +223,7 @@ The check `rate` (`rateCheck`) gives these values for each case:
 | Value | What it is |
 | --- | --- |
 | `<case>.cores` | The CPU use in cores: the median of the CPU time over the elapsed time of each run (`coresOf`). At the limit of one core, it is near 1. |
-| `<case>.<measure>` | The median of the runs, for each measure of `RATE_MEASURES`: `cpu.request`, `memory`, `memory.high`, `latency.p50`, `latency.p90`, `latency.p99`, `lag.max`, `cpuset.busy`, `cpuset.user`, `cpuset.system`, `cpuset.irq`, `cpuset.softirq` and `others.cpuset.busy`. |
+| `<case>.<measure>` | The median of the runs, for each measure of `RATE_MEASURES`: `cpu.request`, `memory`, `memory.high`, `latency.p50`, `latency.p90`, `latency.p99`, `lag.max`, `loop.lag.mean`, `loop.lag.max`, `loop.busy`, `cpuset.busy`, `cpuset.user`, `cpuset.system`, `cpuset.irq`, `cpuset.softirq` and `others.cpuset.busy`. |
 
 - Each run must answer each planned request, with no failure and no unfinished request. Past the limit, a run drains its queue in the 30 s of its drain.
 - `lag.max.worst` is the largest lag of the driver in a run of the plan.
@@ -252,10 +259,10 @@ The check `overhead` (`overheadCheck`) gives each value and each problem of the 
 | `<pair>.<measure>` | The overhead at the load of the pair: the value of the case `<pair>/service` less the value of the case `<pair>/bare`. |
 | `<measure>.overhead` | The median of the overheads of the pairs. |
 
-- The measures are the measures of `OVERHEAD_MEASURES`: `cpu.request`, `memory`, `memory.high`, `network.rx.request`, `network.tx.request`, `latency.p50`, `latency.p90` and `latency.p99`.
+- The measures are the measures of `OVERHEAD_MEASURES`: `cpu.request`, `memory`, `memory.high`, `network.rx.request`, `network.tx.request`, `latency.p50`, `latency.p90`, `latency.p99`, `loop.lag.mean`, `loop.lag.max` and `loop.busy`.
 - A pair has the cases `<pair>/bare` and `<pair>/service`, with the subjects of `OVERHEAD_SIDES` and one load. A case with no partner, another subject or another load is a problem.
 - The reply of the service subject has one more header, `content-type`. Thus `network.tx.request` has an overhead of approximately the size of that header.
-- The subjects have no measure of their event-loop lag. The latency overhead includes the lag that the runner adds. The lag of a subject is CAP-68.
+- Each subject measures the lag of its event loop (CAP-68). Thus `loop.lag.mean.overhead` is the lag that the runner adds. The law of that lag is the part 2 of CAP-68.
 - The plan has no trigger: a person starts it. Its time limit is 55 minutes.
 
 #### The laws of the overhead
@@ -314,7 +321,7 @@ A timed run is one job of the workflow `lab.yml`: it measures one plan on one ru
 
 | Event | The plans |
 | --- | --- |
-| The schedule, each night at 06:22 UTC | Each plan with the trigger `schedule` |
+| The schedule, each night at 06:37 UTC | Each plan with the trigger `schedule` |
 | A pull request that changes the lab, the model, the laws, the lockfile or the workflow | Each plan with the trigger `pull_request`. A gate plan starts only for a change of a file of the gate. |
 | A push of such a change to `main` | Each plan with the trigger `pull_request` |
 | A dispatch by hand, with the input `plans` | The plans of the input. With no input, each plan with the trigger `pull_request`. |
@@ -322,7 +329,7 @@ A timed run is one job of the workflow `lab.yml`: it measures one plan on one ru
 The input `runs` of a dispatch is a JSON list of numbers. Each run of each plan is a job on its own runner, thus a limit can take the worst of many runners. For example, 5 runs of the plan `control`:
 
 ```sh
-gh workflow run lab.yml -R mark1russell7/capacity --ref <branch> -f plans=control -f runs='[1,2,3,4,5]'
+gh workflow run lab.yml -R metrograph-labs/capacity --ref <branch> -f plans=control -f runs='[1,2,3,4,5]'
 ```
 
 The workflow has three steps:
@@ -432,7 +439,7 @@ The fit of the laws of a plan takes minutes, thus only CI starts it. The workflo
 The fit reads only the manifests and the records. A job of the plan `rate` has approximately 3 GB of raw results. Thus the workflow downloads one artifact at a time, and deletes its raw results before the next download.
 
 ```sh
-gh workflow run laws.yml -R mark1russell7/capacity -f runs='<run of the plan rate> <run of the plan floor>'
+gh workflow run laws.yml -R metrograph-labs/capacity -f runs='<run of the plan rate> <run of the plan floor>'
 ```
 
 - `node src/laws.main.ts fit --records <folder> --out <folder>` reads each manifest `timed.json` in the folder and in its subfolders.
@@ -498,16 +505,16 @@ A start case measures the start of an application, not its load. It gives the ti
 
 | Field | What it is |
 | --- | --- |
-| `subject` | The name of a subject of `START_SUBJECTS`, or the id of the contract of an app. A subject is data: its repository, its install command, its type check, its variables and its two programs. |
-| `app` | The HTTPS URL of the repository of an app with a contract file. The default is no app. Refer to the app cases. |
+| `subject` | The id of the contract of the app. |
+| `app` | The HTTPS URL of the repository of an app with a contract file. Each start case has an app. Refer to the app cases. |
 | `seeder` | The commit of the tree that writes the stores. Each arm opens the same stores. |
-| `arms` | 1 tree or more of the subject, each at a commit. The first arm is the base, and each other arm is compared with it. A ladder of one variable needs only one arm. A `graft` puts a file of another commit into a tree. An arm can also have `ballast` and `snapshot`. |
-| `points` | The stores of the case. A point gives an amount of each variable of the subject, for example the byte size of the log. A point with `after` is a second start. |
+| `arms` | 1 tree or more of the app, each at a commit. The first arm is the base, and each other arm is compared with it. A ladder of one variable needs only one arm. An arm can also have `ballast`. |
+| `points` | The stores of the case. A point gives an amount of each variable of the app, for example the byte size of the log. A point with `after` is a second start. |
 | `seed` | The seed of each store. One seed gives the same files. |
 | `rounds` | The rounds of one job, from 1 to 10. |
-| `watch` | The time of the live loop after the ready time, 600 s or less. |
-| `limit` | The longest start to the end of the first pass, 1800 s or less. |
-| `windows` | The ready windows of the supervisor of the subject, up to the limit, in ascending order. |
+| `watch` | The time of the watch after the ready time, 600 s or less. |
+| `limit` | The longest start to the ready signal of the app, 1800 s or less. |
+| `windows` | The ready windows of the supervisor of the app, up to the limit, in ascending order. |
 | `probe` | The interval of the ready probe of the supervisor, 60 s or less. |
 | `samples` | The interval of the samples of each child, from 1 s to 60 s. The default is no samples. |
 | `target` | The machine that the case models: the image with its Node, the memory, the swap, the CPUs and the heap limit of V8. It can also give the disk, the page cache and the other processes. |
@@ -516,17 +523,17 @@ A start case measures the start of an application, not its load. It gives the ti
 `measureStart` does the job of a start case in four steps:
 
 1. It pulls the image of the target. A check child in a container of the target reads the Node version, the limits of the cgroup and the swap of the host. It also reads the heap limit and the CPUs. A fact that is not the fact of the target stops the case.
-2. It makes a tree for each arm: a shallow fetch of the commit, each graft and the install. A tree with a graft gets the type check of the subject, because the start program strips the types. The seed uses an arm at the commit of the seeder with no graft, or one more tree.
-3. The seed program writes the store of each point one time.
+2. It makes a tree for each arm: a shallow fetch of the commit and the command `install` of the contract. The seed uses an arm at the commit of the seeder, or one more tree.
+3. The command `seed` of the contract writes the store of each point one time.
 4. `freshRun` of `@mark1russell7/rigor-bench/fresh` starts the children in the order `arms`, with the scope `child`. Each round starts one child of each arm and one A/A child of the base, on each point.
 
-Each child is the start program in a new container of the target, with the Node of the image and `--expose-gc`. The container has the memory, the swap and the CPUs of the target. Node sizes the heap of V8 from the memory limit of the container, as on the target. The child copies the store and opens the copy with no network and no key. It is ready at the end of its first pass. Then it reads its memory and does the passes of a live loop for the time of the watch.
+Each child is the program `app-start` in a new container of the target, with the Node of the image and `--expose-gc`. The container has the memory, the swap and the CPUs of the target. Node sizes the heap of V8 from the memory limit of the container, as on the target. The child copies the store and starts the app on the copy. It is ready at the ready signal of the app. Then it reads its memory and continues for the time of the watch.
 
 ### The app cases
 
-An app case has the field `app`: the HTTPS URL of the repository of an app with a contract file, `capacity-app.json`. Its `subject` is the id of the contract. The contract of each tree gives the steps of the start. Thus the lab has no subject record for the app.
+Each start case is an app case. Its field `app` is the HTTPS URL of the repository of an app with a contract file, `capacity-app.json`. Its `subject` is the id of the contract. The contract of each tree gives the steps of the start. Thus the lab has no subject record for the app. A case with no app has a problem.
 
-- The commands `install` and `check` of the contract replace the install and the type check of a subject. They start on the host, in the tree.
+- The command `install` of the contract starts on the host, in the tree. The lab changes no file of the tree, thus it does not start the command `check`.
 - The command `seed` writes the store of each point. The lab gives it `{store}` and the amount of each store variable, in the unit of the variable.
 - The seed can also get the amount of a level variable, for example the routes of a configuration. The point sets this amount, and the record of the point has it.
 - The last line of the output of the seed is a JSON record. Its field `amounts` gives the amount of each store variable that the seed wrote.
@@ -541,6 +548,7 @@ The lines of the run in the contract give the passes and the writes of the snaps
 
 - `passes` is the count of the lines `pass` from ready to the end of the watch.
 - `writes` is each line `write` to the end of the watch, with its times. The measures `writes` to `writeCpu` read them.
+- `readings` is each line `readings` to the end of the watch, with its time and its readings. Each reading of the record keeps them in `metrics`.
 - A run with no line of a kind gives null for its field. The recorder keeps at most 100,000 lines of each kind.
 
 The lab examines the contract of each tree before the seed, with `appCaseProblems`:
@@ -580,7 +588,7 @@ The plan `alerts-start-event` starts alerts at 11 rungs of the rate of new event
 - The fakes run in a sidecar on the other CPUs. Thus the CPU time of the fakes is not in `watchCores`.
 - The plan `alerts-start-update` gives the ladder of the class `update` (CAP-35). The laws of the alerts come with CAP-36.
 
-The first run of the plan is [Lab run 45247869988](https://github.com/mark1russell7/capacity/actions/runs/45247869988), with 5 jobs. Each value is the median of 10 readings, from the 2 arms of each job.
+The first run of the plan is [Lab run 45247869988](https://github.com/metrograph-labs/capacity/actions/runs/45247869988), with 5 jobs. Each value is the median of 10 readings, from the 2 arms of each job.
 
 | Events each second | `watchCores` | The live heap | `watchHeapPeak` | `watchPeak` | The GC time in the watch |
 | --- | --- | --- | --- | --- | --- |
@@ -596,7 +604,7 @@ The first run of the plan is [Lab run 45247869988](https://github.com/mark1russe
 - Thus the heap limit is the first resource that binds, at a rate from 30 to 100 events each second.
 - The jobs are on 3 CPU models. A law needs 5 jobs and 40 points on one CPU model, thus this run gives no law.
 
-The second run is the Lab run [45351701555](https://github.com/mark1russell7/capacity/actions/runs/45351701555), with 15 jobs. The run [45382785749](https://github.com/mark1russell7/capacity/actions/runs/45382785749) of `laws.yml` fits the laws over the two runs (CAP-36).
+The second run is the Lab run [45351701555](https://github.com/metrograph-labs/capacity/actions/runs/45351701555), with 15 jobs. The run [45382785749](https://github.com/metrograph-labs/capacity/actions/runs/45382785749) of `laws.yml` fits the laws over the two runs (CAP-36).
 
 - The 15 jobs on the Intel Xeon 6975P-C give 4 laws, with 75 points from 0 to 30 events each second. The other CPU models have too few jobs.
 - Each law is of the arm `main` at the first start. The intervals are 95 % intervals over whole jobs.
@@ -638,7 +646,7 @@ The plan `alerts-start-update` starts alerts at 6 rungs of the rate of updates f
 - The first event comes 1 s after the first request of the app. The fake skips the updates before it, thus less than 1 s of updates.
 - The plan has 5 jobs of 162 minutes.
 
-The first run of the plan is [Lab run 45362275890](https://github.com/mark1russell7/capacity/actions/runs/45362275890), with 5 jobs. Each value is the median of 10 readings, from the 2 arms of each job. No start failed.
+The first run of the plan is [Lab run 45362275890](https://github.com/metrograph-labs/capacity/actions/runs/45362275890), with 5 jobs. Each value is the median of 10 readings, from the 2 arms of each job. No start failed.
 
 | Updates each second | `watchCores` | The live heap | `watchHeapPeak` | `watchPeak` | The GC time in the watch |
 | --- | --- | --- | --- | --- | --- |
@@ -688,7 +696,7 @@ The plan `alerts-start-gate` gives the limits of the start of alerts (CAP-49). T
 `startLimitsOf(plan, jobs)` gives the limits from the jobs of 5 or more CI runs. Each job is one run. The command writes them:
 
 ```sh
-gh run download <run> -R mark1russell7/capacity -D runs
+gh run download <run> -R metrograph-labs/capacity -D runs
 node src/start-limits.main.ts limits --runs runs --out ../capacity/limits/alerts-start-gate.limits.json
 ```
 
@@ -725,23 +733,21 @@ A start case can also model the disk, the page cache and the other processes of 
 - **The page cache.** With `cache: "cold"`, the lab copies the store to a home on the host before each child. Then it drops the page cache of the host.
   - The child opens the home in place with `--home`. Thus the open reads the store from the disk.
   - With `warm`, the default, the child copies the store in its container.
-- **The other processes.** `target.others` gives the other processes of the target. The `ballast` of an arm gives the steps of its live start that the start program does not run, for example a bundler.
+- **The other processes.** `target.others` gives the other processes of the target. The `ballast` of an arm gives the steps of its live start that the app does not run, for example a bundler.
   - Each ballast is a process in the container of the child, with `bytes` of resident memory, from the moment `start` or `ready`.
   - Its field `models` tells what it models.
-- **The snapshot.** An arm with `snapshot: true` writes the start snapshot of the subject at its first pass, and its next start reads the snapshot.
 - **A second start.** A point with `after` names an earlier point with the same amounts.
   - Before the children of the point, each arm does one first start on its copy of the home of the earlier point. A first start has no limits of the disk and no ballasts, and it runs to the end of its watch.
   - Each child of the point then opens a copy of the home of its arm.
   - The record keeps each first start: its time, its passes and the size of each file of the home.
-  - A first start of an arm with a snapshot and no pass stops the case, because it wrote no snapshot.
 - **The samples.** With `samples`, a child reads its own reads from the disk, its major faults and its resident set at each interval. It also reads the memory, the swap and the reads of its container.
   - A worker thread takes the samples. Thus the samples continue while the open blocks the main thread.
 
 | Measure | What it is |
 | --- | --- |
-| `ready` | The time to ready: the import of the runtime, the open of the store and the first pass. |
+| `ready` | The time to the ready signal of the app. |
 | `readiness` | The time from the start of the process to the end of the open, less the copy and the ballasts. The ready probe passes after this point. |
-| `firstPass` | The time from the end of the open to ready. |
+| `firstPass` | The time from the end of the open to ready. The program `app-start` gives null, because it does not time the first pass. |
 | `copy`, `close`, `end` | The time of the copy of the store, the time of the close, and the time from the start of the process to the line. |
 | `ballast` | The time to start the ballasts of the moment `start`. |
 | `read`, `faults` | The bytes that the child read from the disk and its count of major page faults, from the start of the process to ready. |
@@ -763,7 +769,7 @@ A start case can also model the disk, the page cache and the other processes of 
 - **The observations.** `observationReads` compares each fact of the target machine with the reads of the children of its arm and its A/A copy. A disagreement is a problem: the lab does not model the time of the machine. A fact with a child of `no read` is a problem too.
 - **A stalled loop.** A pass can give a wake time that is not after the pass. Then the watch has no more passes. The reading records `stalled`, and the summary tells it.
 - **The problems of a record.** `startRecordProblems` examines each start record. Each reading has each needed measure. Each arm and the A/A pair have a child of each point in each round: a reading, a failure or a skip. Each observation agrees with the record.
-- **The time of a job.** `startWindowOf` gives the longest time of one job. It is `IMAGE_MARGIN` for each of the 3 steps of the image, `TREE_MARGIN` for each tree and each type check, and the seeds at `SEED_RATE`. A point with `after` has no seed. Each child and each first start adds its limit, the watch and `CHILD_MARGIN`.
+- **The time of a job.** `startWindowOf` gives the longest time of one job. It is `IMAGE_MARGIN` for each of the 3 steps of the image, `TREE_MARGIN` for each tree, and the seeds at `SEED_RATE`. A point with `after` has no seed. Each child and each first start adds its limit, the watch and `CHILD_MARGIN`.
 
 The container does not model all of the target machine:
 
@@ -787,7 +793,7 @@ The plan `alerts-start-app` starts alerts from its contract, on the commit of th
 
 - The case `alerts-start-app/contract` starts alerts from `capacity-app.json`. It seeds with the seed `al124` and the cache sizes of one live copy.
 - The two arms are the same build. The arm `deploy` adds the ballast of the deploy process at ready.
-- The contract of alerts names the passes and the writes of the snapshot from `caf260b` (CAP-65). The bytes plans use that commit. Then a change removes the start subject `alerts` and its programs.
+- The contract of alerts names the passes and the writes of the snapshot from `caf260b` (CAP-65). The bytes plans use that commit. Then CAP-65 removed the start subject `alerts` and its programs.
 
 #### The results of the plans of the start of alerts
 
@@ -795,7 +801,7 @@ The Actions artifacts of these runs expire in February 2027. Thus this section k
 
 An observation is a fact of the machine, for example "the cloud build was not ready in 90 s at `file-1844`". A job exits 1 when the lab reads a window of an observation differently from the machine. CAP-62 retired the plans `alerts-start-files`, `alerts-start-horizon`, `alerts-start-disk-mean` and `alerts-start-disk-peak`. The plan `alerts-start-log` replaced the plan `alerts-start`.
 
-- **`alerts-start`** (retired, the runs [44941391218](https://github.com/mark1russell7/capacity/actions/runs/44941391218) and [44945165388](https://github.com/mark1russell7/capacity/actions/runs/44945165388)):
+- **`alerts-start`** (retired, the runs [44941391218](https://github.com/metrograph-labs/capacity/actions/runs/44941391218) and [44945165388](https://github.com/metrograph-labs/capacity/actions/runs/44945165388)):
   - Each of the 90 children is ready in each window, but each job exits 1 on one observation.
   - The median `ready` of `cloud` is 4.89 s at 16 MiB, 9.59 s at 256 MiB and 24.12 s at 512 MiB.
   - At 512 MiB, `cloud` has a `peak` of 607.2 to 622.5 MiB and a `heapPeak` of 470.3 to 473.8 MiB.
@@ -805,12 +811,12 @@ An observation is a fact of the machine, for example "the cloud build was not re
   - With the arm `cloud`, shapes files of 0, 44.2 and 88.4 MiB give a median `peak` of 274.6, 449.7 and 588.9 MiB.
   - At the knee, the median `ready` of `cloud` is 7.66 s at `cut-1030` and 7.81 s at `file-1844`.
   - At `file-1844`, `cloud` and `cloud~aa` have a `readiness` of 2.87 to 6.05 s, and the machine is not ready in 90 s.
-- **`alerts-start-horizon`** (retired, the run [44943060999](https://github.com/mark1russell7/capacity/actions/runs/44943060999)):
+- **`alerts-start-horizon`** (retired, the run [44943060999](https://github.com/metrograph-labs/capacity/actions/runs/44943060999)):
   - Each of the 120 children is ready in 90 s, but each job exits 1 on one observation.
   - At `cut-1030`, the median `ready` is 12.78 s for `horizon`, 7.40 s for `new` and 7.07 s for `cloud`.
   - At `cut-1030`, the median `live` heap is 200.8 MiB for `horizon`, 280.7 MiB for `new` and 329.2 MiB for `cloud`.
   - At `file-1844`, `cloud` and `cloud~aa` have a `readiness` of 2.70 to 4.88 s, and the machine is not ready in 90 s.
-- **`alerts-start-disk-mean`** (retired, the run [44955644597](https://github.com/mark1russell7/capacity/actions/runs/44955644597)):
+- **`alerts-start-disk-mean`** (retired, the run [44955644597](https://github.com/metrograph-labs/capacity/actions/runs/44955644597)):
   - The disk had 5.5 MiB/s and 100 operations each second. Each of the 60 children of the jobs 1 to 4 passed its time limit of 660 s.
   - Thus the plan has no reading, and the two observations of the knee have no read. Each job exits 1.
   - Job 5 has no record, because the drop of the page cache took more than 60 s.
@@ -820,7 +826,7 @@ An observation is a fact of the machine, for example "the cloud build was not re
   - At `cut-1030`, the `readiness` of `cloud` is 416.3 to 461.6 s, and that of the other three arms is 473.0 to 501.6 s.
   - At `file-1844-again`, the snapshot arms `checkpoint` and `snapshot` have a `readiness` of 421.6 to 422.7 s, and `full` has 496.1 to 510.6 s.
   - Each job exits 1: at `cut-1030`, `cloud` and `cloud~aa` are late, and the machine is ready in 90 s. Thus the cap of the operations made the disk of the lab too slow. The bytes plans replace it.
-- **`alerts-start-bytes-mean`** (with the start subject `alerts`, the run [45001158462](https://github.com/mark1russell7/capacity/actions/runs/45001158462)):
+- **`alerts-start-bytes-mean`** (with the start subject `alerts`, the run [45001158462](https://github.com/metrograph-labs/capacity/actions/runs/45001158462)):
   - Each child is ready in 90 s, but the machine is not ready at `file-1844`. Thus each job exits 1.
   - At `cut-1030` and `file-1844`, the `readiness` of `cloud` and `cloud~aa` is 62.2 to 67.1 s, and that of `main` is 72.6 to 77.9 s.
   - There, each child of `main` writes one snapshot, and the longest block of one write is 406.6 to 515.1 ms.
@@ -830,7 +836,7 @@ An observation is a fact of the machine, for example "the cloud build was not re
   - At `cut-1030` and `file-1844`, the `readiness` of `cloud` and `cloud~aa` is 25.5 to 36.6 s, and that of `main` is 28.9 to 39.7 s.
   - There, each child of `main` writes one snapshot, and the longest block of one write is 170.6 to 823.4 ms.
   - At `file-1844-again`, the `readiness` of `main` is 23.9 to 25.5 s, and its `firstPass` is at most 0.14 s.
-- **`alerts-start-app`** (the run [45044576905](https://github.com/mark1russell7/capacity/actions/runs/45044576905)), with the case `alerts-start-app/subject` that CAP-62 deleted:
+- **`alerts-start-app`** (the run [45044576905](https://github.com/metrograph-labs/capacity/actions/runs/45044576905)), with the case `alerts-start-app/subject` that CAP-62 deleted:
   - The plan passes, and each of the 90 children of the two cases is ready in 90 s.
   - The case `alerts-start-app/subject` started the same commit and the same store with the start subject of the lab.
   - The medians of `peak` and `live` of the two cases differ by at most 7.8 MiB and 0.4 MiB.
@@ -843,7 +849,7 @@ An observation is a fact of the machine, for example "the cloud build was not re
 
 At each point, the ranges of the two cases overlap. At `cut-1030`, the ratio of the medians is 0.89. That is a little below the lowest A/A ratios of the two cases, 0.93 and 0.91. The lab made no statistical test. The ranges and the memory agree, thus the contract case replaces the subject case.
 
-- **The ladders of the levels and of the log** (the runs [45060628731](https://github.com/mark1russell7/capacity/actions/runs/45060628731) and [45072989987](https://github.com/mark1russell7/capacity/actions/runs/45072989987) of the levels, [45073979241](https://github.com/mark1russell7/capacity/actions/runs/45073979241) and [45080303535](https://github.com/mark1russell7/capacity/actions/runs/45080303535) of the log, and the run [45087929821](https://github.com/mark1russell7/capacity/actions/runs/45087929821) of `laws.yml`):
+- **The ladders of the levels and of the log** (the runs [45060628731](https://github.com/metrograph-labs/capacity/actions/runs/45060628731) and [45072989987](https://github.com/metrograph-labs/capacity/actions/runs/45072989987) of the levels, [45073979241](https://github.com/metrograph-labs/capacity/actions/runs/45073979241) and [45080303535](https://github.com/metrograph-labs/capacity/actions/runs/45080303535) of the log, and the run [45087929821](https://github.com/metrograph-labs/capacity/actions/runs/45087929821) of `laws.yml`):
   - Each child of the 35 jobs is ready at each rung, except at 10000 persons. There, each child reached the heap limit of V8.
   - The jobs on the Xeon 6975P-C give 20 laws, 5 measures for each ladder. The jobs on the EPYC 7763 are too few for a law.
   - The knee is the load where the law is two times its floor, by the rule `floor` with the share 1. The intervals are 95 % intervals over whole jobs.
@@ -864,10 +870,8 @@ At each point, the ranges of the two cases overlap. At `cut-1030`, the ratio of 
 A person starts a plan by hand, for example with 5 runs:
 
 ```sh
-gh workflow run lab.yml -R mark1russell7/capacity --ref <branch> -f plans=alerts-start-log -f runs='[1,2,3,4,5]'
+gh workflow run lab.yml -R metrograph-labs/capacity --ref <branch> -f plans=alerts-start-log -f runs='[1,2,3,4,5]'
 ```
-
-The programs of alerts are in `src/subject`. `alerts-seed.main.ts` writes a store with `seedStore` of the testkit of the tree. The seed writes the events at the rate of a live log, thus a larger log has more days of events. `alerts-start.main.ts` opens the store with `openMeasuredRuntime` of the runtime of the tree. With the snapshot, it also asks for the time of each write of the snapshot. An older tree ignores that option, and its measures of the writes are `null`. `alerts-config.json` is the configuration of each store: one place, one person and one channel, with made-up codes.
 
 ### The laws of the start cases
 

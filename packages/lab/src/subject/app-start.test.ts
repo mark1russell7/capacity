@@ -70,6 +70,7 @@ describe("the program app-start", () => {
         lines: [
           { kind: "pass", ev: "fixture-pass", title: "The end of a pass" },
           { kind: "write", ev: "fixture-write", title: "A write of the snapshot" },
+          { kind: "readings", ev: "fixture-readings", title: "A collection of the live metrics" },
         ],
       }),
     );
@@ -81,6 +82,9 @@ describe("the program app-start", () => {
     expect(writes[0]).toMatchObject({ longestMs: 3, writeMs: 2, rowsMs: 1, wallMs: 4, cpuMs: 2 });
     expect(writes[1]).toEqual({ ms: writes[1]!["ms"], longestMs: 7 });
     expect(writes[0]!["ms"]).toBeLessThanOrEqual(writes[1]!["ms"]!);
+    const readings = end.line?.["readings"] as readonly { ms: number; readings: unknown }[];
+    expect(readings).toHaveLength(1);
+    expect(readings[0]).toEqual({ ms: readings[0]!.ms, readings: [{ series: "requests", at: "2026-11-24T12:00:00.000Z", value: 3 }] });
   });
 
   it("opens the store in place with --home, with no copy", () => {
@@ -121,6 +125,7 @@ describe("the recorder of the lines of a run", () => {
   const kinds = [
     { kind: "pass", ev: "p" },
     { kind: "write", ev: "w" },
+    { kind: "readings", ev: "r" },
   ];
 
   it("keeps the JSON lines of the named events, also a line in two chunks, with the time of its last chunk", () => {
@@ -142,16 +147,22 @@ describe("the recorder of the lines of a run", () => {
     expect(none.lines()).toEqual([]);
   });
 
-  it("counts the passes from ready to the end of the watch, keeps the writes to the end with their times, and gives null for a kind with no line", () => {
+  it("counts the passes from ready to the end of the watch, keeps the writes to the end with their times, and keeps the readings to the end, and gives null for a kind with no line", () => {
     const lines = [
       { kind: "write", ms: 1, fields: { ev: "w", writeMs: 4, longestMs: "slow", other: 1 } },
       { kind: "pass", ms: 1, fields: { ev: "p" } },
       { kind: "pass", ms: 5, fields: { ev: "p" } },
       { kind: "pass", ms: 9, fields: { ev: "p" } },
       { kind: "write", ms: 12, fields: { ev: "w", writeMs: 6 } },
+      { kind: "readings", ms: 3, fields: { ev: "r", readings: [{ series: "rows", at: "2026-11-24T12:00:00.000Z", value: 7 }, { series: "rows", value: 8 }, null] } },
+      { kind: "readings", ms: 11, fields: { ev: "r", readings: [] } },
     ];
-    expect(runLineFields(kinds, lines, 2, 10)).toEqual({ passes: 2, writes: [{ ms: 1, writeMs: 4 }] });
-    expect(runLineFields([{ kind: "pass" }], lines, 0, 20)).toEqual({ passes: 3, writes: null });
-    expect(runLineFields([], lines, 0, 20)).toEqual({ passes: null, writes: null });
+    expect(runLineFields(kinds, lines, 2, 10)).toEqual({
+      passes: 2,
+      writes: [{ ms: 1, writeMs: 4 }],
+      readings: [{ ms: 3, readings: [{ series: "rows", at: "2026-11-24T12:00:00.000Z", value: 7 }] }],
+    });
+    expect(runLineFields([{ kind: "pass" }], lines, 0, 20)).toEqual({ passes: 3, writes: null, readings: null });
+    expect(runLineFields([], lines, 0, 20)).toEqual({ passes: null, writes: null, readings: null });
   });
 });

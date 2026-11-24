@@ -276,8 +276,8 @@ A test fits a hinge with its knee between two loads. The interval of the knee ho
 The folder `laws` holds the law files that the lab gives, one file for each law: `laws/<subject>/<plan>/<cpu>/<measure>.law.json`. The workflow `laws.yml` gives the files from the records of named Lab runs. The README of the lab tells the command and the workflow.
 
 ```sh
-gh workflow run laws.yml -R mark1russell7/capacity -f runs='<run of the plan rate> <run of the plan floor>'
-gh run download <laws run> -R mark1russell7/capacity -n laws-<laws run> -D packages/capacity/laws
+gh workflow run laws.yml -R metrograph-labs/capacity -f runs='<run of the plan rate> <run of the plan floor>'
+gh run download <laws run> -R metrograph-labs/capacity -n laws-<laws run> -D packages/capacity/laws
 ```
 
 A pull request puts the files into the folder. A test reads each file with `readLaw`. The id of each law is its path, and each run of its evidence and its noise is a run of CI. A folder with no law file fails the test.
@@ -514,6 +514,7 @@ The field `lines` of `start.run` names the JSON lines of the output of the run t
 | --- | --- |
 | `pass` | The end of one pass of the loop of the app. The lab counts the passes in the watch after ready. |
 | `write` | One write of the snapshot. The fields `longestMs`, `writeMs`, `rowsMs`, `wallMs` and `cpuMs` give its times in milliseconds. |
+| `readings` | One collection of the live metrics. The field `readings` is a list of `SeriesReading`: `{ series, at, value }`. `collectReadings` of `@mark1russell7/otel-ts/pull` gives this list. |
 
 `APP_LINE_KINDS` is the closed set of the kinds. A run with no line of a kind gives no reading of that kind.
 
