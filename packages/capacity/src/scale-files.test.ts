@@ -80,22 +80,24 @@ describe("the scale rule of alerts", () => {
     expect(ALERTS.map((composition) => composition.measure.id).sort()).toEqual(limits.limits.map((limit) => limit.measure).sort());
   });
 
-  it("gives the reach of the README on the lab target with no headroom: the memory at 48 events each second", () => {
-    // The laws of the lab reach the memory limit of the target at 48 [47, 50] and the heap limit at 52 [42, 59] events each second.
+  it("gives the reach of the README on the lab target with no headroom: the heap at 64 events each second", () => {
+    // The laws reach the heap limit of V8 at 64 [50, 109] events each second. Each job of the lab reached it at the rung 60.
     const reach = reachOf(alertsOn("lab-target-1gb", limits.limits.map((limit) => ({ ...limit, headroom: 0 }))));
-    expect(reach.binding).toBe("memory");
-    expect(factorOf(reach.factor)).toBeCloseTo(48.3, 1);
-    const heap = reach.limits.find((each) => each.limit === "heap")!;
-    expect(factorOf(heap.factor)).toBeCloseTo(52.2, 1);
+    expect(reach.binding).toBe("heap");
+    expect(factorOf(reach.factor)).toBeCloseTo(64.0, 1);
+    expect(reach.factor.interval.low).toBeLessThan(60);
+    expect(reach.factor.interval.high).toBeGreaterThan(60);
+    const memory = reach.limits.find((each) => each.limit === "memory")!;
+    expect(factorOf(memory.factor)).toBeGreaterThan(factorOf(reach.factor));
   }, QUERY_TIME);
 
-  it("gives the memory as the first limit of one copy on the small cloud machine, at 10.4 events each second", () => {
-    // 676 MB free for the app, less 20 % of headroom, is 541 MB. The memory law gives 412 MB and 12.41 MB for each event each second.
+  it("gives the memory as the first limit of one copy on the small cloud machine, at 7.9 events each second", () => {
+    // 676 MB free for the app, less 20 % of headroom, is 541 MB. The memory law gives 401 MB and 17.8 MB for each event each second.
     const reach = reachOf(alertsOn("small-cloud-1gb"));
     expect(reach.binding).toBe("memory");
-    expect(factorOf(reach.factor)).toBeCloseTo(10.4, 1);
-    expect(reach.factor.interval.low).toBeGreaterThan(9.9);
-    expect(reach.factor.interval.high).toBeLessThan(10.9);
+    expect(factorOf(reach.factor)).toBeCloseTo(7.86, 1);
+    expect(reach.factor.interval.low).toBeGreaterThan(7.1);
+    expect(reach.factor.interval.high).toBeLessThan(8.7);
     // The CPU of 0.25 core binds much later. That law is of the lab CPU, thus the value is an extrapolation.
     const cpu = reach.limits.find((each) => each.limit === "cpu")!;
     expect(factorOf(cpu.factor)).toBeGreaterThan(2 * factorOf(reach.factor));

@@ -332,7 +332,7 @@ A test of the lab reads these files with the plan `overhead`. Each law names the
 
 ### The laws of the events of alerts
 
-The Laws run 45382785749 gives the laws of the plan `alerts-start-event` on the Intel Xeon 6975P-C (CAP-36). Their folder is `laws/alerts-runtime/alerts-start-event/xeon-6975p-c/main/first`: the arm `main` at the first start. The variable of each law is `event`, the events each second from 0 to 30. The README of the lab has the table of the laws, in [The load ladder of events](../lab/README.md#the-load-ladder-of-events).
+The Laws run 45479208486 gives the laws of the plan `alerts-start-event` on the Intel Xeon 6975P-C (CAP-36 and CAP-86). Their folder is `laws/alerts-runtime/alerts-start-event/xeon-6975p-c/main/first`: the arm `main` at the first start. The variable of each law is `event`, the events each second from 0 to 55. The README of the lab has the table of the laws, in [The load ladder of events](../lab/README.md#the-load-ladder-of-events).
 
 ## The gate of the laws
 
@@ -892,16 +892,17 @@ The test `src/scale-files.test.ts` reads the laws, the compositions, the instanc
 
 | Instance type | Limits | The rate of one copy, events each second | The limit that binds first | The next limits |
 | --- | --- | --- | --- | --- |
-| `small-cloud-1gb` | The limits file | 10.4 [10.0, 10.8] | `memory` | `heap` at 29.3, `cpu` at 29.6 |
-| `small-cloud-1gb` | No headroom | 21.3 [20.6, 21.9] | `memory` | `cpu` at 43.4, `heap` at 52.2 |
-| `lab-target-1gb` | The limits file | 29.3 [27.2, 30.6] | `heap` | `memory` at 32.0, `cpu` at 254 |
-| `lab-target-1gb` | No headroom | 48.3 [42.5, 49.5] | `memory` | `heap` at 52.2, `cpu` at 364 |
+| `small-cloud-1gb` | The limits file | 7.86 [7.18, 8.64] | `memory` | `cpu` at 28.9, `heap` at 33.9 |
+| `small-cloud-1gb` | No headroom | 15.4 [14.1, 20.0] | `memory` | `cpu` at 42.1, `heap` at 64.0 |
+| `lab-target-1gb` | The limits file | 33.9 [24.9, 35.7] | `heap` | `memory` at 46.8, `cpu` at 63.6 |
+| `lab-target-1gb` | No headroom | 64.0 [50.2, 73.0] | `heap` | `cpu` at 72.1, `memory` at 115 |
 
-- On the small cloud machine, the memory binds first, at less than half of the rate where the CPU binds.
-- The row with no headroom on the lab target gives the reach of the lab README: 48 events each second.
+- On the small cloud machine, the memory binds first, at less than a third of the rate where the CPU binds.
+- On the lab target, the heap binds first. With no headroom, it binds at 64 [50, 73] events each second. Each job of the lab reached the heap limit at the rung 60.
+- With no headroom on the lab target, the CPU binds first in 9 % of the replicates. Near the heap limit, the law of the cores bends up.
 - Each law is of the Intel Xeon 6975P-C. The CPU of the cloud machine is a different model, thus its CPU reach is a forecast.
 - Each law is at the base point of the ladder: 16 MiB of log, 10 feeds, 10 persons and 10 incidents.
-- A reach past 30 events each second is outside the range of the laws. CAP-86 adds the rungs from 40 to 70.
+- A reach past 55 events each second is outside the range of the laws. The rungs 60 and 70 gave no points, because each start reached the heap limit.
 
 The rule does not tell these parts yet. CAP-37 adds them:
 
