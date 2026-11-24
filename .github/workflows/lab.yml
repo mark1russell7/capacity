@@ -264,12 +264,15 @@ jobs:
           if-no-files-found: warn
 
   # The gate of the bench: each case must take at most 1.1 times the time of the base. A noisy case cannot decide, and a
-  # case with no record has no read. Both fail the job, because no read is not a pass.
+  # case with no record has no read. No read is not a pass: the job bench-again measures these cases again, and the job
+  # bench-final decides. A case beyond the limit or a change of value with no reason fails this job.
   bench-gate:
     needs: [plan, bench]
     if: ${{ !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.bench != '[]' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    outputs:
+      again: ${{ steps.gate.outputs.again }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -283,17 +286,90 @@ jobs:
       - name: The records of the bench
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          pattern: bench-*-${{ github.run_attempt }}
+          pattern: bench-[0-9]*-${{ github.run_attempt }}
           path: ${{ runner.temp }}/bench-records
       - name: The gate of the bench
+        id: gate
         env:
           RECORDS: ${{ runner.temp }}/bench-records
-        run: node packages/lab/src/bench-scale.main.ts gate --records "$RECORDS"
+        run: node packages/lab/src/bench-scale.main.ts gate --records "$RECORDS" --again-out "$GITHUB_OUTPUT"
+
+  # The second try of the cases with no read (CAP-82). A fresh runner measures each case again, because the noise of a
+  # runner belongs to its job, and 18 rounds narrow the interval of the noise. Each case still has the verdict of one
+  # job, so a noisy job cannot pass.
+  bench-again:
+    needs: [plan, bench-gate]
+    if: ${{ !cancelled() && needs.bench-gate.result == 'success' && needs.bench-gate.outputs.again != '' && needs.bench-gate.outputs.again != '[]' }}
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        include: ${{ fromJSON(needs.bench-gate.outputs.again) }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      # the worktree of the base commit needs the history
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 26
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: The bench of the case
+        env:
+          CASE: ${{ matrix.case }}
+          BASE: ${{ github.event.pull_request.base.sha || inputs.base || 'origin/main' }}
+          OUT: ${{ runner.temp }}/bench-records
+        # three times the 6 rounds of the first try: the interval of the A/A median narrows by the square root of 3
+        run: node packages/lab/src/bench-scale.main.ts measure --case "$CASE" --base "$BASE" --out "$OUT" --rounds 18
+      - name: The record of the case
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: bench-again-${{ matrix.index }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/bench-records
+          if-no-files-found: warn
+
+  # The gate after the second try: the records of the second try replace the records of their cases. This gate decides.
+  bench-final:
+    needs: [plan, bench-gate, bench-again]
+    if: ${{ !cancelled() && needs.bench-gate.result == 'success' && needs.bench-gate.outputs.again != '' && needs.bench-gate.outputs.again != '[]' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 26
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: The records of the first try
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: bench-[0-9]*-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/bench-records
+      - name: The records of the second try
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: bench-again-*-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/bench-again
+      - name: The gate of the bench after the second try
+        env:
+          RECORDS: ${{ runner.temp }}/bench-records
+          AGAIN: ${{ runner.temp }}/bench-again
+        run: node packages/lab/src/bench-scale.main.ts gate --records "$RECORDS" --again "$AGAIN"
 
   lab-ok:
     name: Lab OK
     if: ${{ !cancelled() }}
-    needs: [changes, plan, lab, gate, bench, bench-gate]
+    needs: [changes, plan, lab, gate, bench, bench-gate, bench-again, bench-final]
     runs-on: ubuntu-latest
     timeout-minutes: 2
     permissions: {}
@@ -303,4 +379,4 @@ jobs:
           needs: ${{ toJSON(needs) }}
           # The job gate starts only for a selection with a gate plan. The job lab skips a dispatch of the bench only, and the
           # bench skips a schedule, a push and a dispatch with no bench. A pull request with no plan or no bench fails the job plan.
-          allow-skip: gate lab bench bench-gate
+          allow-skip: gate lab bench bench-gate bench-again bench-final
