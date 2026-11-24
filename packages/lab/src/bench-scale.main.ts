@@ -3,26 +3,27 @@
  *
  * ```text
  * node src/bench-scale.main.ts cases
- * node src/bench-scale.main.ts measure --case <id> --base <commit> --out <folder> [--rounds <count>]
+ * node src/bench-scale.main.ts measure --case <id> --base <commit> --out <folder> [--slot <n>] [--try <n>] [--rounds <count>]
  * node src/bench-scale.main.ts gate --records <folder> [--limit <ratio>] [--noise-cap <log ratio>] [--changes <file>]
  *   [--again-out <file>] [--again <folder>]
  * node src/bench-scale.main.ts limits --runs <folder> [--out <file>]
  * ```
  *
- * - `cases` prints the matrix of the bench jobs as JSON: one entry for each case, with its index.
+ * - `cases` prints the matrix of the bench jobs as JSON: `BENCH_SLOTS` entries for each case, each with its slot and its index.
  * - `measure` makes a git worktree of the base commit and installs it. Then it times one case with `freshArms` of
  *   `@mark1russell7/rigor-bench`. Each round starts one fresh child for the base, the head and a second base child.
  *   The two base children are the A/A pair. The command also operates the case once in this process on each commit, and compares the hashes of the two values.
- *   It writes the record `bench.json` into the folder `--out`.
- * - `gate` reads each record in the folder `--records` and its subfolders. It gives the verdict of the claim "the head takes at
- *   most `--limit` times the time of the base" for each case, and writes a summary into `GITHUB_STEP_SUMMARY`. The exit code is 1
- *   when the gate does not pass or when a case has no record. The summary names each case whose value the head changes.
+ *   It writes the record `bench.json` into the folder `--out`, with the slot and the try of the job. The default rounds are `BENCH_ROUNDS`.
+ * - `gate` reads each record in the folder `--records` and its subfolders. It gives the verdict of the claim "the head is not
+ *   slower than the A/A arm by more than `--limit` times" for each case with `benchRead`, and writes a summary into
+ *   `GITHUB_STEP_SUMMARY`. The exit code is 1 when the gate does not pass or when a case has no record. The summary names
+ *   each case whose value the head changes.
  * - The file `--changes` gives the changes of value that the head makes on purpose. The default is `packages/lab/bench-changes.json`.
  *   The gate does not time such a case against the base. A change of value that the file does not name gives the exit code 1.
- * - With `--again-out`, a gate with no read of some cases does not decide. It writes the matrix `again` into the file
- *   of the outputs of the job: `BENCH_AGAIN_TRIES` fresh jobs for each of these cases. A case beyond the limit is not measured again.
- * - With `--again`, the gate adds the records of that folder as more tries of their cases. The read of a case pools its tries.
- *   This gate decides.
+ * - With `--again-out`, a gate with no read of some cases does not decide. It writes the matrix `again` of `benchAgainOf` into the
+ *   file of the outputs of the job. Its fresh jobs take each slot of these cases to their next look.
+ *   A case beyond the limit is not measured again.
+ * - With `--again`, the gate adds the records of that folder to the rounds of their slots. This gate decides.
  * - The noise cap of the gate comes from `packages/lab/bench-limits.json`. The option `--noise-cap` replaces it.
  * - `limits` reads the records of each subfolder of `--runs`. Each subfolder holds the records of one CI run, from
  *   `gh run download <run> -p "bench-*"`. The command writes the limits of 5 or more runs into the file `--out`.
@@ -39,14 +40,14 @@ import {
   AA_ARM,
   BASE_ARM,
   BENCH_FORMAT,
-  BENCH_AGAIN_TRIES,
   BENCH_CHANGES,
   BENCH_LIMIT,
   BENCH_LIMITS,
   BENCH_RECORD,
+  BENCH_ROUNDS,
+  BENCH_SLOTS,
   HEAD_ARM,
   benchCases,
-  benchAgainJobs,
   benchAgainOf,
   benchGate,
   benchLimitsOf,
@@ -72,7 +73,7 @@ const CAPACITY = fileURLToPath(new URL("../../capacity/", import.meta.url));
 
 const USAGE = [
   "node src/bench-scale.main.ts cases",
-  "node src/bench-scale.main.ts measure --case <id> --base <commit> --out <folder> [--rounds <count>]",
+  "node src/bench-scale.main.ts measure --case <id> --base <commit> --out <folder> [--slot <n>] [--try <n>] [--rounds <count>]",
   "node src/bench-scale.main.ts gate --records <folder> [--limit <ratio>] [--noise-cap <log ratio>] [--changes <file>] [--again-out <file>] [--again <folder>]",
   "node src/bench-scale.main.ts limits --runs <folder> [--out <file>]",
 ].join("\n");
@@ -90,14 +91,19 @@ const positive = (text: string | undefined, name: string): number | undefined =>
 };
 
 const cases = (): void => {
-  const matrix = benchCases(catalogOf()).map((each, index) => ({ case: each.id, index }));
+  const matrix = benchCases(catalogOf()).flatMap((each, position) =>
+    Array.from({ length: BENCH_SLOTS }, (_, index) => ({ case: each.id, slot: index + 1, index: position * BENCH_SLOTS + index })),
+  );
   process.stdout.write(`${JSON.stringify(matrix)}\n`);
 };
 
 const measure = async (args: readonly string[]): Promise<void> => {
-  const { values } = parseArgs({ args: [...args], options: { case: { type: "string" }, base: { type: "string" }, out: { type: "string" }, rounds: { type: "string" } } });
+  const { values } = parseArgs({ args: [...args], options: { case: { type: "string" }, base: { type: "string" }, out: { type: "string" }, slot: { type: "string" }, try: { type: "string" }, rounds: { type: "string" } } });
   if (values.case === undefined || values.base === undefined || values.out === undefined) throw new Error(`The command needs --case, --base and --out.\n${USAGE}`);
-  const rounds = positive(values.rounds, "--rounds");
+  const rounds = positive(values.rounds, "--rounds") ?? BENCH_ROUNDS;
+  const slot = positive(values.slot, "--slot") ?? 1;
+  const tried = positive(values.try, "--try") ?? 1;
+  if (!Number.isInteger(slot) || slot > BENCH_SLOTS) throw new Error(`The slot ${slot} is not a whole number from 1 to ${BENCH_SLOTS}.`);
   const found = benchCases(catalogOf()).find((each) => each.id === values.case);
   if (found === undefined) throw new Error(`The bench has no case "${values.case}".`);
   const head = await repoCommit("HEAD", { repo: ROOT });
@@ -115,7 +121,7 @@ const measure = async (args: readonly string[]): Promise<void> => {
     const run = await freshArms({
       arms,
       aa: [BASE_ARM, AA_ARM],
-      ...(rounds === undefined ? {} : { rounds }),
+      rounds,
       warmUp: 1,
       job: found.id,
       onProcess: (each) => process.stdout.write(`round ${each.round}, ${each.arm}: ${each.ms.toFixed(2)} ms\n`),
@@ -131,6 +137,8 @@ const measure = async (args: readonly string[]): Promise<void> => {
       aa: run.aa,
       same,
       hashes,
+      slot,
+      try: tried,
     };
     mkdirSync(values.out, { recursive: true });
     writeFileSync(join(values.out, BENCH_RECORD), `${JSON.stringify(record, null, 1)}\n`);
@@ -152,14 +160,15 @@ const gate = (args: readonly string[]): void => {
   const changes = readBenchChanges(values.changes ?? join(ROOT, "packages", "lab", BENCH_CHANGES));
   const result = benchGate(records, ids, { limit, changes, ...(noiseCap === undefined ? {} : { noiseCap }) });
   const againOut = values["again-out"];
-  const again = againOut === undefined ? [] : benchAgainOf(result);
-  const againNote = again.length === 0 ? [] : [`The gate has no read of ${again.length} cases, so ${BENCH_AGAIN_TRIES} fresh jobs measure each of them again: ${again.join(", ")}.`, ""];
+  const again = againOut === undefined ? [] : benchAgainOf(result, ids);
+  const againCases = [...new Set(again.map((each) => each.case))];
+  const againNote = again.length === 0 ? [] : [`The gate has no read of ${againCases.length} cases yet, so ${again.length} fresh jobs take their slots to the next look: ${againCases.join(", ")}.`, ""];
   const text = [benchSummaryOf(result.read, result.commits), benchNotesOf(result), ...againNote].join("\n");
   process.stdout.write(text);
   const summary = process.env["GITHUB_STEP_SUMMARY"];
   if (summary) appendFileSync(summary, text);
   if (againOut !== undefined) {
-    appendFileSync(againOut, `again=${JSON.stringify(benchAgainJobs(ids, again))}\n`);
+    appendFileSync(againOut, `again=${JSON.stringify(again)}\n`);
   }
   // The second try decides, so the first try writes no gate line and does not fail.
   if (again.length > 0) return;

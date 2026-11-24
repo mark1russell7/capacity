@@ -21,11 +21,11 @@
 # expects fails the job. A gate with no read fails the job too: no read is not a pass. A gate plan has 13 jobs: a runner
 # gets its CPU model at random, and 13 jobs give 2 jobs on the CPU model with laws 99 times in 100 (gateJobsFor).
 #
-# The bench of the scale query times the head against its base commit, one job for each case (bench-scale.main.ts). A pull
+# The bench of the scale query times the head against its base commit, two jobs for each case (bench-scale.main.ts). A pull
 # request always starts it. In a pull request, the head is the merge commit of the checkout, and its base is the first parent
 # of that commit: the tip of main that the merge holds. The field base.sha of the event can be an older commit of main.
-# Its gate, the job bench-gate, fails when a case takes more than 1.1 times the time of the base,
-# when a case is too noisy to decide, or when a case has no record. A head can change the value of a case on purpose.
+# Its gate, the job bench-gate, fails when a case is slower than the A/A arm by more than 1.1 times in a sign test of each
+# job, when a case cannot decide, or when a case has no record. A head can change the value of a case on purpose.
 # Then packages/lab/bench-changes.json names the case with the hashes of its two values and the reason. The gate does not
 # time that case, and a change of value with no entry fails the job. The noise cap of the gate is in
 # packages/lab/bench-limits.json, from the A/A pairs of 5 or more runs (bench-scale.main.ts limits).
@@ -257,8 +257,9 @@ jobs:
           RECORDS: ${{ runner.temp }}/gate-records
         run: node packages/lab/src/gate.main.ts --records "$RECORDS"
 
-  # The bench of the scale query (bench-scale.main.ts): one job for each case. Each round starts a fresh child for the
-  # base commit, the head and a second base child, the A/A pair. The job uploads its record as bench-<index>-<attempt>.
+  # The bench of the scale query (bench-scale.main.ts): two jobs for each case, the slots 1 and 2, of 12 rounds each. Each
+  # round starts a fresh child for the base commit, the head and a second base child, the A/A pair. The job uploads its
+  # record as bench-<index>-<attempt>.
   bench:
     needs: plan
     if: needs.plan.outputs.bench != '[]'
@@ -285,9 +286,10 @@ jobs:
       - name: The bench of the case
         env:
           CASE: ${{ matrix.case }}
+          SLOT: ${{ matrix.slot }}
           BASE: ${{ github.event_name == 'pull_request' && 'HEAD^1' || inputs.base || 'origin/main' }}
           OUT: ${{ runner.temp }}/bench-records
-        run: node packages/lab/src/bench-scale.main.ts measure --case "$CASE" --base "$BASE" --out "$OUT"
+        run: node packages/lab/src/bench-scale.main.ts measure --case "$CASE" --slot "$SLOT" --base "$BASE" --out "$OUT"
       - name: The record of the case
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -296,9 +298,10 @@ jobs:
           path: ${{ runner.temp }}/bench-records
           if-no-files-found: warn
 
-  # The gate of the bench: each case must take at most 1.1 times the time of the base. A noisy case cannot decide, and a
-  # case with no record has no read. No read is not a pass: the job bench-again measures these cases again, and the job
-  # bench-final decides. A case beyond the limit or a change of value with no reason fails this job.
+  # The gate of the bench (CAP-89): each case must be not slower than the A/A arm by more than 1.1 times. The sign test of
+  # each job reads the rounds at the looks 12, 24 and 48, and the case needs a read in its two jobs. A case with no read yet,
+  # or with no record, is not a pass: the job bench-again takes its slots to the next look, and the job bench-final decides.
+  # A case beyond the limit, a case above the noise cap or a change of value with no reason fails this job.
   bench-gate:
     needs: [plan, bench]
     if: ${{ !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.bench != '[]' }}
@@ -327,9 +330,8 @@ jobs:
           RECORDS: ${{ runner.temp }}/bench-records
         run: node packages/lab/src/bench-scale.main.ts gate --records "$RECORDS" --again-out "$GITHUB_OUTPUT"
 
-  # The second try of the cases with no read (CAP-82, CAP-84). Two fresh runners measure each case again, because the noise
-  # of a runner belongs to its job, and 18 rounds narrow the interval of the noise. The gate pools the rounds of all the
-  # tries of a case. A try with the opposite outcome makes the case cannot decide, so a noisy job cannot pass.
+  # The second try of the cases with no read (CAP-89). A fresh runner measures the rounds that each slot of the case lacks
+  # for its next look. The gate adds the rounds of each job to its slot, so the case keeps its two jobs.
   bench-again:
     needs: [plan, bench-gate]
     if: ${{ !cancelled() && needs.bench-gate.result == 'success' && needs.bench-gate.outputs.again != '' && needs.bench-gate.outputs.again != '[]' }}
@@ -355,10 +357,11 @@ jobs:
       - name: The bench of the case
         env:
           CASE: ${{ matrix.case }}
+          SLOT: ${{ matrix.slot }}
+          ROUNDS: ${{ matrix.rounds }}
           BASE: ${{ github.event_name == 'pull_request' && 'HEAD^1' || inputs.base || 'origin/main' }}
           OUT: ${{ runner.temp }}/bench-records
-        # three times the 6 rounds of the first try: the interval of the A/A median narrows by the square root of 3
-        run: node packages/lab/src/bench-scale.main.ts measure --case "$CASE" --base "$BASE" --out "$OUT" --rounds 18
+        run: node packages/lab/src/bench-scale.main.ts measure --case "$CASE" --slot "$SLOT" --try 2 --base "$BASE" --out "$OUT" --rounds "$ROUNDS"
       - name: The record of the case
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -367,7 +370,7 @@ jobs:
           path: ${{ runner.temp }}/bench-records
           if-no-files-found: warn
 
-  # The gate after the second try: the read of each case pools the records of all its tries. This gate decides.
+  # The gate after the second try: each slot of a case joins the rounds of its two tries. This gate decides.
   bench-final:
     needs: [plan, bench-gate, bench-again]
     if: ${{ !cancelled() && needs.bench-gate.result == 'success' && needs.bench-gate.outputs.again != '' && needs.bench-gate.outputs.again != '[]' }}

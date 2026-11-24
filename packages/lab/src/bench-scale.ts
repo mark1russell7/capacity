@@ -2,7 +2,20 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import type * as Capacity from "@mark1russell7/capacity";
 import type { Composition, Demand, KneeRule, Law, ScaleModel, ScaleOptions } from "@mark1russell7/capacity";
-import { aaLimits, aaStats, gateOf, limitVerdict, pooledLimitVerdict, type Gate, type LimitVerdict, type PairedTime, type RunLimit } from "@mark1russell7/rigor-bench";
+import {
+  aaLimits,
+  aaStats,
+  gateOf,
+  GATE_LOOKS,
+  notSlowerVerdict,
+  type BudgetMore,
+  type Gate,
+  type GateJobRead,
+  type JobRecords,
+  type LimitOutcome,
+  type PairedTime,
+  type RunLimit,
+} from "@mark1russell7/rigor-bench";
 import { armTimes, type ArmProcess, type BenchEnv } from "@mark1russell7/rigor-bench/fresh";
 import { canonicalJson, sha256Hex } from "@mark1russell7/rigor-generators";
 import { escapeMarkdown } from "@mark1russell7/text";
@@ -142,136 +155,182 @@ export const pairedTimes = (processes: readonly ArmProcess[], base: string = BAS
   );
 };
 
+/** This count is the count of the jobs that measure each case in the first try. Each job runs on its own runner, and the gate needs a read in each job. */
+export const BENCH_SLOTS = 2;
+
+/** This count is the rounds of each job of the first try: the first look of `notSlowerVerdict` of `@mark1russell7/rigor-bench`. */
+export const BENCH_ROUNDS: number = GATE_LOOKS[0] ?? 12;
+
 /**
- * The read of one case: the median time of each arm, the ratio of the head with its interval, its bound and its outcome. It
- * also tells if the results are equal.
+ * The read of one case: the median time of each arm, the reads of its jobs and the look that decides it.
+ * It also has the A/A noise, the outcome, and if the results are equal.
  */
 export interface BenchCaseRead {
   readonly case: string;
   readonly baseMs: number;
   readonly headMs: number;
+  /** This number is the median time of the head over the median time of the base. The gate does not read it. */
   readonly ratio: number;
-  readonly low: number;
-  readonly high: number;
-  /** This number is the noise of the A/A rounds of the case, on a log scale. */
+  /** These reads are the sign tests of each job of the case. They are at the look that decides the case, or at the last look that a job reached. */
+  readonly jobs: readonly GateJobRead[];
+  /** This number is the rounds of the look that decides the case. It is undefined when no look decides the case. */
+  readonly look: number | undefined;
+  /** This number is the largest A/A noise of a job of the case, on a log scale. */
   readonly noise: number;
-  /** This number is the high end of the interval, widened by the A/A noise. The case is `within` when it is at most the limit. */
-  readonly bound: number;
-  readonly outcome: LimitVerdict["outcome"];
-  /** This number is the count of the tries of the case. The read of a case with more than one try pools their rounds. */
-  readonly tries: number;
-  /** These labels name the tries whose own outcome is the opposite of the pooled outcome. Each one makes the case `cannot decide`. */
-  readonly opposed: readonly string[];
+  /** These numbers are the rounds of the case in each slot, from slot 1 to `BENCH_SLOTS`. */
+  readonly slots: readonly number[];
+  /** This flag tells that the A/A noise of a job is above the noise cap, so the case cannot decide. More rounds do not lower it. */
+  readonly capped: boolean;
+  readonly outcome: LimitOutcome;
+  /** This text is the reason of the outcome, in one sentence. */
+  readonly reason: string;
   /** This flag tells that the base and the head give the same value. It is undefined when the bench did not compare them. */
   readonly same: boolean | undefined;
 }
 
-/** The read of a bench: the limit, the gate and the read of each case. */
+/** The read of a bench: the limit and its margin, the level and the looks of the gate, and the read of each case. */
 export interface BenchRead {
-  /** This ratio is the largest time of the head over the time of the base that the gate permits for each case. */
+  /** This ratio is the largest time of the head over the time of the A/A arm that the gate permits for each case. */
   readonly limit: number;
+  readonly margin: number;
+  /** This number is the chance of a false pass over all cases and all looks. */
+  readonly level: number;
+  readonly looks: readonly number[];
   readonly gate: Gate;
   readonly cases: readonly BenchCaseRead[];
+  /** These cases have no outcome yet, each with the rounds of its next look. The list is empty when the read is final. */
+  readonly more: readonly BudgetMore[];
 }
 
-/** One try of a bench: the children of its arms and its A/A rounds, for one case or more. */
-export interface BenchTry {
+/** One bench job of one case: the slot of the job in its case, its try, the children of its arms and its A/A rounds. */
+export interface BenchJob {
+  /** This number is the slot of the job in its case, from 1 to `BENCH_SLOTS`. A job of the second try continues the rounds of its slot. */
+  readonly slot: number;
+  /** This number is the try of the job: 1 for the first try and 2 for the second try. */
+  readonly try: number;
   readonly processes: readonly ArmProcess[];
   readonly aa: readonly PairedTime[];
 }
 
 /** The options of the read of a bench. */
 export interface BenchReadOptions {
-  /** The largest ratio of the head over the base. The default is `BENCH_LIMIT`. */
+  /** The largest ratio of the head over the A/A arm. The default is `BENCH_LIMIT`. */
   readonly limit?: number;
-  /** The noise cap of `limitVerdict` of `@mark1russell7/rigor-bench`. A case with a noisier A/A arm cannot decide. */
+  /** The largest A/A noise of a job, on a log scale. A case with more noise cannot decide. */
   readonly noiseCap?: number;
   /** This map tells, for each case, if the base and the head give the same value. */
   readonly same?: ReadonlyMap<string, boolean>;
 }
 
-/**
- * This function gives the read of a bench. The claim of each case is "the head takes at most `limit` times the time of the
- * base". The A/A rounds of each case give its noise. The gate passes only when each case is `within`.
- */
-export const benchRead = (processes: readonly ArmProcess[], aa: readonly PairedTime[], options: BenchReadOptions = {}): BenchRead =>
-  benchReadOfTries([{ processes, aa }], options);
-
-/** This function gives the round after the last round of the records. The next try of a pool starts at this round. */
+/** This function gives the round after the last round of the records. The next job of a slot starts at this round. */
 const nextRound = (records: readonly PairedTime[]): number => records.reduce((most, each) => Math.max(most, each.round + 1), 0);
 
+/** This function gives the label of the jobs of a slot. */
+const slotLabel = (slot: number): string => `slot ${slot}`;
+
 /**
- * This function gives the read of the tries of a bench. A case with one try has the limit verdict of its rounds. A case with
- * more tries has the pooled limit verdict of `@mark1russell7/rigor-bench`: the merged rounds of all its tries decide. A try
- * whose own outcome is the opposite of the pooled outcome makes the case `cannot decide`. Thus a noisy try cannot pass.
+ * This function gives the records of each slot as one job of `@mark1russell7/rigor-bench`. The label of a job is its slot.
+ * Thus each case has `BENCH_SLOTS` jobs, and the count of the jobs does not grow with the count of the cases.
+ * `notSlowerVerdict` counts each job in its joint p, also a job with no record of the case.
+ * The jobs of a slot follow their tries. The rounds of each later job of a case continue after the rounds of the earlier jobs.
  */
-export const benchReadOfTries = (tries: readonly BenchTry[], options: BenchReadOptions = {}): BenchRead => {
+export const slotJobs = (jobs: readonly BenchJob[]): readonly JobRecords[] => {
+  const slots = new Map<number, { job: string; candidate: PairedTime[]; aa: PairedTime[] }>();
+  const next = new Map<string, number>();
+  for (const each of [...jobs].sort((a, b) => a.slot - b.slot || a.try - b.try)) {
+    const job = slotLabel(each.slot);
+    const into = slots.get(each.slot) ?? { job, candidate: [], aa: [] };
+    slots.set(each.slot, into);
+    const candidate = pairedTimes(each.processes);
+    for (const id of new Set([...candidate, ...each.aa].map((record) => record.case))) {
+      const key = JSON.stringify([id, each.slot]);
+      const start = next.get(key) ?? 0;
+      const own = candidate.filter((record) => record.case === id);
+      const ownAa = each.aa.filter((record) => record.case === id);
+      into.candidate.push(...own.map((record) => ({ ...record, job, round: record.round + start })));
+      into.aa.push(...ownAa.map((record) => ({ ...record, job, round: record.round + start })));
+      next.set(key, start + Math.max(nextRound(own), nextRound(ownAa)));
+    }
+  }
+  return [...slots.values()];
+};
+
+/** This function gives the rounds of each slot of a case, from slot 1 to `BENCH_SLOTS`. A slot with no job has 0 rounds. */
+export const slotRounds = (jobs: readonly BenchJob[], id: string): readonly number[] =>
+  Array.from({ length: BENCH_SLOTS }, (_, index) =>
+    jobs.filter((each) => each.slot === index + 1).reduce((sum, each) => sum + nextRound(pairedTimes(each.processes.filter((child) => child.case === id))), 0),
+  );
+
+/**
+ * This function gives the read of the jobs of a bench. The claim of each case is "the head is not slower than the A/A arm by
+ * more than the limit". `notSlowerVerdict` of `@mark1russell7/rigor-bench` answers it with a one-sided sign test in each job.
+ * The case needs a read in each of its `BENCH_SLOTS` jobs. The gate reads at the looks of `GATE_LOOKS`, with Holm over the cases. A job with an A/A noise above
+ * the noise cap makes its case `cannot decide`. The gate passes only when each case is `within`.
+ */
+export const benchRead = (jobs: readonly BenchJob[], options: BenchReadOptions = {}): BenchRead => {
   const limit = options.limit ?? BENCH_LIMIT;
-  const verdictOptions = { limit, aaFrom: "rounds" as const, ...(options.noiseCap === undefined ? {} : { noiseCap: options.noiseCap }) };
-  const processes = tries.flatMap((each) => each.processes);
+  const margin = Math.log(limit);
+  const slots = slotJobs(jobs);
+  const verdict = notSlowerVerdict(slots, { margin, jobs: BENCH_SLOTS });
+  const processes = jobs.flatMap((each) => each.processes);
   const ids = [...new Set(processes.map((each) => each.case))];
   const times = ids.flatMap((id) => armTimes(processes.filter((each) => each.case === id)));
   const timeOfArm = (arm: string, id: string): number => times.find((each) => each.arm === arm && each.case === id)?.median ?? Number.NaN;
   const cases = ids.flatMap((id): BenchCaseRead[] => {
-    const own = tries
-      .filter((each) => each.processes.some((child) => child.case === id))
-      .map((each) => ({ candidate: pairedTimes(each.processes.filter((child) => child.case === id)), aa: each.aa.filter((record) => record.case === id) }));
-    let read: { verdict: LimitVerdict; outcome: LimitVerdict["outcome"]; opposed: readonly string[] };
-    const [only] = own;
-    if (only !== undefined && own.length === 1) {
-      const verdict = limitVerdict(only.candidate, only.aa, verdictOptions);
-      read = { verdict, outcome: verdict.cases[0]?.outcome ?? "cannot decide", opposed: [] };
-    } else {
-      // Each try gets its own label and its own rounds, so that the pool has one record of each round of each case.
-      let start = 0;
-      const jobs = own.map((each, index) => {
-        const job = `try ${index + 1}`;
-        const tag = (records: readonly PairedTime[]): PairedTime[] => records.map((record) => ({ ...record, job, round: record.round + start }));
-        const tagged = { job, candidate: tag(each.candidate), aa: tag(each.aa) };
-        start += Math.max(nextRound(each.candidate), nextRound(each.aa));
-        return tagged;
-      });
-      const pooled = pooledLimitVerdict(jobs, verdictOptions);
-      read = { verdict: pooled.pooled, outcome: pooled.outcome, opposed: pooled.opposed };
-    }
-    const each = read.verdict.cases[0];
-    if (each === undefined) return [];
+    const found = verdict.cases.find((each) => each.case === id);
+    if (found === undefined) return [];
+    // The A/A statistics of each job: one runner gives the noise of its own rounds.
+    const stats = jobs.flatMap((job) => {
+      const own = job.aa.filter((record) => record.case === id);
+      return own.length === 0 ? [] : aaStats(own);
+    });
+    const noise = Math.max(0, ...stats.map((each) => each.spread));
+    const cap = options.noiseCap;
+    const capped = cap !== undefined && found.outcome === "within" && noise > cap;
+    const baseMs = timeOfArm(BASE_ARM, id);
+    const headMs = timeOfArm(HEAD_ARM, id);
     return [
       {
         case: id,
-        baseMs: timeOfArm(BASE_ARM, id),
-        headMs: timeOfArm(HEAD_ARM, id),
-        ratio: each.ratio,
-        low: each.low,
-        high: each.high,
-        noise: each.noise,
-        bound: each.bound,
-        outcome: read.outcome,
-        tries: own.length,
-        opposed: read.opposed,
+        baseMs,
+        headMs,
+        ratio: headMs / baseMs,
+        jobs: found.jobs,
+        look: found.look,
+        noise,
+        slots: slotRounds(jobs, id),
+        capped,
+        outcome: capped ? "cannot decide" : found.outcome,
+        reason: capped ? `The case "${id}" cannot decide: the A/A noise ${noise.toFixed(4)} of a job is above the noise cap ${cap}.` : found.reason,
         same: options.same?.get(id),
       },
     ];
   });
   const gate = gateOf(cases.map((each) => ({ case: each.case, outcome: each.outcome })));
-  return { limit, gate, cases };
+  return { limit, margin, level: verdict.level, looks: verdict.looks, gate, cases, more: verdict.more };
 };
 
 const fixed = (value: number, digits: number): string => (Number.isFinite(value) ? value.toFixed(digits) : "none");
+
+/** This function gives the text of the jobs of a case read: the pairs below the margin and the pairs of each job. */
+const jobsText = (jobs: readonly GateJobRead[]): string => jobs.map((each) => (each.centre === undefined ? `${each.rounds} pairs` : `${each.below} of ${each.rounds}`)).join(", ");
 
 /** This function gives the summary of a bench in Markdown: one row for each case, then the gate and its reason. */
 export const benchSummaryOf = (read: BenchRead, commits: { readonly base: string; readonly head: string }): string => {
   const rows = read.cases.map((each) => {
     const same = each.same === undefined ? "not compared" : each.same ? "yes" : "**no**";
-    return `| ${escapeMarkdown(each.case)} | ${fixed(each.baseMs, 1)} | ${fixed(each.headMs, 1)} | ${fixed(each.ratio, 3)} | ${fixed(each.low, 3)} to ${fixed(each.high, 3)} | ${fixed(each.noise, 3)} | ${fixed(each.bound, 3)} | ${each.outcome} | ${each.tries} | ${same} |`;
+    const look = each.look === undefined ? "none" : String(each.look);
+    return `| ${escapeMarkdown(each.case)} | ${fixed(each.baseMs, 1)} | ${fixed(each.headMs, 1)} | ${fixed(each.ratio, 3)} | ${jobsText(each.jobs)} | ${look} | ${fixed(each.noise, 3)} | ${each.outcome} | ${same} |`;
   });
   return [
     `## The bench of the scale query`,
     ``,
-    `The base is \`${commits.base.slice(0, 12)}\` and the head is \`${commits.head.slice(0, 12)}\`. The limit of each case is ${read.limit} times the time of the base. The bound is the high end of the interval times the A/A noise of the case, as a ratio. A case is within the limit only when its bound is at most the limit. A case with more than one try pools the rounds of its tries, and a try with the opposite outcome makes it cannot decide.`,
+    `The base is \`${commits.base.slice(0, 12)}\` and the head is \`${commits.head.slice(0, 12)}\`. The claim of each case is "the head is not slower than the A/A arm by more than ${read.limit} times".`,
+    `Each pair is one round: the log ratio of the head over the base, less the log ratio of the A/A arm. A sign test in each job compares the pairs with the margin.`,
+    `A case is within the limit when each of its ${BENCH_SLOTS} jobs reads it at one look of ${read.looks.join(", ")} rounds. The chance of a false pass is ${read.level} over all cases and looks.`,
     ``,
-    `| Case | Base (ms) | Head (ms) | Head / base | Interval | A/A noise | Bound | Outcome | Tries | Same result |`,
-    `| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |`,
+    `| Case | Base (ms) | Head (ms) | Head / base | Pairs below the margin, each job | Look | A/A noise | Outcome | Same result |`,
+    `| --- | --- | --- | --- | --- | --- | --- | --- | --- |`,
     ...rows,
     ``,
     `The gate gives **${read.gate.outcome}**: ${read.gate.reason}`,
@@ -298,6 +357,10 @@ export interface BenchRecord {
   readonly same: boolean;
   /** The hashes of the values of the case on the base and on the head, from `resultHash`. */
   readonly hashes: { readonly base: string; readonly head: string };
+  /** This number is the slot of the job in its case, from 1 to `BENCH_SLOTS`. A record with no slot is in slot 1. */
+  readonly slot?: number;
+  /** This number is the try of the job: 1 or 2. A record with no try is of the first try. */
+  readonly try?: number;
 }
 
 /**
@@ -380,7 +443,7 @@ export interface BenchGate {
 /**
  * This function gives the gate of the bench records of a run. The `cases` are the ids of the cases of the bench. A changed case
  * that a change of value names is not timed against the base, because its times compare different work. A case can have a
- * record of each try. Its read pools the tries, and it is the same only when each try gives the same value. It throws an
+ * record of each slot and each try. Its read joins them with `benchRead`, and it is the same only when each job gives the same value. It throws an
  * `Error` when the records have more than one base or head, or no record.
  */
 export const benchGate = (records: readonly BenchRecord[], cases: readonly string[], options: BenchGateOptions = {}): BenchGate => {
@@ -398,8 +461,8 @@ export const benchGate = (records: readonly BenchRecord[], cases: readonly strin
   const timed = records.filter((each) => !skipped.has(each.case));
   const same = new Map<string, boolean>();
   for (const each of records) same.set(each.case, (same.get(each.case) ?? true) && each.same);
-  const read = benchReadOfTries(
-    timed.map((each) => ({ processes: each.processes, aa: each.aa })),
+  const read = benchRead(
+    timed.map((each) => ({ slot: each.slot ?? 1, try: each.try ?? 1, processes: each.processes, aa: each.aa })),
     { ...readOptions, same },
   );
   const used = new Set(intended.map((each) => changeOf(each)));
@@ -418,35 +481,38 @@ export const benchGate = (records: readonly BenchRecord[], cases: readonly strin
   };
 };
 
-/** This count is the count of the fresh jobs that measure each case of the second try. The read pools them with the first try. */
-export const BENCH_AGAIN_TRIES = 2;
-
-/** One job of the second try: the case, the index of the job and the number of its try. */
+/** One job of the second try: the case, the index of the job, its slot, its try and its rounds. */
 export interface BenchAgainJob {
   readonly case: string;
   readonly index: number;
+  readonly slot: number;
   readonly try: number;
+  readonly rounds: number;
 }
 
 /**
- * This function gives the jobs of the second try: `tries` fresh jobs for each case of `again`, in the order of `ids`. Each job
- * has its own index, so each job has its own artifact.
+ * This function gives the jobs of the second try, in the order of `ids`. Each job has its own index, so each job has its own artifact.
+ *
+ * - A case with no outcome gets one fresh job for each slot with fewer rounds than the next look of the case. The job measures the rounds that the slot lacks.
+ * - A case with no record gets `BENCH_SLOTS` jobs of `BENCH_ROUNDS` rounds.
+ * - The function gives no job when the gate passes or when a case is beyond the limit or above the noise cap.
+ * - It gives no job when a change of value has no reason. A new job cannot change those verdicts.
  */
-export const benchAgainJobs = (ids: readonly string[], again: readonly string[], tries: number = BENCH_AGAIN_TRIES): readonly BenchAgainJob[] => {
-  if (!Number.isInteger(tries) || tries < 1) throw new RangeError(`The count of the tries must be a positive integer, not ${tries}.`);
-  const chosen = ids.filter((id) => again.includes(id));
-  return chosen.flatMap((id, position) => Array.from({ length: tries }, (_, index) => ({ case: id, index: position * tries + index, try: index + 2 })));
-};
-
-/**
- * This function gives the cases of a gate that a fresh job measures again: each case that cannot decide, and each case
- * with no record. It gives no case when the gate passes, when a case is beyond the limit, or when a change of value has no
- * reason. A new job cannot change those verdicts.
- */
-export const benchAgainOf = (gate: BenchGate): readonly string[] => {
+export const benchAgainOf = (gate: BenchGate, ids: readonly string[]): readonly BenchAgainJob[] => {
   if (gate.read.gate.outcome === "pass" && gate.missing.length === 0) return [];
-  if (gate.unexplained.length > 0 || gate.read.cases.some((each) => each.outcome === "beyond")) return [];
-  return [...gate.read.cases.filter((each) => each.outcome === "cannot decide").map((each) => each.case), ...gate.missing];
+  if (gate.unexplained.length > 0 || gate.read.cases.some((each) => each.outcome === "beyond" || each.capped)) return [];
+  const lacking = (id: string): readonly number[] => {
+    if (gate.missing.includes(id)) return Array.from({ length: BENCH_SLOTS }, () => BENCH_ROUNDS);
+    const more = gate.read.more.find((each) => each.case === id);
+    if (more === undefined) return [];
+    const slots = gate.read.cases.find((each) => each.case === id)?.slots ?? [];
+    return Array.from({ length: BENCH_SLOTS }, (_, index) => more.rounds - (slots[index] ?? 0));
+  };
+  const jobs: BenchAgainJob[] = [];
+  for (const id of ids) {
+    for (const [index, rounds] of lacking(id).entries()) if (rounds > 0) jobs.push({ case: id, index: jobs.length, slot: index + 1, try: 2, rounds });
+  }
+  return jobs;
 };
 
 /** This function gives the notes of a gate after its table: the changes of value, and the cases with no record. */
