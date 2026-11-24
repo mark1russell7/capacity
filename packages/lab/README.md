@@ -593,7 +593,30 @@ The first run of the plan is [Lab run 45247869988](https://github.com/mark1russe
 - The cores increase linearly with the rate. One event costs approximately 7 ms of CPU time.
 - The live heap and the GC time increase with the rate. At 100 events each second, each of the 10 starts reached the heap limit of V8 (556 MB).
 - Thus the heap limit is the first resource that binds, at a rate from 30 to 100 events each second.
-- The jobs are on 3 CPU models. A law needs 5 jobs and 40 points on one CPU model, thus this run gives no law. CAP-36 adds runs and fits the laws.
+- The jobs are on 3 CPU models. A law needs 5 jobs and 40 points on one CPU model, thus this run gives no law.
+
+The second run is the Lab run [45351701555](https://github.com/mark1russell7/capacity/actions/runs/45351701555), with 15 jobs. The run [45382785749](https://github.com/mark1russell7/capacity/actions/runs/45382785749) of `laws.yml` fits the laws over the two runs (CAP-36).
+
+- The 15 jobs on the Intel Xeon 6975P-C give 4 laws, with 75 points from 0 to 30 events each second. The other CPU models have too few jobs.
+- Each law is of the arm `main` at the first start. The intervals are 95 % intervals over whole jobs.
+
+| The measure | The law | The limit that it reaches |
+| --- | --- | --- |
+| `watchCores` | A line: 0.0130 [0.0090, 0.0162] cores, and 5.46 ms [4.62, 6.61] of CPU time for each event | 1 core at 181 [150, 213] events each second |
+| `watchHeapPeak` | A hinge: 207.1 MB, and 20.4 MB for each event each second to the bend at 6.2 [0.5, 7.4] events each second. After the bend, 4.9 MB. | The heap limit of V8 at 52 [42, 59] events each second |
+| `watchPeak` | A line: 412.0 MB [407.6, 416.5], and 12.41 MB [12.06, 12.81] for each event each second | The memory limit of the target at 48 [47, 50] events each second |
+| `ready` | A constant: 5.15 s [4.98, 5.34] | None. The rate of events does not change the time to ready. |
+
+- The memory binds first, not the CPU. At 48 events each second, the law of the cores gives 0.28 cores of the 2 CPUs of the target.
+- The two limits of the memory are at 48 and 52 events each second, and their intervals overlap. Thus the lab cannot tell which limit comes first.
+- The two reaches are outside the range of the fit. The failures at 100 events each second agree with them: each child reached the heap limit of V8.
+- CAP-86 adds rungs from 30 to 100 events each second. Then the first limit is inside the range of a fit.
+- At 30 events each second, two jobs give 0.31 and 0.33 cores, two times the median of 0.155. The line still has the smallest error on the held-out jobs.
+- The rule `floor` with the share 1 gives the knees in events each second:
+  - `watchCores` at 2.4 [1.4, 3.5]
+  - `watchHeapPeak` at 23.0 [19.2, 25.4]
+  - `watchPeak` at 33.2 [32.0, 34.3].
+- The CPU time of one event is less than the 7 ms of the first run. That value was a median over 3 CPU models.
 
 #### The load ladder of updates
 
@@ -707,20 +730,21 @@ The container does not model all of the target machine:
 - The CPUs of the host of the lab are not the CPUs of the target. Thus a time of the lab is a time on the CPU of the record.
 - The page cache of the store counts in the memory of the container. The kernel takes back clean cache first.
 
-Two plans measure the start of alerts with the start subject `alerts`. Each one has no check and no trigger. The arm `cloud` is the build of the cloud machine with the graft of the measured start.
+Two plans measure the start of alerts at the knee of the cloud log, from the contract of alerts. Each one has no check and no trigger.
 
 - `alerts-start-bytes-mean` and `alerts-start-bytes-peak` measure the knee of the cloud log on the model of the cloud machine. The model has a cold cache, the other processes and the disk of the machine.
   - The point `cut-1030` is the log at the last start that was ready in 90 s. A count of the events of the cloud log gives its size.
   - The point `file-1844` is the log when the starts stopped at 90 s. The two points are 3% apart. The point `file-1844-again` is a second start after `file-1844`.
   - The disk has the mean rate or the peak rate of a study of the cloud start. The cap of the operations is the byte rate divided by 4 KiB. Thus the byte rate binds, and not the count of the operations.
   - A live start of the cloud machine read at 3.2 MiB/s or more. Its disk gives a mean of 11.2 KiB and 15.9 ms for each read. The lab does not model that delay.
-  - The arms are the cloud build and the current build with the snapshot. The current build also gives the time of each write of the snapshot.
+  - The one arm is alerts at `caf260b`. Its contract names the lines `pass` and `write`, thus each child gives its passes and the times of each write of the snapshot.
+  - Before CAP-65, the plans had the start subject `alerts` and the arm `cloud`, the build of the cloud machine. That build has no contract. Its results and its two facts of the machine are in the section below.
 
 The plan `alerts-start-app` starts alerts from its contract, on the commit of the seeder.
 
 - The case `alerts-start-app/contract` starts alerts from `capacity-app.json`. It seeds with the seed `al124` and the cache sizes of one live copy.
 - The two arms are the same build. The arm `deploy` adds the ballast of the deploy process at ready.
-- The contract can give the passes and the writes of the snapshot (CAP-65). The contract of alerts names them after alerts writes a line for each write. Then a change removes the start subject `alerts` and its programs.
+- The contract of alerts names the passes and the writes of the snapshot from `caf260b` (CAP-65). The bytes plans use that commit. Then a change removes the start subject `alerts` and its programs.
 
 #### The results of the plans of the start of alerts
 
@@ -753,7 +777,7 @@ An observation is a fact of the machine, for example "the cloud build was not re
   - At `cut-1030`, the `readiness` of `cloud` is 416.3 to 461.6 s, and that of the other three arms is 473.0 to 501.6 s.
   - At `file-1844-again`, the snapshot arms `checkpoint` and `snapshot` have a `readiness` of 421.6 to 422.7 s, and `full` has 496.1 to 510.6 s.
   - Each job exits 1: at `cut-1030`, `cloud` and `cloud~aa` are late, and the machine is ready in 90 s. Thus the cap of the operations made the disk of the lab too slow. The bytes plans replace it.
-- **`alerts-start-bytes-mean`** (the run [45001158462](https://github.com/mark1russell7/capacity/actions/runs/45001158462)):
+- **`alerts-start-bytes-mean`** (with the start subject `alerts`, the run [45001158462](https://github.com/mark1russell7/capacity/actions/runs/45001158462)):
   - Each child is ready in 90 s, but the machine is not ready at `file-1844`. Thus each job exits 1.
   - At `cut-1030` and `file-1844`, the `readiness` of `cloud` and `cloud~aa` is 62.2 to 67.1 s, and that of `main` is 72.6 to 77.9 s.
   - There, each child of `main` writes one snapshot, and the longest block of one write is 406.6 to 515.1 ms.

@@ -1,39 +1,20 @@
 {
   "format": "capacity-plan/1",
   "id": "alerts-start-bytes-mean",
-  "title": "The ready time of alerts and the writes of its snapshot on the byte rate of the disk of the cloud machine at the mean rate, at the knee of the cloud log",
+  "title": "The ready time of alerts from its contract and the writes of its snapshot on the byte rate of the disk of the cloud machine at the mean rate, at the knee of the cloud log",
   "check": null,
   "triggers": [],
   "cases": [
     {
       "format": "capacity-start/1",
-      "subject": "alerts",
-      "seeder": "5b70d7ea8b15ea2eeb5cdcf1c0012de0a2f79b43",
+      "id": "alerts-start/bytes-mean",
+      "title": "The start of alerts from capacity-app.json at the knee of the cloud log, on the byte rate of the disk of the cloud machine at the mean rate, with a cold cache and the other processes of the machine",
+      "subject": "alerts-runtime",
+      "app": "https://github.com/metrograph-labs/alerts.git",
       "arms": [
         {
-          "id": "cloud",
-          "commit": "350cff5465fb4df643b58da679c9cb4be2eb5864",
-          "graft": [
-            {
-              "path": "packages/runtime/src/measured-start.ts",
-              "commit": "46511d49506cf93414bf512e21c0177cd47abf47"
-            }
-          ],
-          "ballast": [
-            {
-              "bytes": {
-                "value": 72351744,
-                "unit": "B"
-              },
-              "at": "ready",
-              "models": "The esbuild process of the first deploy of the outage call at the good start, from a study of the start on the cloud machine on 2026-11-21, with 23 samples of 5 s from /proc and /sys of the child: 69 MiB of resident memory."
-            }
-          ]
-        },
-        {
           "id": "main",
-          "commit": "a808b1f0d8880e0b43c5029f2ef6e896bfa750ad",
-          "snapshot": true,
+          "commit": "caf260b702ceb1cd8b47ba2880ff6515d568c702",
           "ballast": [
             {
               "bytes": {
@@ -46,7 +27,8 @@
           ]
         }
       ],
-      "seed": "capacity-start-1",
+      "seeder": "caf260b702ceb1cd8b47ba2880ff6515d568c702",
+      "seed": "al124",
       "rounds": 1,
       "watch": {
         "value": 120,
@@ -107,62 +89,6 @@
           }
         ]
       },
-      "id": "alerts-start/bytes-mean",
-      "title": "The start of alerts at the knee of the cloud log, on the byte rate of the disk of the cloud machine at the mean rate, with a cold cache and the other processes of the machine",
-      "points": [
-        {
-          "id": "cut-1030",
-          "at": {
-            "log": {
-              "value": 191089706,
-              "unit": "B"
-            },
-            "shapes": {
-              "value": 46329856,
-              "unit": "B"
-            },
-            "transit": {
-              "value": 3122485,
-              "unit": "B"
-            }
-          }
-        },
-        {
-          "id": "file-1844",
-          "at": {
-            "log": {
-              "value": 197156864,
-              "unit": "B"
-            },
-            "shapes": {
-              "value": 46329856,
-              "unit": "B"
-            },
-            "transit": {
-              "value": 3122485,
-              "unit": "B"
-            }
-          }
-        },
-        {
-          "id": "file-1844-again",
-          "at": {
-            "log": {
-              "value": 197156864,
-              "unit": "B"
-            },
-            "shapes": {
-              "value": 46329856,
-              "unit": "B"
-            },
-            "transit": {
-              "value": 3122485,
-              "unit": "B"
-            }
-          },
-          "after": "file-1844"
-        }
-      ],
       "limit": {
         "value": 480,
         "unit": "s"
@@ -177,26 +103,35 @@
           "unit": "ms"
         }
       ],
-      "observed": [
+      "observed": [],
+      "points": [
         {
-          "point": "cut-1030",
-          "arm": "cloud",
-          "window": {
-            "value": 90,
-            "unit": "s"
-          },
-          "ready": true,
-          "source": "The file host/start-times.json of the cloud copy, read on 2026-11-21 at 18:3xZ: 20 good starts of 350cff5 from 2026-11-20 19:14:29Z to 2026-11-21 10:30:25Z, each one ready in the window of 90 s. The size of the log is the file of 18:44Z (197156864 B) times the share of the body characters up to the last good start (cb / b). Read: 2026-11-21T18:54:56Z to 18:56:01Z (65 s), on the cloud machine. The command was `timeout 180 nice -n 19 ionice -c3 /opt/node/bin/node`, with node:sqlite `DatabaseSync(<home>/runtime.sqlite, { readOnly: true })`. The exit code was 0. The query was one scan with the cut as a bound parameter, '2026-11-21T10:30:25.056Z' for both `?`: SELECT count(*) AS n, sum(length(body)) AS b, count(CASE WHEN at <= ? THEN 1 END) AS cn, sum(CASE WHEN at <= ? THEN length(body) END) AS cb FROM events Total: n = 145524 events, b = 158938576. Cut (at <= 10:30:25.056Z): cn = 141779 events, cb = 154047519. `at` is the ISO text of `toISOString()`, so the text comparison is a time comparison. `length(body)` counts characters, not bytes."
+          "id": "cut-1030",
+          "at": {
+            "log": {
+              "value": 191089706,
+              "unit": "B"
+            }
+          }
         },
         {
-          "point": "file-1844",
-          "arm": "cloud",
-          "window": {
-            "value": 90,
-            "unit": "s"
+          "id": "file-1844",
+          "at": {
+            "log": {
+              "value": 197156864,
+              "unit": "B"
+            }
+          }
+        },
+        {
+          "id": "file-1844-again",
+          "at": {
+            "log": {
+              "value": 197156864,
+              "unit": "B"
+            }
           },
-          "ready": false,
-          "source": "The supervisor of the cloud copy on 2026-11-21: 141 starts in a row by 18:44Z, each one stopped at the end of the ready window of 90 s. The stat of runtime.sqlite gave 197156864 B at 18:44Z."
+          "after": "file-1844"
         }
       ]
     }
