@@ -37,9 +37,10 @@ const law = (subject: string, variable: string, measure: string, cpu = "CPU A"):
   measure,
   unit: "1",
   cpu,
+  lawClass: undefined,
 });
 
-const plan = (id: string, subjects: readonly string[], variable: string | undefined, start: readonly string[] = []): PlanEntry => ({ id, title: id, subjects, variable, start });
+const plan = (id: string, subjects: readonly string[], variable: string | undefined, start: readonly string[] = []): PlanEntry => ({ id, title: id, subjects, variable, start, lawClass: undefined, knees: {} });
 
 describe("the lists of the page and of the lab", () => {
   it("has the load variables of the grid of the lab, in its order and with its titles", () => {
