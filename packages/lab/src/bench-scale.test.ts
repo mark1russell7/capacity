@@ -1,0 +1,153 @@
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+import { afterEach, describe, expect, it } from "vitest";
+import type { PairedTime } from "@mark1russell7/rigor-bench";
+import type { ArmProcess } from "@mark1russell7/rigor-bench/fresh";
+import {
+  AA_ARM,
+  BASE_ARM,
+  BENCH_FORMAT,
+  BENCH_RECORD,
+  HEAD_ARM,
+  benchCases,
+  benchGate,
+  benchRead,
+  benchSummaryOf,
+  pairedTimes,
+  readBenchRecords,
+  resultHash,
+  type BenchRecord,
+} from "./bench-scale.ts";
+import { readCompositions, readLaws } from "./jobs.ts";
+
+/** This folder holds the files of the package capacity. */
+const CAPACITY = fileURLToPath(new URL("../../capacity/", import.meta.url));
+
+const ROUNDS = 6;
+
+/**
+ * This function gives the children of a run of 3 arms on one case: the base, the A/A base and the head. The head takes
+ * `factor` times the time of the base. The order of the arms turns each round, and the times have a small seeded spread.
+ */
+const processesOf = (id: string, factor: number): { processes: ArmProcess[]; aa: PairedTime[] } => {
+  const processes: ArmProcess[] = [];
+  const aa: PairedTime[] = [];
+  for (let round = 0; round < ROUNDS; round += 1) {
+    const wobble = 1 + 0.002 * ((round % 3) - 1);
+    const order = round % 2 === 0 ? [BASE_ARM, AA_ARM, HEAD_ARM] : [HEAD_ARM, AA_ARM, BASE_ARM];
+    const ms: Record<string, number> = { [BASE_ARM]: 100 * wobble, [AA_ARM]: 100 / wobble, [HEAD_ARM]: 100 * factor * wobble };
+    for (const [position, arm] of order.entries()) processes.push({ arm, case: id, round, position, ms: ms[arm] as number });
+    aa.push({ case: id, round, first: order.indexOf(BASE_ARM) < order.indexOf(AA_ARM) ? "a" : "b", a: ms[BASE_ARM] as number, b: ms[AA_ARM] as number });
+  }
+  return { processes, aa };
+};
+
+const ENV = { cpu: "Test CPU", cores: 4, os: "linux", arch: "x64", node: "v26.0.0" };
+
+const recordOf = (id: string, factor: number, same = true, commits = { base: "a".repeat(40), head: "b".repeat(40) }): BenchRecord => ({
+  format: BENCH_FORMAT,
+  case: id,
+  commits,
+  env: ENV,
+  rounds: ROUNDS,
+  ...processesOf(id, factor),
+  same,
+});
+
+let folder = "";
+afterEach(() => {
+  if (folder !== "") rmSync(folder, { recursive: true, force: true });
+  folder = "";
+});
+
+describe("benchCases", () => {
+  const catalog = { laws: readLaws(join(CAPACITY, "laws")), compositions: readCompositions(join(CAPACITY, "compositions")) };
+  const cases = benchCases(catalog);
+
+  it("gives a scale case and a reach case for each composition of the processor time, and the case knee", () => {
+    const cpus = catalog.compositions.filter((each) => each.measure.id === "cpu").map((each) => each.id);
+    expect(cpus.length).toBeGreaterThan(0);
+    expect(cases.map((each) => each.id)).toEqual([...cpus.flatMap((id) => [`scale:${id}`, `reach:${id}`]), "knee"]);
+  });
+
+  it("gives the same hash for two calls of a case, so a child of each arm has one hash", async () => {
+    const api = await import("@mark1russell7/capacity");
+    const fast = cases.find((each) => each.id.startsWith("reach:node-http/"));
+    expect(fast).toBeDefined();
+    if (fast === undefined) return;
+    expect(resultHash(fast.run(api))).toBe(resultHash(fast.run(api)));
+  });
+});
+
+describe("resultHash", () => {
+  it("gives the same hash for two orders of the keys, and writes an infinite number as null", () => {
+    expect(resultHash({ a: 1, b: [2, Infinity] })).toBe(resultHash({ b: [2, null], a: 1 }));
+    expect(resultHash({ a: 1 })).not.toBe(resultHash({ a: 2 }));
+  });
+});
+
+describe("pairedTimes", () => {
+  it("gives one record for each round, with the base as a, the head as b and the arm that started first", () => {
+    const { processes } = processesOf("x", 0.5);
+    const records = pairedTimes(processes);
+    expect(records).toHaveLength(ROUNDS);
+    expect(records[0]).toEqual({ case: "x", round: 0, first: "a", a: processes[0]?.ms, b: processes[2]?.ms });
+    expect(records[1]?.first).toBe("b");
+  });
+
+  it("gives no record for a round without the head", () => {
+    const { processes } = processesOf("x", 0.5);
+    expect(pairedTimes(processes.filter((each) => !(each.arm === HEAD_ARM && each.round === 0)))).toHaveLength(ROUNDS - 1);
+  });
+});
+
+describe("benchRead", () => {
+  it("passes a head that takes half the time of the base", () => {
+    const { processes, aa } = processesOf("x", 0.5);
+    const read = benchRead(processes, aa, { limit: 1.1 });
+    expect(read.gate.outcome).toBe("pass");
+    expect(read.cases[0]?.ratio).toBeCloseTo(0.5, 2);
+    expect(read.cases[0]?.headMs).toBeLessThan(read.cases[0]?.baseMs ?? 0);
+  });
+
+  it("blocks a head that takes twice the time of the base", () => {
+    const { processes, aa } = processesOf("x", 2);
+    expect(benchRead(processes, aa, { limit: 1.1 }).gate.outcome).toBe("block");
+  });
+
+  it("cannot pass when the A/A spread is above the noise cap", () => {
+    const { processes, aa } = processesOf("x", 0.5);
+    const noisy = aa.map((each, index) => ({ ...each, b: each.b * (index % 2 === 0 ? 1.5 : 0.7) }));
+    expect(benchRead(processes, noisy, { limit: 1.1, noiseCap: 0.05 }).gate.outcome).toBe("no read");
+  });
+});
+
+describe("benchGate", () => {
+  it("reads the records of all the cases, and names the cases with no record and the changed cases", () => {
+    const result = benchGate([recordOf("x", 0.5), recordOf("y", 0.6, false)], ["x", "y", "z"]);
+    expect(result.read.cases.map((each) => each.case)).toEqual(["x", "y"]);
+    expect(result.missing).toEqual(["z"]);
+    expect(result.changed).toEqual(["y"]);
+    expect(benchSummaryOf(result.read, result.commits)).toContain("| y |");
+  });
+
+  it("refuses records of two pairs of commits, and a run with no record", () => {
+    expect(() => benchGate([recordOf("x", 0.5), recordOf("y", 0.5, true, { base: "c".repeat(40), head: "b".repeat(40) })], ["x", "y"])).toThrow(/two pairs/);
+    expect(() => benchGate([], ["x"])).toThrow(/no bench record/);
+  });
+});
+
+describe("readBenchRecords", () => {
+  it("reads each record in the subfolders, and refuses a file of another format", () => {
+    folder = mkdtempSync(join(tmpdir(), "bench-records-"));
+    for (const [name, record] of [["bench-0-1", recordOf("x", 0.5)], ["bench-1-1", recordOf("y", 0.5)]] as const) {
+      mkdirSync(join(folder, name));
+      writeFileSync(join(folder, name, BENCH_RECORD), JSON.stringify(record));
+    }
+    expect(readBenchRecords(folder).map((each) => each.case)).toEqual(["x", "y"]);
+    writeFileSync(join(folder, "bench-0-1", BENCH_RECORD), JSON.stringify({ format: "other" }));
+    expect(() => readBenchRecords(folder)).toThrow(/not a bench record/);
+  });
+});

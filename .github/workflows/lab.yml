@@ -16,6 +16,11 @@
 # The job gate starts when the run has a gate plan (the field gate). It reads the records of each job of the run and
 # compares them with the laws of the plan of the laws (gate.main.ts). A gate that does not give the outcome that its plan
 # expects fails the job. A gate with no read fails the job too: no read is not a pass.
+#
+# The bench of the scale query times the head against its base commit, one job for each case (bench-scale.main.ts). A pull
+# request always starts it. Its gate, the job bench-gate, fails when a case takes more than 1.1 times the time of the base,
+# when a case is too noisy to decide, or when a case has no record. For example, one run of the bench only:
+#     gh workflow run lab.yml -R mark1russell7/capacity --ref <branch> -f bench=only
 name: Lab
 
 on:
@@ -27,6 +32,15 @@ on:
         default: ""
       runs:
         description: The numbers of the runs, as a JSON list. Each run of each plan is a job on its own runner. Empty gives each plan its count of jobs.
+        type: string
+        default: ""
+      bench:
+        description: The bench of the scale query. "with" starts it with the plans, "only" starts only the bench, and "none" starts no bench.
+        type: choice
+        options: [with, only, none]
+        default: with
+      base:
+        description: The base commit of the bench. Empty gives origin/main.
         type: string
         default: ""
   schedule:
@@ -79,6 +93,7 @@ jobs:
     outputs:
       matrix: ${{ steps.plan.outputs.matrix }}
       gates: ${{ steps.plan.outputs.gates }}
+      bench: ${{ steps.plan.outputs.bench }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -90,22 +105,42 @@ jobs:
           node-version: 26
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      # A plan file with a problem, an unknown id and a selection with no plan stop the run here
+      # A plan file with a problem, an unknown id and a selection with no plan stop the run here.
+      # A pull request always gets the plans and the bench. A dispatch with bench "only" gets no plan.
       - id: plan
         name: The plans of the run
         env:
           EVENT: ${{ github.event_name }}
           PLANS: ${{ inputs.plans }}
           RUNS: ${{ inputs.runs }}
+          BENCH: ${{ inputs.bench }}
         run: |
-          matrix=$(node packages/lab/src/timed.main.ts plan --event "$EVENT" --plans "$PLANS" --runs "$RUNS")
+          if [ "$EVENT" = "workflow_dispatch" ] && [ "$BENCH" = "only" ]; then
+            matrix='[]'
+            gates='[]'
+          else
+            matrix=$(node packages/lab/src/timed.main.ts plan --event "$EVENT" --plans "$PLANS" --runs "$RUNS")
+            gates=$(node packages/lab/src/timed.main.ts gates --event "$EVENT" --plans "$PLANS")
+          fi
+          if [ "$EVENT" = "pull_request" ] || { [ "$EVENT" = "workflow_dispatch" ] && [ "$BENCH" != "none" ]; }; then
+            bench=$(node packages/lab/src/bench-scale.main.ts cases)
+          else
+            bench='[]'
+          fi
+          if [ "$EVENT" = "pull_request" ] && { [ "$matrix" = "[]" ] || [ "$bench" = "[]" ]; }; then
+            echo "::error::A pull request needs each plan and the bench. The plan of the run is empty."
+            exit 1
+          fi
           echo "$matrix"
+          echo "$bench"
           echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
-          gates=$(node packages/lab/src/timed.main.ts gates --event "$EVENT" --plans "$PLANS")
           echo "gates=$gates" >> "$GITHUB_OUTPUT"
+          echo "bench=$bench" >> "$GITHUB_OUTPUT"
 
   lab:
     needs: plan
+    # a dispatch of the bench only has no plan
+    if: needs.plan.outputs.matrix != '[]'
     strategy:
       # each run gives its records, also when another run fails
       fail-fast: false
@@ -189,10 +224,76 @@ jobs:
           RECORDS: ${{ runner.temp }}/gate-records
         run: node packages/lab/src/gate.main.ts --records "$RECORDS"
 
+  # The bench of the scale query (bench-scale.main.ts): one job for each case. Each round starts a fresh child for the
+  # base commit, the head and a second base child, the A/A pair. The job uploads its record as bench-<index>-<attempt>.
+  bench:
+    needs: plan
+    if: needs.plan.outputs.bench != '[]'
+    strategy:
+      fail-fast: false
+      # the convention of the shared runners: at most 3 jobs of a matrix at once
+      max-parallel: 3
+      matrix:
+        include: ${{ fromJSON(needs.plan.outputs.bench) }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      # the worktree of the base commit needs the history
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 26
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: The bench of the case
+        env:
+          CASE: ${{ matrix.case }}
+          BASE: ${{ github.event.pull_request.base.sha || inputs.base || 'origin/main' }}
+          OUT: ${{ runner.temp }}/bench-records
+        run: node packages/lab/src/bench-scale.main.ts measure --case "$CASE" --base "$BASE" --out "$OUT"
+      - name: The record of the case
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: bench-${{ matrix.index }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/bench-records
+          if-no-files-found: warn
+
+  # The gate of the bench: each case must take at most 1.1 times the time of the base. A noisy case cannot decide, and a
+  # case with no record has no read. Both fail the job, because no read is not a pass.
+  bench-gate:
+    needs: [plan, bench]
+    if: ${{ !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.bench != '[]' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 26
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: The records of the bench
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: bench-*-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/bench-records
+      - name: The gate of the bench
+        env:
+          RECORDS: ${{ runner.temp }}/bench-records
+        run: node packages/lab/src/bench-scale.main.ts gate --records "$RECORDS"
+
   lab-ok:
     name: Lab OK
     if: ${{ !cancelled() }}
-    needs: [changes, plan, lab, gate]
+    needs: [changes, plan, lab, gate, bench, bench-gate]
     runs-on: ubuntu-latest
     timeout-minutes: 2
     permissions: {}
@@ -200,5 +301,6 @@ jobs:
       - uses: mark1russell7/template/.github/actions/gate-summary@b00e6c77be906feac2a505888bab26be99d5c4c5 # main
         with:
           needs: ${{ toJSON(needs) }}
-          # The job gate starts only for a selection with a gate plan.
-          allow-skip: gate
+          # The job gate starts only for a selection with a gate plan. The job lab skips a dispatch of the bench only, and the
+          # bench skips a schedule, a push and a dispatch with no bench. A pull request with no plan or no bench fails the job plan.
+          allow-skip: gate lab bench bench-gate
