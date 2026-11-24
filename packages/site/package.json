@@ -13,7 +13,8 @@
     "build": "vite build"
   },
   "dependencies": {
-    "@mark1russell7/capacity": "workspace:*"
+    "@mark1russell7/capacity": "workspace:*",
+    "@mark1russell7/quantity": "^0.4.3"
   },
   "devDependencies": {
     "@capacity/lab": "workspace:*",

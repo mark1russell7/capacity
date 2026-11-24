@@ -1,4 +1,4 @@
-import type { Law } from "@mark1russell7/capacity";
+import type { KneeRule, Law } from "@mark1russell7/capacity";
 import type { LawEntry, PlanEntry } from "./coverage.ts";
 
 // Each glob imports one field of each law file. The build keeps only these fields in the page, and not the replicates.
@@ -16,7 +16,11 @@ interface PlanFile {
   readonly id: string;
   readonly title: string;
   readonly cases: readonly { readonly subject: string }[];
-  readonly laws?: { readonly variable: { readonly id: string } };
+  readonly laws?: {
+    readonly class: string;
+    readonly variable: { readonly id: string };
+    readonly measures: readonly { readonly id: string; readonly knee?: KneeRule }[];
+  };
   readonly startLaws?: { readonly variable: { readonly id: string }; readonly measures: readonly { readonly id: string }[] };
 }
 
@@ -34,6 +38,7 @@ export const LAWS: readonly LawEntry[] = Object.keys(lawIds)
     measure: lawMeasures[path]!.id,
     unit: lawMeasures[path]!.unit,
     cpu: String(lawConditions[path]!["cpu.model"] ?? "an unknown CPU"),
+    lawClass: typeof lawConditions[path]!["class"] === "string" ? (lawConditions[path]!["class"] as string) : undefined,
   }));
 
 /** These entries are the plans of the lab, in the order of their paths. */
@@ -49,6 +54,8 @@ export function planEntry(plan: PlanFile): PlanEntry {
     subjects: [...new Set(plan.cases.map((each) => each.subject))],
     variable: plan.laws?.variable.id ?? plan.startLaws?.variable.id,
     start: plan.startLaws?.measures.map((each) => each.id) ?? [],
+    lawClass: plan.laws?.class,
+    knees: Object.fromEntries((plan.laws?.measures ?? []).flatMap((each) => (each.knee === undefined ? [] : [[each.id, each.knee]]))),
   };
 }
 

@@ -1,6 +1,8 @@
 import { constantIntervals, type Law } from "@mark1russell7/capacity";
 import { byId, copyText, setupTheme } from "@mark1russell7/site-pages/chrome";
-import { coverage, cpuModels, cpuName, goalCells, nextItem, tally, type Cell, type SubjectMatrix } from "./coverage.ts";
+import { curveChart } from "./chart.ts";
+import { coverage, cpuModels, cpuName, goalCells, kneeRuleOf, nextItem, tally, type Cell, type SubjectMatrix } from "./coverage.ts";
+import { amountText, curveOf, significant as amount, unitWords } from "./curves.ts";
 import { LAWS, PLANS, loadLaw } from "./data.ts";
 
 const ROADMAP = "https://github.com/mark1russell7/capacity/blob/main/docs/ROADMAP.md";
@@ -20,12 +22,6 @@ const make = <K extends keyof HTMLElementTagNameMap>(tag: K, className = "", tex
   if (className !== "") element.className = className;
   if (text !== "") element.textContent = text;
   return element;
-};
-
-/** This function gives a number with 3 significant digits, in the plain form for a number from 0.001 to 1000000. */
-const amount = (value: number): string => {
-  const size = Math.abs(value);
-  return size !== 0 && (size < 1e-3 || size >= 1e6) ? value.toExponential(2) : Number(value.toPrecision(3)).toString();
 };
 
 const percentText = (value: number): string => (value === 0 || value >= 10 ? Math.round(value).toString() : value.toFixed(1));
@@ -76,7 +72,7 @@ const showDone = (matrices: readonly SubjectMatrix[]): void => {
   );
 };
 
-/** This function shows the details of a law: its form, the interval of each constant, its range and its runs. */
+/** This function shows the details of a law: its curve and knee, its form, the interval of each constant, its range and its runs. */
 const lawDetails = (entry: (typeof LAWS)[number]): HTMLElement => {
   const box = make("div", "law-box");
   box.append(make("h4", "", entry.title));
@@ -84,14 +80,19 @@ const lawDetails = (entry: (typeof LAWS)[number]): HTMLElement => {
   box.append(facts);
   void loadLaw(entry).then(
     (law: Law) => {
-      const variable = law.variables.map((each) => `${each.id} from ${amount(each.min)} to ${amount(each.max)} ${each.unit}`).join(", ");
+      const variable = law.variables.map((each) => `${each.id} from ${amount(each.min)} to ${amount(each.max)} ${unitWords(each.unit)}`).join(", ");
       facts.textContent = `The measure ${law.measure.id}, in ${law.measure.unit}. The form ${law.form.id}, over ${variable}.`;
+      const curve = curveOf(law, kneeRuleOf(entry, PLANS));
+      box.append(typeof curve === "string" ? make("p", "quiet", curve) : curveChart(curve, entry.title));
       const intervals = constantIntervals(law);
       if (intervals.tag === "ok") {
         const table = make("table", "constants");
         const level = Math.round((intervals.value[0]?.level ?? 0.95) * 100);
         const caption = make("caption", "", `Each constant, with its ${level} % interval from ${law.replicates.length} bootstrap fits`);
         table.append(caption);
+        if (intervals.value.some((each) => each.id === "knee")) {
+          caption.append(". The constant knee is the bend of the form, not the knee of the rule of the lab in the chart");
+        }
         for (const each of intervals.value) {
           const row = make("tr");
           row.append(make("th", "", each.id), make("td", "", amount(each.value)), make("td", "quiet", `${amount(each.interval.low)} to ${amount(each.interval.high)}`));
@@ -108,7 +109,7 @@ const lawDetails = (entry: (typeof LAWS)[number]): HTMLElement => {
         link.href = run.url;
         runs.append(link);
       });
-      runs.append(`. The noise floor of the measure is ${amount(law.noise.floor * 100)} %.`);
+      runs.append(`. The noise floor of the measure is ${amountText(law.noise.floor, law.measure.unit)}: a smaller change is not a result.`);
       box.append(runs);
     },
     (error: unknown) => {

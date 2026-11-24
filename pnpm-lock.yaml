@@ -333,6 +333,9 @@ importers:
       '@mark1russell7/capacity':
         specifier: workspace:*
         version: link:../capacity
+      '@mark1russell7/quantity':
+        specifier: ^0.4.3
+        version: 0.4.3(zod@4.6.7)
     devDependencies:
       '@capacity/lab':
         specifier: workspace:*

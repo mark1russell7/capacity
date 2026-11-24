@@ -1,3 +1,5 @@
+import type { KneeRule } from "@mark1russell7/capacity";
+
 /**
  * The coverage of the goal of capacity: a law for each load variable, each measure, each subject and each CPU model.
  * This module has no browser code and reads no file. The page gives it the law files and the plans of the lab.
@@ -104,6 +106,8 @@ export interface LawEntry {
   readonly measure: string;
   readonly unit: string;
   readonly cpu: string;
+  /** This id is the class of the law (its condition `class`), or undefined for a law with no class. */
+  readonly lawClass: string | undefined;
 }
 
 /** A plan entry is the part of a plan of the lab that the matrix reads. It has the subjects of the cases and the variable of the laws. */
@@ -115,6 +119,10 @@ export interface PlanEntry {
   readonly variable: string | undefined;
   /** These ids are the start measures of the plan (its field `startLaws`). A plan with laws of the request has none. */
   readonly start: readonly string[];
+  /** This id is the class of the law set of the plan, or undefined for a plan with no law set. */
+  readonly lawClass: string | undefined;
+  /** These rules are the knee rules of the law set of the plan, by the id of the measure. */
+  readonly knees: Readonly<Record<string, KneeRule>>;
 }
 
 /** The state of a cell: a law, a measure with no law, or no measure. */
@@ -184,6 +192,13 @@ export const coverage = (laws: readonly LawEntry[], plans: readonly PlanEntry[],
     return { subject, rows, families, cells };
   });
 };
+
+/**
+ * This function gives the knee rule of a law. The rule comes from a plan with the class of the law and a case of its subject.
+ * It is the rule of the measure of the law in the law set of that plan. A law with no such plan or rule gives undefined.
+ */
+export const kneeRuleOf = (law: LawEntry, plans: readonly PlanEntry[]): KneeRule | undefined =>
+  plans.find((plan) => plan.lawClass !== undefined && plan.lawClass === law.lawClass && plan.subjects.includes(law.subject) && law.measure in plan.knees)?.knees[law.measure];
 
 /** A tally counts the cells of each state. `percent` is the share of the cells with a law, from 0 to 100. */
 export interface Tally {
