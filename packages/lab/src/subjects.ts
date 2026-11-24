@@ -31,13 +31,17 @@ export interface LabSubject {
 /** This image is the stock image of Node of each subject: the Node image of the lab clients of `@mark1russell7/harness`, by the same digest. */
 const NODE_IMAGE = "node:24.21.0-alpine@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1";
 
-/** This subject is the bare subject of layer 1: a server of `node:http` on the stock image of Node. */
+/**
+ * This subject is the bare subject of layer 1: a server of `node:http` on the stock image of Node. Its one package is the
+ * watch of its event loop (`loop.ts`).
+ */
 export const NODE_HTTP: LabSubject = {
   name: "node-http",
   image: NODE_IMAGE,
-  files: ["class.ts", "lines.ts", "node-http.main.ts", "node-http.ts", "perform.ts"],
+  files: ["class.ts", "lines.ts", "loop.ts", "node-http.main.ts", "node-http.ts", "perform.ts"],
   program: "node-http.main.ts",
   ready: '"ev":"listening"',
+  packages: ["@mark1russell7/lag/node"],
 };
 
 /**
@@ -48,10 +52,10 @@ export const NODE_HTTP: LabSubject = {
 export const NODE_HTTP_SERVICE: LabSubject = {
   name: "node-http-service",
   image: NODE_IMAGE,
-  files: ["class.ts", "lines.ts", "node-http-service.main.ts", "node-http-service.ts", "perform.ts"],
+  files: ["class.ts", "lines.ts", "loop.ts", "node-http-service.main.ts", "node-http-service.ts", "perform.ts"],
   program: "node-http-service.main.ts",
   ready: '"ev":"listening"',
-  packages: ["@mark1russell7/service", "@mark1russell7/service/http"],
+  packages: ["@mark1russell7/lag/node", "@mark1russell7/service", "@mark1russell7/service/http"],
 };
 
 /** This function gives the package and the export of an import: `@a/b/c` gives `@a/b` and `./c`, and `a` gives `a` and `.`. */

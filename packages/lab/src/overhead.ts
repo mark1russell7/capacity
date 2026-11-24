@@ -1,8 +1,8 @@
 import { median } from "@mark1russell7/rigor-statistics";
 import type { Check, CheckProblem } from "./check.ts";
 import { RATE_MEASURES, rateCheck } from "./rate.ts";
-import { caseValue } from "./reads.ts";
-import type { CaseRecord, LoadMeasure, RunMeasure } from "./record.ts";
+import { caseValue, measured } from "./reads.ts";
+import type { CaseRecord, LoadMeasure, LoopMeasure, RunMeasure } from "./record.ts";
 import { NODE_HTTP, NODE_HTTP_SERVICE } from "./subjects.ts";
 
 /** These are the two sides of a pair of the plan `overhead`: the last part of the id of each case, and its subject. */
@@ -12,9 +12,14 @@ export const OVERHEAD_SIDES: { readonly bare: string; readonly service: string }
 };
 
 /** An overhead measure is the name of a measure that the check `overhead` compares in each pair. */
-export type OverheadMeasure = Extract<RunMeasure | LoadMeasure, "cpu.request" | "memory" | "memory.high" | "network.rx.request" | "network.tx.request" | "latency.p50" | "latency.p90" | "latency.p99">;
+export type OverheadMeasure =
+  | Extract<RunMeasure | LoadMeasure, "cpu.request" | "memory" | "memory.high" | "network.rx.request" | "network.tx.request" | "latency.p50" | "latency.p90" | "latency.p99">
+  | LoopMeasure;
 
-/** These measures are the measures of the overhead of the runner: the CPU time, the memory, the bytes and the latency of a request. */
+/**
+ * These measures are the measures of the overhead of the runner. They are the CPU time, the memory, the bytes and the latency
+ * of a request. They are also the lag and the busy part of the event loop.
+ */
 export const OVERHEAD_MEASURES: readonly OverheadMeasure[] = [
   "cpu.request",
   "memory",
@@ -24,6 +29,9 @@ export const OVERHEAD_MEASURES: readonly OverheadMeasure[] = [
   "latency.p50",
   "latency.p90",
   "latency.p99",
+  "loop.lag.mean",
+  "loop.lag.max",
+  "loop.busy",
 ];
 
 /** This function gives the load of a case: the case with no id, no title and no subject. The two cases of a pair have one load. */
@@ -74,6 +82,7 @@ export const overheadCheck: Check = (records) => {
   for (const measure of OVERHEAD_MEASURES) {
     const overheads: number[] = [];
     for (const { name, bare, service } of pairs) {
+      if (!measured(bare, measure) || !measured(service, measure)) continue;
       const low = caseValue(bare, measure);
       const high = caseValue(service, measure);
       // the check rate gives the problem of each measure of RATE_MEASURES

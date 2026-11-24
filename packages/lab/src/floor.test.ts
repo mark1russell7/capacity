@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { verdictOf } from "./check.ts";
-import { FLOOR_LIMITS, FLOOR_MEASURES, FLOOR_PAIRS, floorCheck, floorPair, type FloorMeasure } from "./floor.ts";
+import { FLOOR_LIMITS, FLOOR_MEASURES, FLOOR_PAIRS, LOOP_FLOOR_MEASURES, floorCheck, floorPair, type FloorMeasure } from "./floor.ts";
 import { LAG_LIMIT, caseValue, worstLag } from "./reads.ts";
 import type { CaseRecord, LoadMeasure, RunMeasure, RunRecord } from "./record.ts";
 
@@ -69,6 +69,22 @@ describe("the check of the noise floor", () => {
     }
     expect(values["lag.max.worst"]).toBe(worstLag([BASE]));
     expect(Object.keys(values)).toHaveLength(3 * FLOOR_MEASURES.length + 1);
+  });
+
+  it("gives the floor, the level and the bias of each loop measure with no limit, and skips them for a lab before CAP-68", () => {
+    // each run of the case b of the pair p has a lag 1000 ms larger than the case a: far above any limit
+    const withLoop = (record: CaseRecord, lag: number): CaseRecord =>
+      eachRun(record, (run) => withMeasures(run, { "loop.lag.mean": { value: lag, unit: "ms" }, "loop.lag.max": { value: 2 * lag, unit: "ms" }, "loop.busy": { value: 50, unit: "%" } }));
+    const records = plan().map((record, index) => withLoop(record, index % 2 === 0 ? 1 : 1001 + index));
+    const { values, problems } = floorCheck(records);
+    expect(problems).toEqual([]);
+    expect(values["loop.lag.mean.floor"]).toBeCloseTo(twoSd([1001, 1003, 1005, 1007, 1009]), 9);
+    expect(values["loop.lag.mean.bias"]).toBeCloseTo(1005, 9);
+    expect(values["loop.busy.floor"]).toBe(0);
+    expect(values["loop.busy.level"]).toBe(50);
+    expect(Object.keys(values)).toHaveLength(3 * (FLOOR_MEASURES.length + LOOP_FLOOR_MEASURES.length) + 1);
+    // the fixture is of a lab before CAP-68: no loop value, and no problem
+    expect(Object.keys(floorCheck(plan()).values).filter((name) => name.startsWith("loop."))).toEqual([]);
   });
 
   it("is the check floor of the plans", () => {
