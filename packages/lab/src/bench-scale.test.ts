@@ -145,6 +145,12 @@ describe("benchAgainOf", () => {
     expect(benchAgainOf(benchGate([recordOf("x", 0.5)], ["x", "y"]))).toContain("y");
   });
 
+  it("gives no case when a change of value has no reason", () => {
+    const changed = benchGate([recordOf("x", 0.5, false), recordOf("y", 0.5)], ["x", "y", "z"]);
+    expect(changed.unexplained).toEqual(["x"]);
+    expect(benchAgainOf(changed)).toEqual([]);
+  });
+
   it("gives no case when a case is beyond the limit", () => {
     expect(benchAgainOf(benchGate([recordOf("x", 0.5), recordOf("y", 3)], ["x", "y", "z"]))).toEqual([]);
   });
