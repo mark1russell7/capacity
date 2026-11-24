@@ -54,7 +54,7 @@ export interface Case {
   /** This instance gives the CPU and the memory of the container of the subject. */
   readonly instance: Instance;
   readonly demand: Demand;
-  /** This time is the time of the schedule of each run. */
+  /** This time is the time of the schedule of each run. For an idle case, it is the hold of each run. */
   readonly duration: Quantity;
   /** These options select the arrivals of each stream: in equal steps, or a Poisson process with a seed. */
   readonly arrivals: ScheduleOptions;
@@ -72,7 +72,22 @@ export interface Case {
    * because the laws compare the subject. With no value, the subject adds no time.
    */
   readonly cost?: Quantity;
+  /**
+   * This flag makes an idle case. Each run of an idle case holds the open connections and sends no request for its
+   * duration. Each class has the rate 0 and keeps its request. The run gives the base of each total measure (`idleBaseOf`).
+   * With no value, the case is a case of load.
+   */
+  readonly idle?: boolean;
 }
+
+/**
+ * This time is the shortest hold of an idle case. At the reading period of a cell, 250 ms, it gives 40 readings of
+ * the series of the resources.
+ */
+export const IDLE_MIN_HOLD: Quantity = { value: 10, unit: "s" };
+
+/** This function gives true for an idle case (`Case.idle`). */
+export const isIdleCase = (value: Case): boolean => value.idle === true;
 
 /** A case problem code names the part of a case that is not correct. */
 export type CaseProblemCode =
@@ -89,6 +104,7 @@ export type CaseProblemCode =
   | "connections"
   | "runs"
   | "cost"
+  | "idle"
   | "load";
 
 /** A case problem tells what is not correct, and where: `path` is the path of the field in the case. */
@@ -135,8 +151,11 @@ const resourceProblems = (instance: Instance): readonly CaseProblem[] => {
   return [...missing, ...extra];
 };
 
-/** This function gives the problems of the demand of a case: a demand with a class, each class at a rate above 0. */
-const caseDemandProblems = (demand: Demand): readonly CaseProblem[] => {
+/**
+ * This function gives the problems of the demand of a case: a demand with a class. Each class of a case of load has a
+ * rate above 0. Each class of an idle case (`idle`) has the rate 0.
+ */
+const caseDemandProblems = (demand: Demand, idle: boolean): readonly CaseProblem[] => {
   const found = demandProblems(demand).map((each) => problem("demand", `demand.${each.path}`, each.message));
   if (found.length > 0) return found;
   const problems: CaseProblem[] = [];
@@ -145,7 +164,9 @@ const caseDemandProblems = (demand: Demand): readonly CaseProblem[] => {
     const path = `demand.classes[${index}]`;
     if (!convertible(entry.rate.unit, CASE_RATE)) {
       problems.push(problem("demand", `${path}.rate`, `The rate of the class "${entry.id}" does not convert to "${CASE_RATE}".`));
-    } else if (!(entry.rate.value > 0)) {
+    } else if (idle && entry.rate.value !== 0) {
+      problems.push(problem("demand", `${path}.rate`, `The rate of the class "${entry.id}" is not 0. An idle case sends no request.`));
+    } else if (!idle && !(entry.rate.value > 0)) {
       problems.push(problem("demand", `${path}.rate`, `The rate of the class "${entry.id}" is not above 0.`));
     }
     problems.push(...requestProblems(entry.request, `${path}.request`));
@@ -174,6 +195,22 @@ const arrivalProblems = (arrivals: ScheduleOptions): readonly CaseProblem[] => {
 };
 
 /**
+ * This function gives the problems of the flag `idle` of a case. The flag is true or false. An idle case holds for
+ * `IDLE_MIN_HOLD` or more, and it has no cost, because it sends no request. The demand check gives the rate 0 of each class.
+ */
+const idleProblems = (value: Case): readonly CaseProblem[] => {
+  if (value.idle !== undefined && typeof value.idle !== "boolean") return [problem("idle", "idle", "The flag idle is not true or false.")];
+  if (!isIdleCase(value)) return [];
+  const problems: CaseProblem[] = [];
+  const { duration } = value;
+  if (isQuantity(duration) && kindOf(duration.unit) === "time" && valueIn(duration, "s") < valueIn(IDLE_MIN_HOLD, "s")) {
+    problems.push(problem("idle", "duration", `The hold of the idle case is ${valueIn(duration, "s")} s. An idle case holds for ${IDLE_MIN_HOLD.value} ${IDLE_MIN_HOLD.unit} or more.`));
+  }
+  if (value.cost !== undefined) problems.push(problem("idle", "cost", "An idle case has no cost. It sends no request."));
+  return problems;
+};
+
+/**
  * This function examines a case and gives each problem that it finds. A case with no problem gives
  * an empty list.
  *
@@ -182,6 +219,9 @@ const arrivalProblems = (arrivals: ScheduleOptions): readonly CaseProblem[] => {
  * examines what the lab can do: the resources that it limits, the request variables and the levels.
  * It examines the connections with `connectionsProblems` of `@mark1russell7/harness`. The cost must be a whole number
  * of us, up to the limit of the field `work`. A case with no other problem must plan `MAX_ARRIVALS` or fewer (`arrivalsOf`).
+ *
+ * Each class of a case of load has a rate above 0. An idle case (`Case.idle`) has the rate 0 in each class, no cost and a
+ * hold of `IDLE_MIN_HOLD` or more.
  */
 export const caseProblems = (value: Case): readonly CaseProblem[] => {
   if (!isRecord(value)) return [problem("shape", "", "The case is not a record.")];
@@ -201,7 +241,7 @@ export const caseProblems = (value: Case): readonly CaseProblem[] => {
   );
   problems.push(
     ...(isRecord(value.demand) && Array.isArray(value.demand.classes) && isRecord(value.demand.levels)
-      ? caseDemandProblems(value.demand)
+      ? caseDemandProblems(value.demand, isIdleCase(value))
       : [problem("shape", "demand", "The demand is not a record with classes and levels.")]),
   );
   const { duration } = value;
@@ -222,6 +262,7 @@ export const caseProblems = (value: Case): readonly CaseProblem[] => {
       problems.push(problem("cost", "cost", `The cost is not a whole number of us from 0 to ${LIMITS.work}.`));
     }
   }
+  problems.push(...idleProblems(value));
   if (problems.length === 0 && (value.runs + 1) * arrivalsOf(value) > MAX_ARRIVALS) {
     const all = (value.runs + 1) * arrivalsOf(value);
     problems.push(problem("load", "demand", `The case plans ${all} arrivals in its ${value.runs + 1} runs, with the warm-up run. A case plans at most ${MAX_ARRIVALS}.`));

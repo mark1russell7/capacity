@@ -13,6 +13,7 @@ export {
   CASE_LEVELS,
   CASE_RATE,
   CASE_RESOURCES,
+  IDLE_MIN_HOLD,
   MAX_ARRIVALS,
   MAX_DURATION,
   MAX_RUNS,
@@ -20,6 +21,7 @@ export {
   arrivalsOf,
   caseLevel,
   caseProblems,
+  isIdleCase,
   requestClassOf,
   type Case,
   type CaseProblem,
@@ -78,6 +80,19 @@ export { CONTROL_CASES, CONTROL_LIMITS, controlCheck, type ControlValue, type Li
 export { FLOOR_K, FLOOR_LIMITS, FLOOR_MEASURES, FLOOR_PAIRS, floorCheck, floorPair, type FloorMeasure, type FloorPair } from "./floor.ts";
 export { RATE_LAG_LIMIT, RATE_MEASURES, coresOf, rateCheck, type RateMeasure } from "./rate.ts";
 export { OVERHEAD_MEASURES, OVERHEAD_SIDES, overheadCheck, type OverheadMeasure } from "./overhead.ts";
+export {
+  IDLE_MEASURES,
+  idleBaseOf,
+  idleBasesOf,
+  idleCheck,
+  idleProblems,
+  idleRunMeasures,
+  netRequestCpu,
+  type IdleBase,
+  type IdleBases,
+  type IdleMeasure,
+  type JobIdleBase,
+} from "./idle.ts";
 export { LAG_LIMIT, caseValue, countProblems, lagProblems, worstLag } from "./reads.ts";
 export {
   CPU_IDS,

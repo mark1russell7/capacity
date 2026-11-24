@@ -36,13 +36,15 @@ The case uses the records of `@mark1russell7/capacity`. Thus a measurement and a
 | `arrivals` | The arrivals of each stream: `uniform`, or `poisson` with a seed. They are the options of a schedule of `@mark1russell7/rigor-chaos`. |
 | `connections` | Optional. The connections of each stream: `pipeline`, `pool` with a `size`, or `fresh`. With no value, each stream is a pipeline. |
 | `runs` | The count of the runs that the record counts, from 1 to 20. One warm-up run comes before them. |
+| `idle` | Optional. The value `true` makes an idle case: each run holds its connections for the duration and sends no request. Refer to "The idle base". |
 
 - **The variables of a request** are the fields of a request class. Each amount converts to the unit of its field, and it is a whole number in that unit. Thus `0.5 ms` of `work` is `500 us`. A field that the request does not name is 0. `requestClassOf` gives the request class.
 - **The levels of a demand** are the amounts that the subject holds. The level `heap` is the live heap of the subject, in bytes: the flag `--ballast`. `caseLevel` gives a level in its unit.
 - **The check.** `caseProblems` gives each problem of a case, with its path. It uses `instanceProblems` and `demandProblems` of `@mark1russell7/capacity`. Then it examines what the lab can do:
   - The lab limits the CPU and the memory of a container, and not the network. An instance with `network` is a problem.
   - The driver holds no open connection with no request. A level `connections` is a problem.
-  - Each class has a rate above 0.
+  - Each class of a case of load has a rate above 0. Each class of an idle case has the rate 0.
+  - An idle case has no cost, and its hold is `IDLE_MIN_HOLD` (10 s) or more.
   - The connections are correct for `connectionsProblems` of `@mark1russell7/harness`: a pool has 1 to 1024 connections.
   - A case plans `MAX_ARRIVALS` (150000) arrivals or fewer in its runs and its warm-up run. `arrivalsOf` gives the arrivals of one run.
 - **The connections of a class.** Each class is one stream of the driver, and the field `connections` of the case gives the connections of each stream. The driver sends each request at its planned time, and each latency counts from that time.
@@ -275,6 +277,36 @@ The values of one job are not a law. The law set of the plan has the field `base
 - The gate of the laws does not read an overhead law. The gate of the runner laws is CAP-33.
 - A law needs 5 jobs on one CPU model. A runner gets a random CPU model. Thus the laws pool the jobs of more than one run of the plan.
 - The conditions of a law do not identify the files of the subjects (CAP-69). Pool only the runs of one commit of the subjects.
+
+### The idle base
+
+The plan `idle` measures the idle base of each subject (CAP-48): the CPU time and the memory of the process with no request. A case of load mixes the idle part and the part of the requests. Thus the idle base comes from its own kind of case.
+
+- **The idle case.** A case with `"idle": true` is an idle case. Each class keeps its request and has the rate 0. The duration of the case is the hold of each run.
+- **The cell.** `cellOf` gives each class a stream at the rate 0, with its request, and it sets `idleBefore` of the harness to the hold. The harness takes the start reading, holds the open connections with no request, then takes the end reading. The series of the resources continues for all of the run.
+- **The window.** The window of an idle run is the hold and the drain (`windowOf`). The driver has no arrival, thus it stops at the end of the hold.
+- **The laws.** A plan with a law set has no idle case. An idle run answers no request, thus each measure for each request is null.
+
+| Part | The value | Why |
+| --- | --- | --- |
+| The cases | `idle/bare` with `node-http`, and `idle/service` with `node-http-service` | The two subjects of the plan `overhead`. The difference of the two is the idle cost of the service runner. |
+| The load | One core, 512 MiB, a pool of 64 open connections, the class `rate` with the bare request, at the rate 0 | The conditions of the plan `overhead`. Thus a base applies to the points of that plan. |
+| The hold | 60 s, in each of 5 runs after one warm-up run | The longest period of the service subject is its liveness window of 45 s. The hold also gives 240 readings at the reading period of 250 ms. |
+
+The check `idle` (`idleCheck`) gives these values. The measures are the measures of `IDLE_MEASURES`.
+
+| Value | What it is |
+| --- | --- |
+| `<case>.cpu.rate` | The CPU time of the container over the elapsed time of a run, in cores. It is the median over the runs. |
+| `<case>.memory` | The memory at the end of a run, in bytes. It is the median over the runs. |
+| `<case>.memory.high` | The highest reading of the series of a run, in bytes. It is the median over the runs. |
+| `<pair>.<measure>.overhead` | The base of the case `<pair>/service` less the base of the case `<pair>/bare`. |
+
+- Each run of an idle case sends no request, and it lasts the hold or more. A run that is shorter shows a harness with no hold. Each run has a read of each idle measure.
+- `idleBaseOf` gives the base of one record. `idleBasesOf` gives the base of each idle record of some jobs (`readJobs`), with the name of the job and the CPU model. It uses only a job with no problem in its verdict.
+- `netRequestCpu` gives the CPU time of one request less the idle CPU time of its run. At a low rate, the idle part of `cpu.request` is large.
+- No law reads the base yet. A later fit subtracts the base of the same job or of the same CPU model from the totals of each point.
+- The plan has no trigger: a person starts it. Its time limit is 38 minutes.
 
 ## The timed runs
 
