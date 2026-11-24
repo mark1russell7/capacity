@@ -564,7 +564,7 @@ The plan `alerts-start-gate` gives the limits of the start of alerts (CAP-49). T
 
 ```sh
 gh run download <run> -R mark1russell7/capacity -D runs
-node src/start-limits.main.ts limits --runs runs --out alerts-start-gate.limits.json
+node src/start-limits.main.ts limits --runs runs --out ../capacity/limits/alerts-start-gate.limits.json
 ```
 
 - **The value of a run.** At a point, it is the largest reading of `main` and `main~aa`, over the rounds of the run.

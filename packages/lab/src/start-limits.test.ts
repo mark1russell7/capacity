@@ -125,6 +125,26 @@ describe("the limits of a start gate", () => {
   });
 });
 
+describe("the limits file of the start gate of alerts", () => {
+  const LIMITS = fileURLToPath(new URL("../../capacity/limits/alerts-start-gate.limits.json", import.meta.url));
+
+  it("reads, comes from 5 runs of the plan at the commit of its arm, and has a limit for each measure at each point", () => {
+    const limits = readStartLimits(LIMITS);
+    expect(limits).toBeDefined();
+    if (limits === undefined) return;
+    expect([limits.plan, limits.case, limits.arm, limits.commit]).toEqual([PLAN.id, CASE.id, "main", CASE.seeder]);
+    expect(new Set(limits.runs.map((each) => each.id)).size).toBeGreaterThanOrEqual(START_LIMIT_RUNS);
+    expect(limits.points.map((each) => each.id)).toEqual(CASE.points.map((each) => each.id));
+    for (const point of limits.points) {
+      expect(point.limits.limits.map((each) => each.measure).sort()).toEqual(limits.measures.map((each) => each.id).sort());
+      for (const [measure, derivation] of Object.entries(point.derivations)) {
+        expect(derivation.values, `${point.id} ${measure}`).toHaveLength(limits.runs.length);
+        expect(derivation.limit, `${point.id} ${measure}`).toBeGreaterThanOrEqual(derivation.worst);
+      }
+    }
+  });
+});
+
 describe("the command of the start limits", () => {
   /** This function writes the jobs into a folder, one subfolder for each job, as `gh run download` writes the artifacts of a run. */
   const writeJobs = (folder: string, jobs: readonly LawJob[]): void =>
