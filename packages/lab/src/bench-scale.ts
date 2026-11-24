@@ -154,11 +154,11 @@ export const benchRead = (processes: readonly ArmProcess[], aa: readonly PairedT
   const gate = gateOf(verdict.cases.map((each) => ({ case: each.case, outcome: each.outcome })));
   const ids = [...new Set(processes.map((each) => each.case))];
   const times = ids.flatMap((id) => armTimes(processes.filter((each) => each.case === id)));
-  const medianOf = (arm: string, id: string): number => times.find((each) => each.arm === arm && each.case === id)?.median ?? Number.NaN;
+  const timeOfArm = (arm: string, id: string): number => times.find((each) => each.arm === arm && each.case === id)?.median ?? Number.NaN;
   const cases = verdict.cases.map((each) => ({
     case: each.case,
-    baseMs: medianOf(BASE_ARM, each.case),
-    headMs: medianOf(HEAD_ARM, each.case),
+    baseMs: timeOfArm(BASE_ARM, each.case),
+    headMs: timeOfArm(HEAD_ARM, each.case),
     ratio: each.ratio,
     low: each.low,
     high: each.high,
