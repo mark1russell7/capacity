@@ -12,7 +12,9 @@ import {
   BENCH_RECORD,
   HEAD_ARM,
   benchCases,
+  benchAgainOf,
   benchGate,
+  benchRecordsAgain,
   benchRead,
   benchSummaryOf,
   pairedTimes,
@@ -128,6 +130,24 @@ describe("benchRead", () => {
     const { processes, aa } = processesOf("x", 0.5);
     const noisy = aa.map((each, index) => ({ ...each, b: each.b * (index % 2 === 0 ? 1.5 : 0.7) }));
     expect(benchRead(processes, noisy, { limit: 1.1, noiseCap: 0.05 }).gate.outcome).toBe("no read");
+  });
+});
+
+describe("benchAgainOf", () => {
+  it("gives the cases that cannot decide and the cases with no record, and no case for a pass", () => {
+    expect(benchAgainOf(benchGate([recordOf("x", 0.5), recordOf("y", 0.5)], ["x", "y"]))).toEqual([]);
+    expect(benchAgainOf(benchGate([recordOf("x", 0.5)], ["x", "y"]))).toContain("y");
+  });
+
+  it("gives no case when a case is beyond the limit", () => {
+    expect(benchAgainOf(benchGate([recordOf("x", 0.5), recordOf("y", 3)], ["x", "y", "z"]))).toEqual([]);
+  });
+
+  it("replaces the record of a case with the record of the second try", () => {
+    const again = recordOf("y", 2);
+    const records = benchRecordsAgain([recordOf("x", 0.5), recordOf("y", 0.5)], [again]);
+    expect(records).toHaveLength(2);
+    expect(records.find((each) => each.case === "y")).toBe(again);
   });
 });
 

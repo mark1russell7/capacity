@@ -4,7 +4,8 @@
  * ```text
  * node src/bench-scale.main.ts cases
  * node src/bench-scale.main.ts measure --case <id> --base <commit> --out <folder> [--rounds <count>]
- * node src/bench-scale.main.ts gate --records <folder> [--limit <ratio>] [--noise-cap <log ratio>]
+ * node src/bench-scale.main.ts gate --records <folder> [--limit <ratio>] [--noise-cap <log ratio>] [--again-out <file>]
+ *   [--again <folder>]
  * ```
  *
  * - `cases` prints the matrix of the bench jobs as JSON: one entry for each case, with its index.
@@ -15,6 +16,9 @@
  * - `gate` reads each record in the folder `--records` and its subfolders. It gives the verdict of the claim "the head takes at
  *   most `--limit` times the time of the base" for each case, and writes a summary into `GITHUB_STEP_SUMMARY`. The exit code is 1
  *   when the gate does not pass or when a case has no record. The summary names each case whose value the head changes.
+ * - With `--again-out`, a gate with no read of some cases does not decide. It writes these cases as the matrix `again`
+ *   into the file of the outputs of the job, and a fresh job measures them again. A case beyond the limit is not measured again.
+ * - With `--again`, the records of that folder replace the records of their cases. This gate decides.
  */
 import { appendFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -32,7 +36,9 @@ import {
   BENCH_RECORD,
   HEAD_ARM,
   benchCases,
+  benchAgainOf,
   benchGate,
+  benchRecordsAgain,
   benchSummaryOf,
   readBenchRecords,
   resultHash,
@@ -53,7 +59,7 @@ const CAPACITY = fileURLToPath(new URL("../../capacity/", import.meta.url));
 const USAGE = [
   "node src/bench-scale.main.ts cases",
   "node src/bench-scale.main.ts measure --case <id> --base <commit> --out <folder> [--rounds <count>]",
-  "node src/bench-scale.main.ts gate --records <folder> [--limit <ratio>] [--noise-cap <log ratio>]",
+  "node src/bench-scale.main.ts gate --records <folder> [--limit <ratio>] [--noise-cap <log ratio>] [--again-out <file>] [--again <folder>]",
 ].join("\n");
 
 const catalogOf = () => ({ laws: readLaws(join(CAPACITY, "laws")), compositions: readCompositions(join(CAPACITY, "compositions")) });
@@ -119,20 +125,30 @@ const measure = async (args: readonly string[]): Promise<void> => {
 };
 
 const gate = (args: readonly string[]): void => {
-  const { values } = parseArgs({ args: [...args], options: { records: { type: "string" }, limit: { type: "string" }, "noise-cap": { type: "string" } } });
+  const { values } = parseArgs({ args: [...args], options: { records: { type: "string" }, limit: { type: "string" }, "noise-cap": { type: "string" }, again: { type: "string" }, "again-out": { type: "string" } } });
   if (values.records === undefined) throw new Error(`The command needs --records.\n${USAGE}`);
   const limit = positive(values.limit, "--limit") ?? BENCH_LIMIT;
   const noiseCap = positive(values["noise-cap"], "--noise-cap");
-  const records = readBenchRecords(values.records);
+  const first = readBenchRecords(values.records);
+  const records = values.again === undefined ? first : benchRecordsAgain(first, readBenchRecords(values.again));
   const ids = benchCases(catalogOf()).map((each) => each.id);
   const result = benchGate(records, ids, { limit, ...(noiseCap === undefined ? {} : { noiseCap }) });
   const lines = [benchSummaryOf(result.read, result.commits)];
   if (result.missing.length > 0) lines.push(`These cases have no record, so the gate has no read of them: ${result.missing.join(", ")}.\n`);
   if (result.changed.length > 0) lines.push(`The head changes the value of these cases, so their times compare different results: ${result.changed.join(", ")}.\n`);
+  const againOut = values["again-out"];
+  const again = againOut === undefined ? [] : benchAgainOf(result);
+  if (again.length > 0) lines.push(`The gate has no read of ${again.length} cases, so a fresh job measures them again: ${again.join(", ")}.\n`);
   const text = lines.join("\n");
   process.stdout.write(text);
   const summary = process.env["GITHUB_STEP_SUMMARY"];
   if (summary) appendFileSync(summary, text);
+  if (againOut !== undefined) {
+    const matrix = ids.map((id, index) => ({ case: id, index })).filter((each) => again.includes(each.case));
+    appendFileSync(againOut, `again=${JSON.stringify(matrix)}\n`);
+  }
+  // The second try decides, so the first try writes no gate line and does not fail.
+  if (again.length > 0) return;
   const line = gateLine(result.read.verdict.cases, {
     title: "The bench of the scale query",
     enforced: true,

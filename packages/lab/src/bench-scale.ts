@@ -273,3 +273,23 @@ export const benchGate = (records: readonly BenchRecord[], cases: readonly strin
     commits: first.commits,
   };
 };
+
+/**
+ * This function gives the cases of a gate that a fresh job measures again: each case that cannot decide, and each case
+ * with no record. It gives no case when the gate passes or when a case is beyond the limit. A new job cannot change those
+ * verdicts.
+ */
+export const benchAgainOf = (gate: BenchGate): readonly string[] => {
+  if (gate.read.gate.outcome === "pass" && gate.missing.length === 0) return [];
+  if (gate.read.cases.some((each) => each.outcome === "beyond")) return [];
+  return [...gate.read.cases.filter((each) => each.outcome === "cannot decide").map((each) => each.case), ...gate.missing];
+};
+
+/**
+ * This function gives the records of a run after its second try. A record of the second try replaces the record of its
+ * case. Thus each case still has the verdict of one job, and a noisy job cannot pass.
+ */
+export const benchRecordsAgain = (first: readonly BenchRecord[], again: readonly BenchRecord[]): readonly BenchRecord[] => {
+  const cases = new Set(again.map((each) => each.case));
+  return [...first.filter((each) => !cases.has(each.case)), ...again];
+};
