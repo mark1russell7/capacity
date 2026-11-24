@@ -6,10 +6,9 @@ import {
   isCanonicalUnit,
   isQuantity,
   kindOf,
+  factorOf,
   quantity,
   scale,
-  sum,
-  valueIn,
   whyNotConvertible,
   type Quantity,
 } from "@mark1russell7/quantity";
@@ -206,10 +205,10 @@ export const totalRate = (demand: Demand, unit: string): Result<Quantity, Worklo
       return err(workloadProblem("unit", `classes[${index}].rate`, `The rate of the class "${entry.id}" is not in "${unit}": ${why}.`));
     }
   }
-  const total = sum(
-    demand.classes.map((entry) => entry.rate),
-    unit,
-  );
+  // One cached factor for each pair of units: the search calls this function at each load.
+  let value = 0;
+  for (const entry of demand.classes) value += entry.rate.value * factorOf(entry.rate.unit, unit);
+  const total = quantity(value, unit);
   return finite(total.value) ? ok(total) : err(workloadProblem("amount", "classes", "The rates do not have a finite sum."));
 };
 
@@ -267,7 +266,7 @@ const pointOf = (demand: Demand, law: PointLaw, rate: Quantity | "total", reques
         workloadProblem("unit", name, `The variable "${name}" of the law "${law.id}" is in "${variable.unit}", not in "${amount.unit}": ${why}.`),
       );
     }
-    point[name] = valueIn(amount, variable.unit);
+    point[name] = amount.value * factorOf(amount.unit, variable.unit);
   }
   return ok(point);
 };

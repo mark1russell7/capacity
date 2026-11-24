@@ -7,8 +7,7 @@ import {
   kindOf,
   multiplyUnits,
   parseUnit,
-  quantity,
-  valueIn,
+  factorOf,
   whyNotConvertible,
 } from "@mark1russell7/quantity";
 import { instancePointOf, loadPointOf, totalRate, type Load } from "./demand.ts";
@@ -225,8 +224,8 @@ interface Weight {
 const weightOf = (from: string, to: string, factor: number, path: string): Result<Weight, CompositionProblem> => {
   try {
     const per = divideUnits(to, from);
-    if (convertible(per, "count")) return ok({ by: factor * valueIn(quantity(1, from), to), rate: undefined });
-    if (kindOf(per) === "frequency") return ok({ by: factor * valueIn(quantity(1, multiplyUnits(from, per)), to), rate: per });
+    if (convertible(per, "count")) return ok({ by: factor * factorOf(from, to), rate: undefined });
+    if (kindOf(per) === "frequency") return ok({ by: factor * factorOf(multiplyUnits(from, per), to), rate: per });
     return err(problem("unit", path, `The law gives "${from}". That unit does not give "${to}", alone or times a rate.`));
   } catch (error) {
     if (error instanceof UnitError) return err(problem("unit", path, `The law gives "${from}", and "${to}" does not come from it: ${error.message}`));
@@ -241,7 +240,7 @@ const classRate = (demand: Demand, id: string, unit: string, path: string): Resu
     const why = whyNotConvertible(rate.unit, unit) ?? "the units are different";
     return err(problem("unit", `${path}.rate`, `The rate of the class "${id}" is in "${rate.unit}". The law needs a rate in "${unit}": ${why}.`));
   }
-  return ok(valueIn(rate, unit));
+  return ok(rate.value * factorOf(rate.unit, unit));
 };
 
 /** This function gives the number that the total rate of a demand is in the unit of a weight, or the problem that stops it. */
@@ -389,7 +388,7 @@ const treeOf = (prepared: Prepared, demand: Demand, given: Amounts): Result<Tree
           const why = whyNotConvertible(tree.unit, unit) ?? "the units are different";
           return err(problem("unit", `${path}.composition`, `The composition "${inner.id}" gives "${tree.unit}", not "${unit}": ${why}.`));
         }
-        nodes.push({ kind: "composition", term: index, composition: inner.id, weight: factor * valueIn(quantity(1, tree.unit), unit), tree });
+        nodes.push({ kind: "composition", term: index, composition: inner.id, weight: factor * factorOf(tree.unit, unit), tree });
         continue;
       }
 
@@ -574,16 +573,39 @@ export const flatPartsOf = (prepared: Prepared, demand: Demand, given: Amounts =
  * This function gives the value of one row of some flat parts. Row 0 is the estimate, and row `i`
  * is replicate `i - 1` of each law. A part with no finite value gives undefined.
  */
-export const rowValueOf = (parts: readonly FlatPart[], row: number): number | undefined => {
-  let value = 0;
+export const rowValueOf = (parts: readonly FlatPart[], row: number): number | undefined => rowValuesOf(parts, row, row)[0];
+
+/** This function gives the record that the law of a part reads in one row, or undefined when the law has no such row. */
+const rowRecordOf = (law: Law, point: LoadPoint, row: number): Readonly<Record<string, number>> | undefined => {
+  const values = row === 0 ? law.constants.map((constant) => constant.value) : law.replicates[row - 1];
+  return values === undefined ? undefined : recordOf(law.constants.map((constant) => constant.id), values, point);
+};
+
+/**
+ * This function gives the value of each row from `first` to `last` of some flat parts, as `rowValueOf` gives it.
+ * It evaluates the law of each part over all the rows in one call. Thus a search that reads each row at one load
+ * evaluates each law one time for that load.
+ */
+export const rowValuesOf = (parts: readonly FlatPart[], first: number, last: number): readonly (number | undefined)[] => {
+  const sums: (number | undefined)[] = [];
+  for (let row = first; row <= last; row += 1) sums.push(0);
   for (const { law, point, weight } of parts) {
-    const values = row === 0 ? law.constants.map((constant) => constant.value) : law.replicates[row - 1];
-    if (values === undefined) return undefined;
-    const [found] = valuesAt(law.form.program, [recordOf(law.constants.map((constant) => constant.id), values, point)]);
-    if (found === undefined) return undefined;
-    value += weight * found;
+    const records: Readonly<Record<string, number>>[] = [];
+    const slots: number[] = [];
+    for (let row = first; row <= last; row += 1) {
+      const record = sums[row - first] === undefined ? undefined : rowRecordOf(law, point, row);
+      if (record === undefined) sums[row - first] = undefined;
+      else {
+        records.push(record);
+        slots.push(row - first);
+      }
+    }
+    valuesAt(law.form.program, records).forEach((found, index) => {
+      const slot = slots[index] as number;
+      sums[slot] = found === undefined ? undefined : (sums[slot] as number) + weight * found;
+    });
   }
-  return Number.isFinite(value) ? value : undefined;
+  return sums.map((value) => (value !== undefined && Number.isFinite(value) ? value : undefined));
 };
 
 /** This function tells if a flat part reads a variable of its law outside the range of that variable. */

@@ -65,11 +65,12 @@
   },
   "dependencies": {
     "@mark1russell7/optional": "^1.2.0",
-    "@mark1russell7/quantity": "^0.4.3",
+    "@mark1russell7/quantity": "^0.4.6",
     "@mark1russell7/rigor-bench": "^0.3.3",
     "@mark1russell7/rigor-statistics": "^0.2.18",
-    "@mark1russell7/vex": "^0.19.1",
-    "@mark1russell7/vex-domains": "^0.19.1"
+    "@mark1russell7/vex": "^0.20.2",
+    "@mark1russell7/vex-compiler": "^0.20.2",
+    "@mark1russell7/vex-domains": "^0.20.2"
   },
   "peerDependencies": {
     "zod": "^4.1.0"

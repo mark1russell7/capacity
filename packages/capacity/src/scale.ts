@@ -1,10 +1,11 @@
 import { err, ok, type Result } from "@mark1russell7/optional";
-import { convertible, quantity, valueIn, whyNotConvertible } from "@mark1russell7/quantity";
+import { convertible, factorOf, whyNotConvertible } from "@mark1russell7/quantity";
 import {
   flatPartsOf,
   partsOutside,
   preparedOf,
   rowValueOf,
+  rowValuesOf,
   type Catalog,
   type Composition,
   type CompositionProblemCode,
@@ -236,7 +237,7 @@ const setupOf = (model: ScaleModel, demand: Demand, options: ScaleOptions): Resu
       const message = `The composition of the limit "${limit.id}" gives "${unit}", and the ceiling of the limit is in "${ceiling.unit}": ${why}.`;
       return err(problem("unit", `compositions[${at}].measure.unit`, message));
     }
-    limits.push({ limit, path, at, prepared: ready, per: valueIn(quantity(1, unit), ceiling.unit) / ceiling.value });
+    limits.push({ limit, path, at, prepared: ready, per: factorOf(unit, ceiling.unit) / ceiling.value });
   }
   const rows = Math.min(...limits.map((each) => each.prepared.rows));
   return ok({ limits, rows, level, given: options.given ?? {}, whole, most, steps: options.steps ?? SCALE_STEPS, demand });
@@ -272,13 +273,27 @@ const breaksOf = (setup: Setup, grid: readonly number[], demandAt: DemandAt): Re
       if (!known.has(load)) known.set(load, partsAt(setup, each, demandAt, load));
       return known.get(load);
     };
+    // Each row reads each load of the grid. Thus the values of all the rows at a load of the grid come from one call.
+    // The loads of a bisection differ for each row, so they give the value of one row.
+    const onGrid = new Set(grid);
+    const gridRows = new Map<number, readonly (number | undefined)[] | undefined>();
+    const valueAt = (load: number, row: number): number | undefined => {
+      if (onGrid.has(load)) {
+        if (!gridRows.has(load)) {
+          const parts = cached(load);
+          gridRows.set(load, parts === undefined ? undefined : rowValuesOf(parts, 0, setup.rows));
+        }
+        return gridRows.get(load)?.[row];
+      }
+      const parts = cached(load);
+      return parts === undefined ? undefined : rowValueOf(parts, row);
+    };
     const rows: number[] = [];
     let edge = false;
     for (let row = 0; row <= setup.rows; row += 1) {
       const curve: Curve = (loads) =>
         loads.map((load) => {
-          const parts = cached(load);
-          const value = parts === undefined ? undefined : rowValueOf(parts, row);
+          const value = valueAt(load, row);
           return value === undefined ? undefined : each.per * value;
         });
       const result = rowOf(curve, `${each.path}.rows[${row}]`, amountTest(1), grid, 0, "composition");

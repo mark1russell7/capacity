@@ -227,8 +227,8 @@ importers:
         specifier: ^1.2.0
         version: 1.5.0
       '@mark1russell7/quantity':
-        specifier: ^0.4.3
-        version: 0.4.3(zod@4.6.7)
+        specifier: ^0.4.6
+        version: 0.4.6(zod@4.6.7)
       '@mark1russell7/rigor-bench':
         specifier: ^0.3.3
         version: 0.3.3(esbuild@0.28.2)
@@ -236,11 +236,14 @@ importers:
         specifier: ^0.2.18
         version: 0.2.18
       '@mark1russell7/vex':
-        specifier: ^0.19.1
-        version: 0.19.1(zod@4.6.7)
+        specifier: ^0.20.2
+        version: 0.20.2(zod@4.6.7)
+      '@mark1russell7/vex-compiler':
+        specifier: ^0.20.2
+        version: 0.20.2(zod@4.6.7)
       '@mark1russell7/vex-domains':
-        specifier: ^0.19.1
-        version: 0.19.1(zod@4.6.7)
+        specifier: ^0.20.2
+        version: 0.20.2(zod@4.6.7)
     devDependencies:
       '@mark1russell7/cue':
         specifier: ^2.0.0
@@ -692,6 +695,15 @@ packages:
       zod:
         optional: true
 
+  '@mark1russell7/quantity@0.4.6':
+    resolution: {integrity: sha512-JlatFlwZ2epaNy0dYekWhrXgBaWK7qPndDvpEQ7hyqzX4cg14laJBftpH4u7yefG4zNVhEJwxTGFcdyBTIt9vw==}
+    engines: {node: '>=22.19'}
+    peerDependencies:
+      zod: ^4.1.0
+    peerDependenciesMeta:
+      zod:
+        optional: true
+
   '@mark1russell7/rational@0.1.3':
     resolution: {integrity: sha512-S28nfQFfRax40wbV9UTw711ZwnVB3rCW/SPpAuJtyKBh/zFbQx69+qnAeLF7u2B9GccaY75nIMZtN8mvgSRA1Q==}
     engines: {node: '>=22'}
@@ -874,11 +886,14 @@ packages:
     resolution: {integrity: sha512-IwKQHx9U+k5AbEzZ8q4CxImQCuYXSFhvzMOSgy5UGYrZRIBO9RES7SYrXDrKqQFtMl5qD2QbibffevUPsrUW+A==}
     engines: {node: '>=22.12'}
 
-  '@mark1russell7/vex-domains@0.19.1':
-    resolution: {integrity: sha512-mfOTq9GUER3gh4i7ayzuIsVGMT9OtwYwQo4Pzzcu6IR2NY4WaZiA5sdwhOL0LmRVDyPvlL/vjC4a0+c4XwD2NQ==}
+  '@mark1russell7/vex-compiler@0.20.2':
+    resolution: {integrity: sha512-95YmqPk9cRUqU4xR2JiX3P/gz7GoOd9xsdGiGU3PSCi7ymjvl8mWYMOKKWbyo6MvAXml+v98STf0o1xUQNjo/g==}
 
-  '@mark1russell7/vex@0.19.1':
-    resolution: {integrity: sha512-Hl8IVbyNmhJ7xV2nyTyOgiqANGWSWhmZSdnuucSRnmBj/KSnp0kvSz7MNzcWcI+tV34wfXmTNp6Y3ewDATbXjg==}
+  '@mark1russell7/vex-domains@0.20.2':
+    resolution: {integrity: sha512-EADXjT9DHIw1XBomHRtGBGh+txKeJEJnP4aD/2/4A9bh5U7qH+ZZtKQ6p/l3nNfPPfYVNanWMVlAkme64Mpvgw==}
+
+  '@mark1russell7/vex@0.20.2':
+    resolution: {integrity: sha512-ccnFrOwIPJ82i0k0fZ/Iw7QpXnVm9t+jxaruwWEsU6qckOR0BynV07P9A8w47RC7uoH5OOkNXT+8FV/XboINaA==}
 
   '@napi-rs/wasm-runtime@1.2.6':
     resolution: {integrity: sha512-mRyDmEw9/fCDXCGfL1sbgIw/GUK0PVxRW4YwgPN61F3LQ+fSyoBFarJVzgGyhF6kRzEQZ0FejDqm4WLXSeqQmw==}
@@ -1492,6 +1507,10 @@ packages:
 
   ast-v8-to-istanbul@1.0.8:
     resolution: {integrity: sha512-lPdpagk13ANXV+HClJEpCZM7kUsl5XcvgqKzZhaj6Ve1ZFICcY2sGhAN1n1vT0tML6EclT7bfVgTxqL57Gkpow==}
+
+  astring@1.9.0:
+    resolution: {integrity: sha512-LElXdjswlqjWrPpJFg1Fx4wpkOCxj1TDHlSV4PlaRxHGWko024xICaa97ZkMfs6DRKlCguiAI+rbXv5GWwXIkg==}
+    hasBin: true
 
   async-lock@1.5.0:
     resolution: {integrity: sha512-JgULma1mWaHlyJ67lvicyel5Cq+k55bXafE0gyvJBdHkH0vdE/IGGDF1glNyRInisNS6pZL2oho96S6Hw68kfQ==}
@@ -2639,7 +2658,7 @@ snapshots:
 
   '@mark1russell7/algebra@0.8.10(zod@4.6.7)':
     dependencies:
-      '@mark1russell7/quantity': 0.4.3(zod@4.6.7)
+      '@mark1russell7/quantity': 0.4.6(zod@4.6.7)
     optionalDependencies:
       zod: 4.6.7
 
@@ -2652,7 +2671,7 @@ snapshots:
 
   '@mark1russell7/algebra@0.9.7(zod@4.6.7)':
     dependencies:
-      '@mark1russell7/quantity': 0.4.3(zod@4.6.7)
+      '@mark1russell7/quantity': 0.4.6(zod@4.6.7)
     optionalDependencies:
       zod: 4.6.7
 
@@ -2739,6 +2758,12 @@ snapshots:
     optionalDependencies:
       zod: 4.6.7
 
+  '@mark1russell7/quantity@0.4.6(zod@4.6.7)':
+    dependencies:
+      '@mark1russell7/rational': 0.1.3
+    optionalDependencies:
+      zod: 4.6.7
+
   '@mark1russell7/rational@0.1.3': {}
 
   '@mark1russell7/rigor-bench@0.2.66(esbuild@0.28.2)':
@@ -2810,7 +2835,7 @@ snapshots:
       '@mark1russell7/algebra': 0.9.7(zod@4.6.7)
       '@mark1russell7/collections': 0.11.3(zod@4.6.7)
       '@mark1russell7/files': 0.0.3
-      '@mark1russell7/quantity': 0.4.3(zod@4.6.7)
+      '@mark1russell7/quantity': 0.4.6(zod@4.6.7)
       '@mark1russell7/rational': 0.1.3
       '@mark1russell7/rigor-generators': 0.1.19
       '@mark1russell7/text': 0.0.6
@@ -2837,14 +2862,23 @@ snapshots:
 
   '@mark1russell7/text@0.0.6': {}
 
-  '@mark1russell7/vex-domains@0.19.1(zod@4.6.7)':
+  '@mark1russell7/vex-compiler@0.20.2(zod@4.6.7)':
     dependencies:
-      '@mark1russell7/quantity': 0.4.3(zod@4.6.7)
-      '@mark1russell7/vex': 0.19.1(zod@4.6.7)
+      '@mark1russell7/coeval': 0.34.0(zod@4.6.7)
+      '@mark1russell7/vex': 0.20.2(zod@4.6.7)
+      acorn: 8.19.0
+      astring: 1.9.0
     transitivePeerDependencies:
       - zod
 
-  '@mark1russell7/vex@0.19.1(zod@4.6.7)':
+  '@mark1russell7/vex-domains@0.20.2(zod@4.6.7)':
+    dependencies:
+      '@mark1russell7/quantity': 0.4.6(zod@4.6.7)
+      '@mark1russell7/vex': 0.20.2(zod@4.6.7)
+    transitivePeerDependencies:
+      - zod
+
+  '@mark1russell7/vex@0.20.2(zod@4.6.7)':
     dependencies:
       '@mark1russell7/coeval': 0.34.0(zod@4.6.7)
     transitivePeerDependencies:
@@ -3271,6 +3305,8 @@ snapshots:
       '@jridgewell/trace-mapping': 0.3.31
       estree-walker: 3.0.3
       js-tokens: 10.0.0
+
+  astring@1.9.0: {}
 
   async-lock@1.5.0: {}
 
