@@ -104,11 +104,21 @@ describe("the coverage of the law files of the repository", () => {
     expect(cellOf(matrices, "node", "rate", "memory").laws.map((each) => each.measure).sort()).toEqual(["memory", "memory.high"]);
   });
 
-  it("marks the network bytes of the plan rate as measured with no law, and garbage collection as not measured", () => {
+  it("marks the network bytes of the plan rate as measured, and garbage collection as not measured", () => {
     expect(cellOf(matrices, "node", "rate", "network").state).toBe("measured");
     expect(cellOf(matrices, "node", "rate", "network").plans.map((each) => each.id)).toContain("rate");
     expect(cellOf(matrices, "node", "rate", "gc").state).toBe("none");
-    expect(cellOf(matrices, "node", "body", "cpu").state).toBe("none");
+  });
+
+  it("marks the CPU and the network bytes of the request size as measured by the plans size-body and size-reply", () => {
+    for (const [row, plan] of [["body", "size-body"], ["reply", "size-reply"]] as const) {
+      for (const family of ["cpu", "network"]) {
+        const cell = cellOf(matrices, "node", row, family);
+        expect(cell.state, `${row} ${family}`).not.toBe("none");
+        expect(cell.plans.map((each) => each.id), `${row} ${family}`).toContain(plan);
+      }
+      expect(cellOf(matrices, "node", row, "gc").state, `${row} gc`).toBe("none");
+    }
   });
 
   it("gives a family to each measure of a start record of the lab, from the families of the page", () => {
