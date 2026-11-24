@@ -57,7 +57,7 @@ export const FAMILIES: readonly Family[] = [
   { id: "latency", short: "Lat", title: "Latency" },
 ];
 
-/** This family is the start of an app: the time and the memory from the start of the process to ready. It is not a part of the goal. */
+/** This family is the start of an app: the time to ready and the other facts of a start that are not a cost. It is not a part of the goal. */
 export const START: Family = { id: "start", short: "Start", title: "The start: the time and the memory to ready" };
 
 /**
@@ -85,12 +85,59 @@ export const RECORD_MEASURES: readonly string[] = [
 ];
 
 /**
- * This function gives the family of a measure id, or undefined for a measure of no family (`elapsed`). The suffix
- * `.overhead` of a law of the service runner does not change the family. An id in `start` is a measure of the start.
+ * These families are the families of the measures of a start record of the lab (`START_MEASURES` of the lab). A test holds
+ * the keys equal to the keys of the lab. The family `start` has the times to ready, the reads of the disk and the heap
+ * limit of V8. It also has the counts and the times of the writes of a snapshot. The other measures are costs of the app.
  */
-export const familyOf = (measure: string, start: ReadonlySet<string> = new Set()): string | undefined => {
+export const START_FAMILIES: Readonly<Record<string, string>> = {
+  ready: "start",
+  readiness: "start",
+  firstPass: "start",
+  copy: "start",
+  ballast: "start",
+  close: "start",
+  end: "start",
+  peak: "memory",
+  rss: "memory",
+  anon: "memory",
+  file: "memory",
+  heap: "memory",
+  external: "memory",
+  live: "memory",
+  read: "start",
+  faults: "start",
+  heapPeak: "memory",
+  livePeak: "memory",
+  gc: "gc",
+  fullGc: "gc",
+  watchPeak: "memory",
+  watchRss: "memory",
+  watchAnon: "memory",
+  watchHeap: "memory",
+  watchHeapPeak: "memory",
+  watchLive: "memory",
+  watchGc: "gc",
+  watchCpu: "cpu",
+  watchCores: "cpu",
+  passes: "start",
+  limit: "start",
+  writes: "start",
+  writeLongest: "lag",
+  writeStore: "start",
+  writeRows: "start",
+  writeWall: "start",
+  writeCpu: "cpu",
+};
+
+/**
+ * This function gives the family of a measure id, or undefined for a measure of no family (`elapsed`). The suffix
+ * `.overhead` of a law of the service runner does not change the family. `start` gives the start measure of each law name
+ * of a start plan, for example `watch-cores` to `watchCores`. Such a law name has the family of its start measure.
+ */
+export const familyOf = (measure: string, start: Readonly<Record<string, string>> = {}): string | undefined => {
   const id = measure.replace(/\.overhead$/, "");
-  if (start.has(id)) return START.id;
+  const startMeasure = Object.hasOwn(start, id) ? start[id] : undefined;
+  if (startMeasure !== undefined) return START_FAMILIES[startMeasure] ?? START.id;
   const head = id.split(".")[0] ?? "";
   if (head === "loop") return "lag";
   return FAMILIES.some((each) => each.id === head) ? head : undefined;
@@ -117,8 +164,8 @@ export interface PlanEntry {
   readonly subjects: readonly string[];
   /** This id is the variable that the laws of the plan move, or undefined for a plan with no laws. */
   readonly variable: string | undefined;
-  /** These ids are the start measures of the plan (its field `startLaws`). A plan with laws of the request has none. */
-  readonly start: readonly string[];
+  /** These ids are the start measures of the plan (its field `startLaws`), by the name of their law. A plan of requests has none. */
+  readonly start: Readonly<Record<string, string>>;
   /** This id is the class of the law set of the plan, or undefined for a plan with no law set. */
   readonly lawClass: string | undefined;
   /** These rules are the knee rules of the law set of the plan, by the id of the measure. */
@@ -168,16 +215,20 @@ export const cpuModels = (laws: readonly LawEntry[]): readonly string[] => [...n
  * for its subject and records its family. The plans have no CPU model, because each runner of CI has its own.
  */
 export const coverage = (laws: readonly LawEntry[], plans: readonly PlanEntry[], cpu: string): readonly SubjectMatrix[] => {
-  const start = new Set(plans.flatMap((plan) => plan.start));
+  const start: Readonly<Record<string, string>> = Object.assign({}, ...plans.map((plan) => plan.start));
   const recorded = new Set(RECORD_MEASURES.map((each) => familyOf(each)).filter((each) => each !== undefined));
-  const familiesOf = (plan: PlanEntry): ReadonlySet<string> => (plan.start.length > 0 ? new Set([START.id]) : recorded);
+  // A start plan measures the families of the measures of its laws. A plan of requests records each family of RECORD_MEASURES.
+  const familiesOf = (plan: PlanEntry): ReadonlySet<string> => {
+    const measures = Object.values(plan.start);
+    return measures.length > 0 ? new Set(measures.map((id) => START_FAMILIES[id] ?? START.id)) : recorded;
+  };
   return SUBJECTS.map((subject) => {
     const mine = laws.filter((law) => law.cpu === cpu && subject.ids.includes(law.subject));
     const measuring = plans.filter((plan) => plan.variable !== undefined && plan.subjects.some((id) => subject.ids.includes(id)));
     const own = [...new Set([...mine.flatMap((law) => law.variables), ...measuring.map((plan) => plan.variable!)])]
       .filter((id) => !VARIABLES.some((each) => each.id === id))
       .map((id) => ({ id, title: `The ${id} of the app` }));
-    const hasStart = measuring.some((plan) => plan.start.length > 0) || mine.some((law) => familyOf(law.measure, start) === START.id);
+    const hasStart = measuring.some((plan) => familiesOf(plan).has(START.id)) || mine.some((law) => familyOf(law.measure, start) === START.id);
     const families = hasStart ? [...FAMILIES, START] : FAMILIES;
     const rows = [...VARIABLES, ...own];
     const cells = rows.map((row) =>
