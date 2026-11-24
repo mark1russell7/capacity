@@ -1,0 +1,41 @@
+{
+  "format": "capacity-plan/1",
+  "id": "idle",
+  "title": "The idle base of each measure: the bare subject and the service subject with open connections and no request",
+  "check": "idle",
+  "triggers": [],
+  "cases": [
+    {
+      "format": "capacity-case/1",
+      "id": "idle/bare",
+      "title": "The bare subject with 64 open connections and no request for 60 s",
+      "subject": "node-http",
+      "instance": { "resources": { "cpu": { "value": 1, "unit": "{core}" }, "memory": { "value": 512, "unit": "MiB" } } },
+      "demand": {
+        "classes": [{ "id": "rate", "rate": { "value": 0, "unit": "{request}/s" }, "request": {} }],
+        "levels": {}
+      },
+      "duration": { "value": 60, "unit": "s" },
+      "arrivals": { "arrivals": "uniform" },
+      "connections": { "mode": "pool", "size": 64 },
+      "runs": 5,
+      "idle": true
+    },
+    {
+      "format": "capacity-case/1",
+      "id": "idle/service",
+      "title": "The service subject with 64 open connections and no request for 60 s",
+      "subject": "node-http-service",
+      "instance": { "resources": { "cpu": { "value": 1, "unit": "{core}" }, "memory": { "value": 512, "unit": "MiB" } } },
+      "demand": {
+        "classes": [{ "id": "rate", "rate": { "value": 0, "unit": "{request}/s" }, "request": {} }],
+        "levels": {}
+      },
+      "duration": { "value": 60, "unit": "s" },
+      "arrivals": { "arrivals": "uniform" },
+      "connections": { "mode": "pool", "size": 64 },
+      "runs": 5,
+      "idle": true
+    }
+  ]
+}

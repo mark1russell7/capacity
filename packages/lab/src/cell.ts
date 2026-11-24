@@ -1,7 +1,7 @@
 import type { Cell, LoadStream, Target } from "@mark1russell7/harness";
 import { quantity, valueIn, type Quantity } from "@mark1russell7/quantity";
 import { constant, type ScheduleOptions } from "@mark1russell7/rigor-chaos";
-import { CASE_RATE, SUBJECTS, caseCost, caseLevel, caseProblems, requestClassOf, type Case } from "./case.ts";
+import { CASE_RATE, SUBJECTS, caseCost, caseLevel, caseProblems, isIdleCase, requestClassOf, type Case } from "./case.ts";
 import { requestOf } from "./subject/class.ts";
 import { SUBJECT_FOLDER, subjectFiles, type LabSubject } from "./subjects.ts";
 
@@ -84,6 +84,7 @@ export const streamArrivals = (arrivals: ScheduleOptions, key: string): Schedule
  * This function gives the streams of the driver for a case: one stream for each class. A stream
  * has the rate of its class for the duration of the case. Each request of a stream is the request of its class.
  * Each stream has the connections of the case. A case with no connections gives streams with no such field: a pipeline.
+ * The classes of an idle case have the rate 0, thus their streams have no arrival.
  */
 export const streamsOf = (value: Case): readonly LoadStream[] =>
   value.demand.classes.map((entry) => ({
@@ -93,8 +94,12 @@ export const streamsOf = (value: Case): readonly LoadStream[] =>
     ...(value.connections === undefined ? {} : { connections: value.connections }),
   }));
 
-/** This function gives the longest time of one run of a case: two durations and the drain. */
-export const windowOf = (value: Case): Quantity => quantity(2 * valueIn(value.duration, "s") + valueIn(DRAIN, "s"), "s");
+/**
+ * This function gives the longest time of one run of a case. For a case of load, it is two durations and the drain. For an
+ * idle case, it is the hold and the drain: the driver has no request, thus it ends at the end of the hold.
+ */
+export const windowOf = (value: Case): Quantity =>
+  quantity((isIdleCase(value) ? 1 : 2) * valueIn(value.duration, "s") + valueIn(DRAIN, "s"), "s");
 
 /**
  * This function gives the cell of `@mark1russell7/harness` that measures a case. A cell result gives
@@ -105,6 +110,8 @@ export const windowOf = (value: Case): Quantity => quantity(2 * valueIn(value.du
  *   The two have the other CPUs of the host.
  * - The cell predicts no detection. Its verdict is a measure, and the record keeps each measure.
  * - The runs of the case go in one environment, after one warm-up run.
+ * - An idle case (`Case.idle`) holds its duration with no request (`idleBefore`), between the two readings of each run.
+ *   Each stream has the rate 0. After the hold, the cell waits for the driver for the drain only.
  *
  * It throws a `RangeError` for a case with a problem, and for a host with too few CPUs.
  */
@@ -116,6 +123,7 @@ export const cellOf = (value: Case, options: CellOptions): Cell => {
   if (cpu === undefined || memory === undefined) throw new RangeError("The instance of the case has no cpu or no memory.");
   const cores = valueIn(cpu, "{core}");
   const sets = cpuSetsOf(cores, options.cpus);
+  const idle = isIdleCase(value);
   const target: Target = {
     image: subject.image,
     subject: { kind: "pinned", image: subject.image },
@@ -133,7 +141,9 @@ export const cellOf = (value: Case, options: CellOptions): Cell => {
     client: "load",
     probe: { mode: "schedule", keepalive: false, streams: streamsOf(value) },
     fault: "none",
-    prediction: { detects: null, window: windowOf(value), why: `the measures of the case ${value.id}` },
+    // the harness waits for the driver for the window after the hold
+    prediction: { detects: null, window: idle ? DRAIN : windowOf(value), why: `the measures of the case ${value.id}` },
+    ...(idle ? { idleBefore: value.duration } : {}),
     runs: value.runs,
     environments: 1,
     concurrency: 1,
