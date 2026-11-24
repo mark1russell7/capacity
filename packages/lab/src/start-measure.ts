@@ -34,20 +34,16 @@ import {
   IMAGE_MARGIN,
   SEED_RATE,
   TREE_MARGIN,
-  pointAmounts,
   pointBytes,
   startCaseProblems,
-  startSubjectOf,
   startVariablesOf,
   type BallastMoment,
-  type Graft,
   type StartArm,
   type StartBallast,
   type StartCase,
   type StartObservation,
   type StartPoint,
   type StartTarget,
-  type StartVariables,
 } from "./start.ts";
 import {
   APP_START_PROGRAM,
@@ -71,10 +67,10 @@ import {
 export const START_RECORD_FORMAT = "capacity-start-record/1";
 
 /**
- * These measures are the measures of one start, with their units. The start program reads them in a fresh process.
+ * These measures are the measures of one start, with their units. The program `app-start` reads them in a fresh process.
  *
- * - `ready` is the time to ready: the import of the runtime, the open and the first pass.
- * - `readiness` is the time from the start of the process to the end of the open, less the copy. `firstPass` is the time from that point to ready.
+ * - `ready` is the time to the ready signal of the app. `readiness` is that time from the start of the process, less the copy and the ballasts.
+ * - `firstPass` is null: the lab does not time the first pass of an app.
  * - `copy` and `close` are the times of the copy of the store before the start and of the close after the watch.
  *   `ballast` is the time of the ballasts of the moment `start`, before the start. A child with a cold cache has no copy: it opens its home in place.
  * - `end` is the time from the start of the process to the line of the child.
@@ -170,25 +166,22 @@ export interface TargetCheck {
   readonly start: Quantity;
 }
 
-/** A tree of a start record: one checkout of the subject, and the time of its clone and its install. */
+/** A tree of a start record: one checkout of the app, and the time of its clone and its install. */
 export interface StartTree {
-  /** This id is the id of the arm, or `seeder` for the tree of the seed program only. */
+  /** This id is the id of the arm, or `seeder` for the tree of the seed only. */
   readonly id: string;
   readonly commit: string;
-  readonly graft: readonly Graft[];
   readonly time: Quantity;
 }
 
-/** A seeded point is the store of one point as the seed program wrote it. */
+/** A seeded point is the store of one point as the seed of the app wrote it. */
 export interface SeededPoint {
   readonly id: string;
   /**
-   * These sizes are the amount of each variable of the store that the seed wrote, by its name. For a subject of
-   * `START_SUBJECTS`, each one is the byte size of a file. For an app, the seed gives them in its last line.
+   * These sizes are the amount of each variable of the store that the seed wrote, by its name. The seed gives them in its
+   * last line. The sizes also have the level variables and the load of the point.
    */
   readonly sizes: Readonly<Record<string, Quantity>>;
-  /** This count is the events of the log, for the subject `alerts`. A seed of an app does not give it. */
-  readonly events?: number | undefined;
   readonly time: Quantity;
   /** These arguments go to the start program for this store. */
   readonly args: readonly string[];
@@ -238,7 +231,7 @@ export interface FirstStart {
   readonly after: string;
   readonly arm: string;
   readonly time: Quantity;
-  /** This count is the passes of the watch of the first start. An arm with a snapshot writes it at the first pass of the watch. */
+  /** This count is the passes of the watch of the first start. It is 0 for a run with no line `pass` in its contract. */
   readonly passes: number;
   /** This count is the writes of the snapshot in the first start. It is null for a tree with no record of the writes. */
   readonly writes: Quantity | null;
@@ -435,18 +428,10 @@ const checkTarget = async (child: StartChild, target: StartTarget): Promise<Targ
 };
 
 /**
- * This function makes one tree of a repository in `dir`. The steps are a shallow fetch of the commit and the file of each
- * graft from its commit. Then `setup` installs the dependencies, and it examines a tree with a graft. It gives the time of the tree.
+ * This function makes one tree of a repository in `dir`: a shallow fetch of the commit and its checkout. Then `setup`
+ * installs the dependencies. It gives the time of the tree.
  */
-const makeTree = async (
-  start: StartChild,
-  repository: string,
-  id: string,
-  commit: string,
-  graft: readonly Graft[],
-  dir: string,
-  setup: (dir: string, grafted: boolean) => Promise<void>,
-): Promise<StartTree> => {
+const makeTree = async (start: StartChild, repository: string, id: string, commit: string, dir: string, setup: (dir: string) => Promise<void>): Promise<StartTree> => {
   const begun = performance.now();
   const git = (...args: string[]): Promise<string> => command(start, ["git", "-C", dir, ...args], undefined, TREE_MARGIN);
   mkdirSync(dir, { recursive: true });
@@ -454,12 +439,8 @@ const makeTree = async (
   await git("remote", "add", "origin", repository);
   await git("fetch", "-q", "--depth", "1", "origin", commit);
   await git("checkout", "-q", "FETCH_HEAD");
-  for (const each of graft) {
-    await git("fetch", "-q", "--depth", "1", "origin", each.commit);
-    await git("checkout", each.commit, "--", each.path);
-  }
-  await setup(dir, graft.length > 0);
-  return { id, commit, graft, time: since(begun) };
+  await setup(dir);
+  return { id, commit, time: since(begun) };
 };
 
 /** This function gives the flags of the start program for a list of ballasts. */
@@ -478,7 +459,7 @@ const filesOf = (dir: string, prefix = ""): Record<string, Quantity> => {
 
 /**
  * This function gives the id of the seed point of a point. It is the point itself, or the seed point of the earlier
- * point of a point with the field `after`. The seed program wrote the store of the seed point. It is undefined for an id that is not a point.
+ * point of a point with the field `after`. The seed wrote the store of the seed point. It is undefined for an id that is not a point.
  */
 export const seedPointOf = (points: readonly StartPoint[], id: string): string | undefined => {
   const point = points.find((each) => each.id === id);
@@ -494,28 +475,6 @@ const limitOf = (device: string, disk: NonNullable<StartTarget["disk"]>): DiskLi
   writeBytes: valueIn(disk.writeBytes, DISK_UNITS.writeBytes),
   writeOps: valueIn(disk.writeOps, DISK_UNITS.writeOps),
 });
-
-/** This function reads the child line of the seed program, or it throws. */
-const seededOf = (point: StartPoint, stdout: string, time: Quantity, subject: StartVariables): SeededPoint => {
-  const line = childLine(stdout);
-  if (line.skipped !== undefined) throw new Error(`The seed program skipped the point "${point.id}": ${line.skipped}`);
-  const extra = line.extra ?? {};
-  const sizes = extra["sizes"];
-  const args = extra["args"];
-  // The field `events` of a child line is the GC events of the child. Thus the seed program gives `logEvents`.
-  const events = extra["logEvents"];
-  const bad = (what: string): Error => new Error(`The seed program of the point "${point.id}" gave no ${what}.`);
-  if (!isRecord(sizes)) throw bad("sizes");
-  if (!Array.isArray(args) || !args.every((each) => typeof each === "string")) throw bad("arguments of the start program");
-  if (!Number.isSafeInteger(events)) throw bad("count of events");
-  const read: Record<string, Quantity> = {};
-  for (const [name, variable] of Object.entries(subject.variables)) {
-    const value = sizes[name];
-    if (typeof value !== "number" || !Number.isFinite(value) || value < 0) throw bad(`size of "${name}"`);
-    read[name] = quantity(value, variable.unit);
-  }
-  return { id: point.id, sizes: read, events: events as number, time, args: args as string[] };
-};
 
 /** This function gives the number in a field of a record, or null. */
 const numberIn = (value: unknown, key: string): number | null => {
@@ -657,7 +616,7 @@ const openOf = (fields: ChildFields): readonly string[] => {
   return Array.isArray(open) ? open.filter((each): each is string => typeof each === "string") : [];
 };
 
-/** This function gives the folder of the program of a subject, in the folder `src/subject` of this package. */
+/** This function gives the path of a program of the lab, in the folder `src/subject` of this package. */
 const programOf = (name: string): string => fileURLToPath(new URL(`./subject/${name}`, import.meta.url));
 
 /** This function gives the time limit of one child of a start case: the limit, the watch and `CHILD_MARGIN`. */
@@ -668,12 +627,13 @@ export const childLimitOf = (value: StartCase): Quantity => quantity(valueIn(val
  *
  * 1. It pulls the image of the target, and it starts a check child in the container of the target. A fact of the
  *    container that is not the fact of the target stops the case.
- * 2. It makes a tree for each arm, and a tree of the seeder when no arm without a graft has its commit.
- * 3. It seeds the store of each point once, with the seed program in the tree of the seeder.
+ * 2. It makes a tree for each arm, and a tree of the seeder when no arm has its commit. It installs each tree with the
+ *    command `install` of its contract.
+ * 3. It seeds the store of each point once, with the seed of the contract in the tree of the seeder.
  * 4. It starts the children with `freshRun` of `@mark1russell7/rigor-bench/fresh`, in the order `arms`. Each round
  *    starts one child of each arm and one A/A child of the base, on each point.
  *
- * Each child is the start program in a new container of the target, with `--expose-gc`. The container mounts the work
+ * Each child is the program `app-start` in a new container of the target, with `--expose-gc`. The container mounts the work
  * folder and the repository of the lab at the same paths. A child that passes a limit of the target is a failure of
  * its arm on its point. The other arms still start.
  *
@@ -691,10 +651,9 @@ export const measureStart = async (value: StartCase, options: StartMeasureOption
   const container = options.container ?? ((each: ContainerOptions) => containerStart({ ...each, start }));
   const now = options.now ?? (() => new Date());
   const host = options.host ?? benchEnv();
-  // An app case has no subject of START_SUBJECTS: the contract of each tree gives its steps.
-  const subject = value.app === undefined ? startSubjectOf(value) : undefined;
+  // The contract of each tree gives the steps of the start.
   const variables = startVariablesOf(value);
-  const repository = value.app ?? startSubjectOf(value).repository;
+  const repository = value.app;
   const started = now();
   const { target } = value;
 
@@ -729,33 +688,26 @@ export const measureStart = async (value: StartCase, options: StartMeasureOption
   if (base === undefined) throw new RangeError("The start case has no arm.");
   const treeOf = (id: string): string => join(options.work, "trees", id);
   const trees: StartTree[] = [];
-  // The contract of each tree of an app case, by the id of the tree. The lab reads it after the grafts.
+  // The contract of each tree, by the id of the tree. The lab reads it after the checkout.
   const apps = new Map<string, TreeApp>();
   const setupOf =
     (id: string) =>
-    async (dir: string, grafted: boolean): Promise<void> => {
-      if (subject !== undefined) {
-        await command(start, subject.install, dir, TREE_MARGIN);
-        if (grafted) await command(start, subject.check, dir, TREE_MARGIN);
-        return;
-      }
+    async (dir: string): Promise<void> => {
       const tree = readTreeApp(id, dir);
       const problems = appCaseProblems(value, [tree]);
       if (problems.length > 0) throw new RangeError(`The start case "${value.id}" has problems: ${problems.map((each) => `${each.path}: ${each.message}`).join(" ")}`);
       apps.set(id, tree);
-      const { install, check } = tree.app.start;
-      for (const step of [install, grafted ? check : undefined]) {
-        if (step === undefined) continue;
-        const host = hostCommand(fillCommand(step, {}), dir);
-        await command(start, host.argv, host.cwd, TREE_MARGIN);
-      }
+      const { install } = tree.app.start;
+      if (install === undefined) return;
+      const host = hostCommand(fillCommand(install, {}), dir);
+      await command(start, host.argv, host.cwd, TREE_MARGIN);
     };
-  for (const arm of value.arms) trees.push(await makeTree(start, repository, arm.id, arm.commit, arm.graft ?? [], treeOf(arm.id), setupOf(arm.id)));
-  const plain = value.arms.find((arm) => arm.commit === value.seeder && (arm.graft ?? []).length === 0);
+  for (const arm of value.arms) trees.push(await makeTree(start, repository, arm.id, arm.commit, treeOf(arm.id), setupOf(arm.id)));
+  const plain = value.arms.find((arm) => arm.commit === value.seeder);
   const seederId = plain === undefined ? "seeder" : plain.id;
   const seeder = treeOf(seederId);
-  if (plain === undefined) trees.push(await makeTree(start, repository, "seeder", value.seeder, [], seeder, setupOf("seeder")));
-  /** This function gives the contract of a tree of an app case. */
+  if (plain === undefined) trees.push(await makeTree(start, repository, "seeder", value.seeder, seeder, setupOf("seeder")));
+  /** This function gives the contract of a tree. */
   const appOf = (id: string): TreeApp => {
     const tree = apps.get(id);
     if (tree === undefined) throw new Error(`The tree "${id}" has no contract.`);
@@ -769,13 +721,6 @@ export const measureStart = async (value: StartCase, options: StartMeasureOption
     const limit = quantity(valueIn(CHILD_MARGIN, "s") + pointBytes(variables, point) / SEED_RATE, "s");
     mkdirSync(storeOf(point.id), { recursive: true });
     const begun = performance.now();
-    if (subject !== undefined) {
-      const amounts = pointAmounts(subject, point);
-      const flags = Object.entries(amounts).flatMap(([name, each]) => [`--${name}`, String(Math.round(each))]);
-      const stdout = await command(start, [process.execPath, programOf(subject.seed), "--tree", seeder, "--out", storeOf(point.id), "--seed", value.seed, ...flags], undefined, limit);
-      points.push(seededOf(point, stdout, since(begun), subject));
-      continue;
-    }
     // The seed of the contract of the seeder writes the store. Its last line gives the amounts that it wrote.
     // The point sets the level variables of the seed, thus the sizes of the point have them too.
     const tree = appOf(seederId);
@@ -786,7 +731,7 @@ export const measureStart = async (value: StartCase, options: StartMeasureOption
   }
 
   // The program of the child is the Node of the image. Node sizes the heap of V8 from the memory limit of the container.
-  // The program of an app arm imports the run of its contract, with the options of Node of the run.
+  // The program of an arm imports the run of its contract, with the options of Node of the run.
   const runOf = (id: string): string => join(options.work, "runs", `${id}.json`);
   const appOptions = new Map<string, readonly string[]>();
   // The fakes of the services of an arm run in a sidecar of each child of the arm, with the workload of the point of the child.
@@ -794,23 +739,21 @@ export const measureStart = async (value: StartCase, options: StartMeasureOption
   const sidecars = new Map<string, Sidecar>();
   const sidecarKey = (run: string, point: string): string => JSON.stringify([run, point]);
   const fakesMemory = valueIn(value.fakes ?? FAKES_MEMORY, "B");
-  if (subject === undefined) {
-    mkdirSync(join(options.work, "runs"), { recursive: true });
-    for (const arm of value.arms) {
-      const tree = appOf(arm.id);
-      const { file, options: flags } = appRunOf(tree, treeOf(arm.id));
-      writeFileSync(runOf(arm.id), `${JSON.stringify(file, null, 2)}\n`);
-      appOptions.set(arm.id, flags);
-      if (tree.app.services.length === 0) continue;
-      mkdirSync(join(options.work, "fakes"), { recursive: true });
-      const program = ["node", programOf(FAKES_PROGRAM)];
-      for (const point of value.points) {
-        const fakes = join(options.work, "fakes", `${arm.id}.${point.id}.json`);
-        const workload = join(options.work, "fakes", `${arm.id}.${point.id}.workload.json`);
-        writeFileSync(workload, `${JSON.stringify(workloadOf(tree.app, point), null, 2)}\n`);
-        writeFileSync(fakes, `${JSON.stringify(appFakesOf(tree, treeOf(arm.id), workload), null, 2)}\n`);
-        sidecars.set(sidecarKey(runOf(arm.id), point.id), { argv: [...program, "host", "--file", fakes], memory: fakesMemory, cpuset: cpus.others, mounts: [options.work, REPO_ROOT], ready: [...program, "ready"] });
-      }
+  mkdirSync(join(options.work, "runs"), { recursive: true });
+  for (const arm of value.arms) {
+    const tree = appOf(arm.id);
+    const { file, options: flags } = appRunOf(tree, treeOf(arm.id));
+    writeFileSync(runOf(arm.id), `${JSON.stringify(file, null, 2)}\n`);
+    appOptions.set(arm.id, flags);
+    if (tree.app.services.length === 0) continue;
+    mkdirSync(join(options.work, "fakes"), { recursive: true });
+    const program = ["node", programOf(FAKES_PROGRAM)];
+    for (const point of value.points) {
+      const fakes = join(options.work, "fakes", `${arm.id}.${point.id}.json`);
+      const workload = join(options.work, "fakes", `${arm.id}.${point.id}.workload.json`);
+      writeFileSync(workload, `${JSON.stringify(workloadOf(tree.app, point), null, 2)}\n`);
+      writeFileSync(fakes, `${JSON.stringify(appFakesOf(tree, treeOf(arm.id), workload), null, 2)}\n`);
+      sidecars.set(sidecarKey(runOf(arm.id), point.id), { argv: [...program, "host", "--file", fakes], memory: fakesMemory, cpuset: cpus.others, mounts: [options.work, REPO_ROOT], ready: [...program, "ready"] });
     }
   }
   /** This function gives the start of the children of the arms. The child of an arm with services gets the sidecar of its fakes at its point. */
@@ -823,10 +766,7 @@ export const measureStart = async (value: StartCase, options: StartMeasureOption
     };
     return (argv, rest) => (own.get(sidecarKey(flag(argv, "--run"), flag(argv, "--case"))) ?? plain)(argv, rest);
   };
-  const programFor = (arm: StartArm): string[] =>
-    subject === undefined
-      ? ["node", "--expose-gc", ...(appOptions.get(arm.id) ?? []), programOf(APP_START_PROGRAM), "--run", runOf(arm.id)]
-      : ["node", "--expose-gc", programOf(subject.start), "--tree", treeOf(arm.id), ...(arm.snapshot === true ? ["--snapshot"] : [])];
+  const programFor = (arm: StartArm): string[] => ["node", "--expose-gc", ...(appOptions.get(arm.id) ?? []), programOf(APP_START_PROGRAM), "--run", runOf(arm.id)];
   // The ballasts of the target and of the arm model the processes of the target that the program does not run.
   const armOf = (arm: StartArm) => ({ id: arm.id, command: [...programFor(arm), ...ballastFlags(target.others), ...ballastFlags(arm.ballast)], cwd: treeOf(arm.id), commit: arm.commit });
   // A point with the field after has the seeded store of its seed point.
@@ -856,8 +796,6 @@ export const measureStart = async (value: StartCase, options: StartMeasureOption
       const line = childLine(await command(unlimited, argv, treeOf(arm.id), childLimitOf(value)));
       if (line.skipped !== undefined) throw new Error(`The first start of the arm "${arm.id}" on "${earlier.id}" skipped: ${line.skipped}`);
       const passes = numberIn(line.extra, "passes") ?? 0;
-      // The snapshot of the start is written at the first pass of the watch. With no pass, the second start reads no snapshot.
-      if (arm.snapshot === true && passes < 1) throw new Error(`The first start of the arm "${arm.id}" on "${earlier.id}" did no pass in its watch. It wrote no snapshot.`);
       const { writes, writeLongest } = writeMeasures(line);
       firsts.push({ point: point.id, after: earlier.id, arm: arm.id, time: since(begun), passes, writes, writeLongest, files: filesOf(home) });
     }
@@ -1026,8 +964,11 @@ export const observationReads = (record: StartRecord, reads: readonly StartWindo
     return { observation, reads: mine, agrees };
   });
 
-/** These measures are the measures that each reading has. The others are null on a machine with no `/proc`, or with no full GC. */
-const NEEDED: readonly StartMeasure[] = ["ready", "readiness", "firstPass", "end", "peak", "rss", "heap", "live", "read", "faults", "heapPeak", "gc", "watchPeak", "watchRss", "watchHeapPeak", "limit"];
+/**
+ * These measures are the measures that each reading has. The others are null on a machine with no `/proc`, or with no full GC.
+ * An app has no pass of the lab, thus its readings have no first pass. The program `app-start` reads the CPU time of the watch.
+ */
+const NEEDED: readonly StartMeasure[] = ["ready", "readiness", "end", "peak", "rss", "heap", "live", "read", "faults", "heapPeak", "gc", "watchPeak", "watchRss", "watchHeapPeak", "limit", "watchCpu", "watchCores"];
 
 /**
  * This function examines a start record and gives each problem that it finds.
@@ -1039,10 +980,8 @@ const NEEDED: readonly StartMeasure[] = ["ready", "readiness", "firstPass", "end
 export const startRecordProblems = (record: StartRecord): readonly CheckProblem[] => {
   const problems: CheckProblem[] = [];
   const id = record.case.id;
-  // An app has no pass of the lab, thus its readings have no first pass. The program app-start reads the CPU time of the watch.
-  const needed: readonly StartMeasure[] = record.case.app === undefined ? NEEDED : [...NEEDED.filter((name) => name !== "firstPass"), "watchCpu", "watchCores"];
   for (const reading of record.readings) {
-    const missing = needed.filter((name) => reading.measures[name] === null);
+    const missing = NEEDED.filter((name) => reading.measures[name] === null);
     if (missing.length > 0) problems.push({ code: "read", path: `${id}: ${reading.arm} on ${reading.point}`, message: `The reading has no ${missing.join(", ")}.` });
   }
   const arms = [record.case.arms[0]?.id ?? "", ...record.pairs];
@@ -1119,7 +1058,7 @@ export const startSummaryOf = (record: StartRecord): string => {
     `- The host: ${escapeMarkdown(`${machine.cpu}, ${machine.cores} CPUs, ${shown(machine.memory)}, Node ${machine.node}, kernel ${machine.kernel}`)}`,
     `- The target: ${escapeMarkdown(`${target.cpus} CPUs, ${shown(target.memory)} of memory, ${shown(target.swap)} of swap, Node ${target.node}`)}. The image: \`${image.digest ?? image.id}\`.`,
     `- The check child: the heap limit of V8 is ${shown(check.heapLimit)}, and the container starts in ${shown(check.start)}.`,
-    `- The trees: ${record.trees.map((tree) => `\`${tree.id}\` ${tree.commit.slice(0, 7)}${tree.graft.length > 0 ? ` with ${tree.graft.length} graft` : ""} in ${shown(tree.time)}`).join(", ")}`,
+    `- The trees: ${record.trees.map((tree) => `\`${tree.id}\` ${tree.commit.slice(0, 7)} in ${shown(tree.time)}`).join(", ")}`,
     ...machineLines(record),
     "",
     `| Point | ${names.map((name) => `\`${name}\``).join(" | ")} | Arm | Readiness | ${windows.map((window) => `In ${shown(window)}`).join(" | ")} | Ready | Read to ready | Major faults | VmHWM at ready | Heap peak | Live heap | GC | VmHWM of the watch | Passes | Writes of the snapshot |`,

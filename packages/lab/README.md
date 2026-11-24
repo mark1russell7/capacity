@@ -496,16 +496,16 @@ A start case measures the start of an application, not its load. It gives the ti
 
 | Field | What it is |
 | --- | --- |
-| `subject` | The name of a subject of `START_SUBJECTS`, or the id of the contract of an app. A subject is data: its repository, its install command, its type check, its variables and its two programs. |
-| `app` | The HTTPS URL of the repository of an app with a contract file. The default is no app. Refer to the app cases. |
+| `subject` | The id of the contract of the app. |
+| `app` | The HTTPS URL of the repository of an app with a contract file. Each start case has an app. Refer to the app cases. |
 | `seeder` | The commit of the tree that writes the stores. Each arm opens the same stores. |
-| `arms` | 1 tree or more of the subject, each at a commit. The first arm is the base, and each other arm is compared with it. A ladder of one variable needs only one arm. A `graft` puts a file of another commit into a tree. An arm can also have `ballast` and `snapshot`. |
-| `points` | The stores of the case. A point gives an amount of each variable of the subject, for example the byte size of the log. A point with `after` is a second start. |
+| `arms` | 1 tree or more of the app, each at a commit. The first arm is the base, and each other arm is compared with it. A ladder of one variable needs only one arm. An arm can also have `ballast`. |
+| `points` | The stores of the case. A point gives an amount of each variable of the app, for example the byte size of the log. A point with `after` is a second start. |
 | `seed` | The seed of each store. One seed gives the same files. |
 | `rounds` | The rounds of one job, from 1 to 10. |
-| `watch` | The time of the live loop after the ready time, 600 s or less. |
-| `limit` | The longest start to the end of the first pass, 1800 s or less. |
-| `windows` | The ready windows of the supervisor of the subject, up to the limit, in ascending order. |
+| `watch` | The time of the watch after the ready time, 600 s or less. |
+| `limit` | The longest start to the ready signal of the app, 1800 s or less. |
+| `windows` | The ready windows of the supervisor of the app, up to the limit, in ascending order. |
 | `probe` | The interval of the ready probe of the supervisor, 60 s or less. |
 | `samples` | The interval of the samples of each child, from 1 s to 60 s. The default is no samples. |
 | `target` | The machine that the case models: the image with its Node, the memory, the swap, the CPUs and the heap limit of V8. It can also give the disk, the page cache and the other processes. |
@@ -514,17 +514,17 @@ A start case measures the start of an application, not its load. It gives the ti
 `measureStart` does the job of a start case in four steps:
 
 1. It pulls the image of the target. A check child in a container of the target reads the Node version, the limits of the cgroup and the swap of the host. It also reads the heap limit and the CPUs. A fact that is not the fact of the target stops the case.
-2. It makes a tree for each arm: a shallow fetch of the commit, each graft and the install. A tree with a graft gets the type check of the subject, because the start program strips the types. The seed uses an arm at the commit of the seeder with no graft, or one more tree.
-3. The seed program writes the store of each point one time.
+2. It makes a tree for each arm: a shallow fetch of the commit and the command `install` of the contract. The seed uses an arm at the commit of the seeder, or one more tree.
+3. The command `seed` of the contract writes the store of each point one time.
 4. `freshRun` of `@mark1russell7/rigor-bench/fresh` starts the children in the order `arms`, with the scope `child`. Each round starts one child of each arm and one A/A child of the base, on each point.
 
-Each child is the start program in a new container of the target, with the Node of the image and `--expose-gc`. The container has the memory, the swap and the CPUs of the target. Node sizes the heap of V8 from the memory limit of the container, as on the target. The child copies the store and opens the copy with no network and no key. It is ready at the end of its first pass. Then it reads its memory and does the passes of a live loop for the time of the watch.
+Each child is the program `app-start` in a new container of the target, with the Node of the image and `--expose-gc`. The container has the memory, the swap and the CPUs of the target. Node sizes the heap of V8 from the memory limit of the container, as on the target. The child copies the store and starts the app on the copy. It is ready at the ready signal of the app. Then it reads its memory and continues for the time of the watch.
 
 ### The app cases
 
-An app case has the field `app`: the HTTPS URL of the repository of an app with a contract file, `capacity-app.json`. Its `subject` is the id of the contract. The contract of each tree gives the steps of the start. Thus the lab has no subject record for the app.
+Each start case is an app case. Its field `app` is the HTTPS URL of the repository of an app with a contract file, `capacity-app.json`. Its `subject` is the id of the contract. The contract of each tree gives the steps of the start. Thus the lab has no subject record for the app. A case with no app has a problem.
 
-- The commands `install` and `check` of the contract replace the install and the type check of a subject. They start on the host, in the tree.
+- The command `install` of the contract starts on the host, in the tree. The lab changes no file of the tree, thus it does not start the command `check`.
 - The command `seed` writes the store of each point. The lab gives it `{store}` and the amount of each store variable, in the unit of the variable.
 - The seed can also get the amount of a level variable, for example the routes of a configuration. The point sets this amount, and the record of the point has it.
 - The last line of the output of the seed is a JSON record. Its field `amounts` gives the amount of each store variable that the seed wrote.
@@ -681,23 +681,21 @@ A start case can also model the disk, the page cache and the other processes of 
 - **The page cache.** With `cache: "cold"`, the lab copies the store to a home on the host before each child. Then it drops the page cache of the host.
   - The child opens the home in place with `--home`. Thus the open reads the store from the disk.
   - With `warm`, the default, the child copies the store in its container.
-- **The other processes.** `target.others` gives the other processes of the target. The `ballast` of an arm gives the steps of its live start that the start program does not run, for example a bundler.
+- **The other processes.** `target.others` gives the other processes of the target. The `ballast` of an arm gives the steps of its live start that the app does not run, for example a bundler.
   - Each ballast is a process in the container of the child, with `bytes` of resident memory, from the moment `start` or `ready`.
   - Its field `models` tells what it models.
-- **The snapshot.** An arm with `snapshot: true` writes the start snapshot of the subject at its first pass, and its next start reads the snapshot.
 - **A second start.** A point with `after` names an earlier point with the same amounts.
   - Before the children of the point, each arm does one first start on its copy of the home of the earlier point. A first start has no limits of the disk and no ballasts, and it runs to the end of its watch.
   - Each child of the point then opens a copy of the home of its arm.
   - The record keeps each first start: its time, its passes and the size of each file of the home.
-  - A first start of an arm with a snapshot and no pass stops the case, because it wrote no snapshot.
 - **The samples.** With `samples`, a child reads its own reads from the disk, its major faults and its resident set at each interval. It also reads the memory, the swap and the reads of its container.
   - A worker thread takes the samples. Thus the samples continue while the open blocks the main thread.
 
 | Measure | What it is |
 | --- | --- |
-| `ready` | The time to ready: the import of the runtime, the open of the store and the first pass. |
+| `ready` | The time to the ready signal of the app. |
 | `readiness` | The time from the start of the process to the end of the open, less the copy and the ballasts. The ready probe passes after this point. |
-| `firstPass` | The time from the end of the open to ready. |
+| `firstPass` | The time from the end of the open to ready. The program `app-start` gives null, because it does not time the first pass. |
 | `copy`, `close`, `end` | The time of the copy of the store, the time of the close, and the time from the start of the process to the line. |
 | `ballast` | The time to start the ballasts of the moment `start`. |
 | `read`, `faults` | The bytes that the child read from the disk and its count of major page faults, from the start of the process to ready. |
@@ -719,7 +717,7 @@ A start case can also model the disk, the page cache and the other processes of 
 - **The observations.** `observationReads` compares each fact of the target machine with the reads of the children of its arm and its A/A copy. A disagreement is a problem: the lab does not model the time of the machine. A fact with a child of `no read` is a problem too.
 - **A stalled loop.** A pass can give a wake time that is not after the pass. Then the watch has no more passes. The reading records `stalled`, and the summary tells it.
 - **The problems of a record.** `startRecordProblems` examines each start record. Each reading has each needed measure. Each arm and the A/A pair have a child of each point in each round: a reading, a failure or a skip. Each observation agrees with the record.
-- **The time of a job.** `startWindowOf` gives the longest time of one job. It is `IMAGE_MARGIN` for each of the 3 steps of the image, `TREE_MARGIN` for each tree and each type check, and the seeds at `SEED_RATE`. A point with `after` has no seed. Each child and each first start adds its limit, the watch and `CHILD_MARGIN`.
+- **The time of a job.** `startWindowOf` gives the longest time of one job. It is `IMAGE_MARGIN` for each of the 3 steps of the image, `TREE_MARGIN` for each tree, and the seeds at `SEED_RATE`. A point with `after` has no seed. Each child and each first start adds its limit, the watch and `CHILD_MARGIN`.
 
 The container does not model all of the target machine:
 
@@ -743,7 +741,7 @@ The plan `alerts-start-app` starts alerts from its contract, on the commit of th
 
 - The case `alerts-start-app/contract` starts alerts from `capacity-app.json`. It seeds with the seed `al124` and the cache sizes of one live copy.
 - The two arms are the same build. The arm `deploy` adds the ballast of the deploy process at ready.
-- The contract of alerts names the passes and the writes of the snapshot from `caf260b` (CAP-65). The bytes plans use that commit. Then a change removes the start subject `alerts` and its programs.
+- The contract of alerts names the passes and the writes of the snapshot from `caf260b` (CAP-65). The bytes plans use that commit. Then CAP-65 removed the start subject `alerts` and its programs.
 
 #### The results of the plans of the start of alerts
 
@@ -822,8 +820,6 @@ A person starts a plan by hand, for example with 5 runs:
 ```sh
 gh workflow run lab.yml -R mark1russell7/capacity --ref <branch> -f plans=alerts-start-log -f runs='[1,2,3,4,5]'
 ```
-
-The programs of alerts are in `src/subject`. `alerts-seed.main.ts` writes a store with `seedStore` of the testkit of the tree. The seed writes the events at the rate of a live log, thus a larger log has more days of events. `alerts-start.main.ts` opens the store with `openMeasuredRuntime` of the runtime of the tree. With the snapshot, it also asks for the time of each write of the snapshot. An older tree ignores that option, and its measures of the writes are `null`. `alerts-config.json` is the configuration of each store: one place, one person and one channel, with made-up codes.
 
 ### The laws of the start cases
 
