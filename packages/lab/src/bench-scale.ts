@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import type * as Capacity from "@mark1russell7/capacity";
 import type { Composition, Demand, KneeRule, Law, ScaleModel, ScaleOptions } from "@mark1russell7/capacity";
@@ -247,6 +247,8 @@ export interface BenchRecord {
   readonly aa: readonly PairedTime[];
   /** This flag tells that the base and the head give the same value for the case. */
   readonly same: boolean;
+  /** The hashes of the values of the case on the base and on the head, from `resultHash`. */
+  readonly hashes: { readonly base: string; readonly head: string };
 }
 
 /**
@@ -264,6 +266,52 @@ export const readBenchRecords = (folder: string): readonly BenchRecord[] =>
       return record;
     });
 
+/** This text is the format of the file of the changes of value that the head makes on purpose. */
+export const BENCH_CHANGES_FORMAT = "capacity-bench-changes/1";
+
+/** This name is the name of the file of the changes of value, in the folder of the package lab. */
+export const BENCH_CHANGES = "bench-changes.json";
+
+/**
+ * A change of value is a case whose value the head changes on purpose, with its reason. The hashes of the value on the base
+ * and on the head pin the change. When the base has the change, the two values are equal, and the change has no use.
+ */
+export interface BenchChange {
+  readonly case: string;
+  readonly base: string;
+  readonly head: string;
+  readonly reason: string;
+}
+
+/** The file of the changes of value. */
+export interface BenchChanges {
+  readonly format: typeof BENCH_CHANGES_FORMAT;
+  readonly changes: readonly BenchChange[];
+}
+
+/** This function gives the changes of value of a file, or no change when the file does not exist. It throws an `Error` for a file of another format. */
+export const readBenchChanges = (file: string): readonly BenchChange[] => {
+  if (!existsSync(file)) return [];
+  const found = JSON.parse(readFileSync(file, "utf8")) as Partial<BenchChanges>;
+  if (found.format !== BENCH_CHANGES_FORMAT || !Array.isArray(found.changes)) {
+    throw new Error(`The file ${file} is not a file of changes of the format "${BENCH_CHANGES_FORMAT}".`);
+  }
+  return found.changes;
+};
+
+/** A case that the head changes on purpose: the median time of each arm and the reason of the change. */
+export interface BenchIntended {
+  readonly case: string;
+  readonly baseMs: number;
+  readonly headMs: number;
+  readonly reason: string;
+}
+
+/** The options of a gate: the options of the read, and the changes of value that the head makes on purpose. */
+export interface BenchGateOptions extends Omit<BenchReadOptions, "same"> {
+  readonly changes?: readonly BenchChange[];
+}
+
 /** The gate of the bench records of a run: the read of the cases, the cases with no record and the commits. */
 export interface BenchGate {
   readonly read: BenchRead;
@@ -271,40 +319,62 @@ export interface BenchGate {
   readonly missing: readonly string[];
   /** The cases whose base and head give different values. */
   readonly changed: readonly string[];
+  /** The changed cases that a change of value names with their two hashes. The gate does not compare their times with the base. */
+  readonly intended: readonly BenchIntended[];
+  /** The changed cases that no change of value names. A change of value with no reason stops the gate. */
+  readonly unexplained: readonly string[];
+  /** The cases of the changes of value that name no changed case with their two hashes. Remove these changes. */
+  readonly unused: readonly string[];
   readonly commits: { readonly base: string; readonly head: string };
 }
 
 /**
- * This function gives the gate of the bench records of a run. The `cases` are the ids of the cases of the bench. It throws an
- * `Error` when the records have more than one base or head, or no record.
+ * This function gives the gate of the bench records of a run. The `cases` are the ids of the cases of the bench. A changed case
+ * that a change of value names is not timed against the base, because its times compare different work. It throws an `Error`
+ * when the records have more than one base or head, or no record.
  */
-export const benchGate = (records: readonly BenchRecord[], cases: readonly string[], options: Omit<BenchReadOptions, "same"> = {}): BenchGate => {
+export const benchGate = (records: readonly BenchRecord[], cases: readonly string[], options: BenchGateOptions = {}): BenchGate => {
   const first = records[0];
   if (first === undefined) throw new Error("The run has no bench record. A gate with no read is not a pass.");
   const other = records.find((each) => each.commits.base !== first.commits.base || each.commits.head !== first.commits.head);
   if (other !== undefined) throw new Error(`The records have two pairs of commits: ${JSON.stringify(first.commits)} and ${JSON.stringify(other.commits)}.`);
+  const { changes = [], ...readOptions } = options;
+  const changeOf = (record: BenchRecord): BenchChange | undefined =>
+    changes.find((each) => each.case === record.case && each.base === record.hashes.base && each.head === record.hashes.head);
+  const changed = records.filter((each) => !each.same);
+  const intended = changed.filter((each) => changeOf(each) !== undefined);
+  const skipped = new Set(intended.map((each) => each.case));
+  const timed = records.filter((each) => !skipped.has(each.case));
   const same = new Map(records.map((each) => [each.case, each.same]));
   const read = benchRead(
-    records.flatMap((each) => each.processes),
-    records.flatMap((each) => each.aa),
-    { ...options, same },
+    timed.flatMap((each) => each.processes),
+    timed.flatMap((each) => each.aa),
+    { ...readOptions, same },
   );
+  const used = new Set(intended.map((each) => changeOf(each)));
   return {
     read,
     missing: cases.filter((id) => !same.has(id)),
-    changed: records.filter((each) => !each.same).map((each) => each.case),
+    changed: changed.map((each) => each.case),
+    intended: intended.map((each) => {
+      const times = armTimes(each.processes);
+      const timeOfArm = (arm: string): number => times.find((time) => time.arm === arm)?.median ?? Number.NaN;
+      return { case: each.case, baseMs: timeOfArm(BASE_ARM), headMs: timeOfArm(HEAD_ARM), reason: (changeOf(each) as BenchChange).reason };
+    }),
+    unexplained: changed.filter((each) => changeOf(each) === undefined).map((each) => each.case),
+    unused: changes.filter((each) => !used.has(each)).map((each) => each.case),
     commits: first.commits,
   };
 };
 
 /**
  * This function gives the cases of a gate that a fresh job measures again: each case that cannot decide, and each case
- * with no record. It gives no case when the gate passes or when a case is beyond the limit. A new job cannot change those
- * verdicts.
+ * with no record. It gives no case when the gate passes, when a case is beyond the limit, or when a change of value has no
+ * reason. A new job cannot change those verdicts.
  */
 export const benchAgainOf = (gate: BenchGate): readonly string[] => {
   if (gate.read.gate.outcome === "pass" && gate.missing.length === 0) return [];
-  if (gate.read.cases.some((each) => each.outcome === "beyond")) return [];
+  if (gate.unexplained.length > 0 || gate.read.cases.some((each) => each.outcome === "beyond")) return [];
   return [...gate.read.cases.filter((each) => each.outcome === "cannot decide").map((each) => each.case), ...gate.missing];
 };
 
@@ -315,4 +385,25 @@ export const benchAgainOf = (gate: BenchGate): readonly string[] => {
 export const benchRecordsAgain = (first: readonly BenchRecord[], again: readonly BenchRecord[]): readonly BenchRecord[] => {
   const cases = new Set(again.map((each) => each.case));
   return [...first.filter((each) => !cases.has(each.case)), ...again];
+};
+
+/** This function gives the notes of a gate after its table: the changes of value, and the cases with no record. */
+export const benchNotesOf = (gate: BenchGate): string => {
+  const lines: string[] = [];
+  if (gate.intended.length > 0) {
+    lines.push(
+      "The head changes the value of these cases on purpose. Their times compare different work, so the gate does not compare them with the base.",
+      "",
+      "| Case | Base (ms) | Head (ms) | Reason |",
+      "| --- | --- | --- | --- |",
+      ...gate.intended.map((each) => `| ${escapeMarkdown(each.case)} | ${fixed(each.baseMs, 1)} | ${fixed(each.headMs, 1)} | ${escapeMarkdown(each.reason)} |`),
+      "",
+    );
+  }
+  if (gate.unexplained.length > 0) {
+    lines.push(`The head changes the value of these cases, and \`${BENCH_CHANGES}\` gives no reason with their two hashes. The gate stops: ${gate.unexplained.join(", ")}.`, "");
+  }
+  if (gate.unused.length > 0) lines.push(`These changes of \`${BENCH_CHANGES}\` name no changed case with their two hashes. Remove them: ${gate.unused.join(", ")}.`, "");
+  if (gate.missing.length > 0) lines.push(`These cases have no record, so the gate has no read of them: ${gate.missing.join(", ")}.`, "");
+  return lines.join("\n");
 };

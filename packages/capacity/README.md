@@ -35,6 +35,8 @@ A law is plain data, thus a law file is JSON. Its format is `capacity-law/1`.
 
 A law holds for the ranges of its variables and for its conditions. A value outside a range is an extrapolation, and the answer says so.
 
+Each measure of a law is a cost. Past the range of a variable, no run measured the cost. Thus a value past a range holds: it is not lower than the value at the nearest edge of the ranges. A cost that falls with the load stays flat past the edge, and a cost that rises keeps its law. The rule applies to each replicate. Thus a law that falls past its measures cannot give a cost below 0, or an instance that does not fill at any load.
+
 The units are canonical units of `@mark1russell7/quantity`. A request rate is in `{request}/s`. A cost of one request has a unit with `{request}` below the line, for example `{core}·ms/{request}` or `B/{request}`.
 
 ### CPU time is in core-seconds

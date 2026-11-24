@@ -14,7 +14,7 @@ import { instancePointOf, loadPointOf, totalRate, type Load } from "./demand.ts"
 import { DEFAULT_LEVEL, type Law, type Measure, type Problem, type ProblemCode } from "./law.ts";
 import { SLUG, finite, repeated } from "./names.ts";
 import { recordOf, valuesAt } from "./program.ts";
-import { intervalOf, levelProblem, pointValuesOf, runOf, type LevelOptions, type LoadPoint, type Range } from "./value.ts";
+import { edgePointOf, edgeValuesOf, heldValue, intervalOf, levelProblem, pointValuesOf, runOf, type LevelOptions, type LoadPoint, type Range } from "./value.ts";
 import { demandProblems } from "./workload-check.ts";
 import type { Amounts, Demand, WorkloadClass, WorkloadProblemCode } from "./workload.ts";
 
@@ -584,12 +584,14 @@ const rowRecordOf = (law: Law, point: LoadPoint, row: number): Readonly<Record<s
 /**
  * This function gives the value of each row from `first` to `last` of some flat parts, as `rowValueOf` gives it.
  * It evaluates the law of each part over all the rows in one call. Thus a search that reads each row at one load
- * evaluates each law one time for that load.
+ * evaluates each law one time for that load. Past the range of a variable, each value holds, as heldValue tells.
  */
 export const rowValuesOf = (parts: readonly FlatPart[], first: number, last: number): readonly (number | undefined)[] => {
   const sums: (number | undefined)[] = [];
   for (let row = first; row <= last; row += 1) sums.push(0);
   for (const { law, point, weight } of parts) {
+    const edge = edgePointOf(law, point);
+    const atEdge = edge === undefined ? undefined : edgeValuesOf(law, edge);
     const records: Readonly<Record<string, number>>[] = [];
     const slots: number[] = [];
     for (let row = first; row <= last; row += 1) {
@@ -600,8 +602,9 @@ export const rowValuesOf = (parts: readonly FlatPart[], first: number, last: num
         slots.push(row - first);
       }
     }
-    valuesAt(law.form.program, records).forEach((found, index) => {
+    valuesAt(law.form.program, records).forEach((value, index) => {
       const slot = slots[index] as number;
+      const found = atEdge === undefined ? value : heldValue(value, atEdge[slot + first]);
       sums[slot] = found === undefined ? undefined : (sums[slot] as number) + weight * found;
     });
   }
