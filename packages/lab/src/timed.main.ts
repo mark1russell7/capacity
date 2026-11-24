@@ -3,8 +3,8 @@
  * it needs Docker and a quiet machine.
  *
  * ```text
- * node src/timed.main.ts plan --event <event> [--plans <id,id>] [--runs <JSON list>]
- * node src/timed.main.ts gates --event <event> [--plans <id,id>]
+ * node src/timed.main.ts plan --event <event> [--plans <id,id>] [--runs <JSON list>] [--gates true|false]
+ * node src/timed.main.ts gates --event <event> [--plans <id,id>] [--gates true|false]
  * node src/timed.main.ts measure --plan <id> --out <folder> [--run <number>]
  * ```
  *
@@ -13,6 +13,8 @@
  *   its count of jobs (`Plan.jobs`).
  * - `gates` writes the ids of the gate plans of the same selection as a JSON list. The job `gate` of the workflow starts
  *   only for a list that is not empty.
+ * - `--gates false` leaves the gate plans out of a selection by the event. The workflow gives it for a pull request that
+ *   changes no file of the gate. The default is true.
  * - `measure` measures each case of one plan (`timePlan`) in the run `--run` of the matrix. The default
  *   run is 1. It writes the records, the raw results and the manifest into the folder. It writes a
  *   summary into `GITHUB_STEP_SUMMARY`, with a table for each start record. A verdict with a problem
@@ -30,8 +32,8 @@ import { summaryOf, timePlan } from "./timed.ts";
 /** This folder holds the plan files of the lab. */
 const PLANS = fileURLToPath(new URL("../plans/", import.meta.url));
 
-const USAGE = `node src/timed.main.ts plan --event <event> [--plans <id,id>] [--runs <JSON list>]
-node src/timed.main.ts gates --event <event> [--plans <id,id>]
+const USAGE = `node src/timed.main.ts plan --event <event> [--plans <id,id>] [--runs <JSON list>] [--gates true|false]
+node src/timed.main.ts gates --event <event> [--plans <id,id>] [--gates true|false]
 node src/timed.main.ts measure --plan <id> --out <folder> [--run <number>]`;
 
 /** This function gives the plans of the folder, or it throws with each problem of a plan file. */
@@ -48,20 +50,27 @@ const idsOf = (text: string): readonly string[] =>
     .map((id) => id.trim())
     .filter((id) => id !== "");
 
+/** This function gives the flag of the option `--gates`: true or false, with true as the default. */
+const gatesOf = (text: string): boolean => {
+  if (text !== "true" && text !== "false") throw new Error(`--gates is not true or false: ${text}
+${USAGE}`);
+  return text === "true";
+};
+
 const plan = (args: readonly string[]): void => {
-  const { values } = parseArgs({ args: [...args], options: { event: { type: "string" }, plans: { type: "string", default: "" }, runs: { type: "string", default: "" } } });
+  const { values } = parseArgs({ args: [...args], options: { event: { type: "string" }, plans: { type: "string", default: "" }, runs: { type: "string", default: "" }, gates: { type: "string", default: "true" } } });
   if (values.event === undefined) throw new Error(`The command needs --event.\n${USAGE}`);
   const parsed: unknown = values.runs.trim() === "" ? undefined : JSON.parse(values.runs);
   if (parsed !== undefined && !Array.isArray(parsed)) throw new Error(`--runs is not a JSON list: ${values.runs}`);
   const runs = Array.isArray(parsed) ? parsed.map(Number) : undefined;
-  const chosen = selectPlans(plans(), { event: values.event, ids: idsOf(values.plans) });
+  const chosen = selectPlans(plans(), { event: values.event, ids: idsOf(values.plans), gates: gatesOf(values.gates) });
   process.stdout.write(`${JSON.stringify(matrixOf(chosen, runs))}\n`);
 };
 
 const gates = (args: readonly string[]): void => {
-  const { values } = parseArgs({ args: [...args], options: { event: { type: "string" }, plans: { type: "string", default: "" } } });
+  const { values } = parseArgs({ args: [...args], options: { event: { type: "string" }, plans: { type: "string", default: "" }, gates: { type: "string", default: "true" } } });
   if (values.event === undefined) throw new Error(`The command needs --event.\n${USAGE}`);
-  const chosen = selectPlans(plans(), { event: values.event, ids: idsOf(values.plans) });
+  const chosen = selectPlans(plans(), { event: values.event, ids: idsOf(values.plans), gates: gatesOf(values.gates) });
   process.stdout.write(`${JSON.stringify(chosen.filter((each) => each.gate !== undefined).map((each) => each.id))}\n`);
 };
 

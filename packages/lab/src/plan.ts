@@ -3,6 +3,7 @@ import { basename, join } from "node:path";
 import { GATE_JOBS, type Problem } from "@mark1russell7/capacity";
 import { isRecord } from "@mark1russell7/optional/read";
 import { valueIn } from "@mark1russell7/quantity";
+import { binomialTest } from "@mark1russell7/rigor-statistics";
 import { canonicalJson } from "@mark1russell7/rigor-generators";
 import { errorMessage } from "@mark1russell7/text";
 import { caseCost, caseProblems, type Case } from "./case.ts";
@@ -173,6 +174,36 @@ export const planProblems = (plan: Plan): readonly PlanProblem[] => {
  */
 export const GATE_PREFIX = "gate-";
 
+/**
+ * This share is the share of the jobs on the CPU model with laws, the Intel Xeon 6975P-C. A runner gets its CPU model at random.
+ * The source is the Lab run 45016177414 of CAP-26: 5 of its 12 jobs had that CPU model.
+ */
+export const LAW_CPU_SHARE: number = 5 / 12;
+
+/** This chance is the largest chance that a gate plan gets fewer than `GATE_JOBS` jobs on the CPU model with laws: 1 in 100. */
+export const GATE_MISS: number = 0.01;
+
+/**
+ * This function gives the least count of jobs of a gate plan. With that count, the chance of fewer than `need` jobs on
+ * the CPU model with laws is below `miss`. Fewer such jobs give no read of the gate, because a side of a law needs `need` jobs.
+ *
+ * The count X of such jobs in n jobs is Binomial(n, share), thus the chance is P(X ≤ need − 1) (`binomialTest` of
+ * `@mark1russell7/rigor-statistics`). The share 5/12, the miss 0.01 and the need 2 give 13 jobs. 12 jobs give 0.015, and 6 jobs give 0.21.
+ *
+ * The function throws a `RangeError` for a share or a miss outside its range. It also throws for a need that is not a
+ * whole number above 0, and for a count above `MAX_JOBS`.
+ */
+export const gateJobsFor = (share: number, miss: number = GATE_MISS, need: number = GATE_JOBS): number => {
+  if (!(share > 0 && share <= 1)) throw new RangeError(`The share ${share} is not above 0 and at most 1.`);
+  if (!(miss > 0 && miss < 1)) throw new RangeError(`The chance ${miss} is not between 0 and 1.`);
+  if (!Number.isInteger(need) || need < 1) throw new RangeError(`The count of jobs ${need} is not a whole number above 0.`);
+  for (let jobs = need; jobs <= MAX_JOBS; jobs += 1) if (binomialTest(need - 1, jobs, share, "less") < miss) return jobs;
+  throw new RangeError(`At the share ${share}, ${MAX_JOBS} jobs give ${need} jobs on the CPU model with laws less often than ${1 - miss}.`);
+};
+
+/** This count is the least count of jobs of a gate plan: `gateJobsFor` of `LAW_CPU_SHARE`. It is 13. */
+export const GATE_PLAN_JOBS: number = gateJobsFor(LAW_CPU_SHARE);
+
 /** This function gives the problems of a gate plan alone: its id, the shape of its field `gate`, its check and no law set. */
 const gateShapeProblems = (plan: Plan): readonly PlanProblem[] => {
   const problems: PlanProblem[] = [];
@@ -185,7 +216,10 @@ const gateShapeProblems = (plan: Plan): readonly PlanProblem[] => {
   if (plan.check !== "gate") problems.push(problem("gate", "check", `A gate plan has the check "gate", not ${JSON.stringify(plan.check)}.`));
   if (plan.laws !== undefined) problems.push(problem("gate", "laws", "A gate plan has no law set. It compares the records with the laws of another plan."));
   if (plan.startLaws !== undefined) problems.push(problem("gate", "startLaws", "A gate plan has no start law set. It compares the records with the laws of another plan."));
-  if ((plan.jobs ?? 1) < GATE_JOBS) problems.push(problem("gate", "jobs", `A gate plan has ${GATE_JOBS} jobs or more. A side of a law needs ${GATE_JOBS} jobs.`));
+  if ((plan.jobs ?? 1) < GATE_PLAN_JOBS) {
+    const why = `A side of a law needs ${GATE_JOBS} jobs on the CPU model with laws, and ${LAW_CPU_SHARE.toFixed(2)} of the jobs have that CPU model.`;
+    problems.push(problem("gate", "jobs", `A gate plan has ${GATE_PLAN_JOBS} jobs or more (gateJobsFor). ${why} Fewer jobs give no read more than 1 time in ${Math.round(1 / GATE_MISS)}.`));
+  }
   return problems;
 };
 
@@ -264,6 +298,11 @@ export interface Selection {
   readonly event: string;
   /** These ids are the plans of a dispatch by hand. An empty list selects by the event. */
   readonly ids: readonly string[];
+  /**
+   * This flag tells if a selection by the event has the gate plans. The default is true. The workflow gives false for a
+   * pull request that changes no file of the gate: not the subject, the harness, the laws or the gate.
+   */
+  readonly gates?: boolean;
 }
 
 /** This function gives the trigger of an event: a push and a dispatch with no ids are as a pull request. */
@@ -275,7 +314,8 @@ const triggerOf = (event: string): PlanTrigger => {
 
 /**
  * This function gives the plans of a selection, in the order of `plans`. A selection with ids gives
- * the plans with those ids. A selection with no ids gives each plan with the trigger of the event.
+ * the plans with those ids. A selection with no ids gives each plan with the trigger of the event. With `gates` false, it
+ * gives no gate plan.
  *
  * This function throws a `RangeError` for an id that no plan has, an event that starts no plan, and
  * a selection with no plan. A run that measures nothing is not a pass.
@@ -288,7 +328,7 @@ export const selectPlans = (plans: readonly Plan[], selection: Selection): reado
     chosen = plans.filter((plan) => selection.ids.includes(plan.id));
   } else {
     const trigger = triggerOf(selection.event);
-    chosen = plans.filter((plan) => plan.triggers.includes(trigger));
+    chosen = plans.filter((plan) => plan.triggers.includes(trigger) && (selection.gates !== false || plan.gate === undefined));
   }
   if (chosen.length === 0) throw new RangeError(`The event "${selection.event}" selects no plan.`);
   return chosen;
