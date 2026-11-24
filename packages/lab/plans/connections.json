@@ -1,0 +1,539 @@
+{
+ "format": "capacity-plan/1",
+ "id": "connections",
+ "title": "The laws of the open connections: a pool from 1 to 1024 connections at 100 requests each second on one core",
+ "check": "rate",
+ "triggers": [],
+ "laws": {
+  "class": "pool",
+  "variable": {
+   "id": "concurrency",
+   "unit": "{connection}",
+   "scale": "log"
+  },
+  "measures": [
+   {
+    "id": "memory.high",
+    "title": "The highest memory of the subject in a run",
+    "residual": "relative",
+    "forms": [
+     "constant",
+     "linear",
+     "power",
+     "logarithm",
+     "hinge"
+    ]
+   },
+   {
+    "id": "cpu.request",
+    "title": "The CPU time of one request",
+    "residual": "relative",
+    "forms": [
+     "constant",
+     "linear",
+     "power",
+     "logarithm",
+     "hinge"
+    ]
+   },
+   {
+    "id": "latency.p50",
+    "title": "The median latency of a request",
+    "residual": "relative",
+    "forms": [
+     "constant",
+     "linear",
+     "power",
+     "logarithm",
+     "hinge"
+    ]
+   }
+  ]
+ },
+ "cases": [
+  {
+   "format": "capacity-case/1",
+   "id": "connections/1",
+   "title": "The bare request with a pool of 1 connection, at 100 requests each second",
+   "subject": "node-http",
+   "instance": {
+    "resources": {
+     "cpu": {
+      "value": 1,
+      "unit": "{core}"
+     },
+     "memory": {
+      "value": 512,
+      "unit": "MiB"
+     }
+    }
+   },
+   "demand": {
+    "classes": [
+     {
+      "id": "pool",
+      "rate": {
+       "value": 100,
+       "unit": "{request}/s"
+      },
+      "request": {}
+     }
+    ],
+    "levels": {}
+   },
+   "duration": {
+    "value": 4,
+    "unit": "s"
+   },
+   "arrivals": {
+    "arrivals": "poisson",
+    "seed": "connections"
+   },
+   "connections": {
+    "mode": "pool",
+    "size": 1
+   },
+   "runs": 3
+  },
+  {
+   "format": "capacity-case/1",
+   "id": "connections/2",
+   "title": "The bare request with a pool of 2 connections, at 100 requests each second",
+   "subject": "node-http",
+   "instance": {
+    "resources": {
+     "cpu": {
+      "value": 1,
+      "unit": "{core}"
+     },
+     "memory": {
+      "value": 512,
+      "unit": "MiB"
+     }
+    }
+   },
+   "demand": {
+    "classes": [
+     {
+      "id": "pool",
+      "rate": {
+       "value": 100,
+       "unit": "{request}/s"
+      },
+      "request": {}
+     }
+    ],
+    "levels": {}
+   },
+   "duration": {
+    "value": 4,
+    "unit": "s"
+   },
+   "arrivals": {
+    "arrivals": "poisson",
+    "seed": "connections"
+   },
+   "connections": {
+    "mode": "pool",
+    "size": 2
+   },
+   "runs": 3
+  },
+  {
+   "format": "capacity-case/1",
+   "id": "connections/4",
+   "title": "The bare request with a pool of 4 connections, at 100 requests each second",
+   "subject": "node-http",
+   "instance": {
+    "resources": {
+     "cpu": {
+      "value": 1,
+      "unit": "{core}"
+     },
+     "memory": {
+      "value": 512,
+      "unit": "MiB"
+     }
+    }
+   },
+   "demand": {
+    "classes": [
+     {
+      "id": "pool",
+      "rate": {
+       "value": 100,
+       "unit": "{request}/s"
+      },
+      "request": {}
+     }
+    ],
+    "levels": {}
+   },
+   "duration": {
+    "value": 4,
+    "unit": "s"
+   },
+   "arrivals": {
+    "arrivals": "poisson",
+    "seed": "connections"
+   },
+   "connections": {
+    "mode": "pool",
+    "size": 4
+   },
+   "runs": 3
+  },
+  {
+   "format": "capacity-case/1",
+   "id": "connections/8",
+   "title": "The bare request with a pool of 8 connections, at 100 requests each second",
+   "subject": "node-http",
+   "instance": {
+    "resources": {
+     "cpu": {
+      "value": 1,
+      "unit": "{core}"
+     },
+     "memory": {
+      "value": 512,
+      "unit": "MiB"
+     }
+    }
+   },
+   "demand": {
+    "classes": [
+     {
+      "id": "pool",
+      "rate": {
+       "value": 100,
+       "unit": "{request}/s"
+      },
+      "request": {}
+     }
+    ],
+    "levels": {}
+   },
+   "duration": {
+    "value": 4,
+    "unit": "s"
+   },
+   "arrivals": {
+    "arrivals": "poisson",
+    "seed": "connections"
+   },
+   "connections": {
+    "mode": "pool",
+    "size": 8
+   },
+   "runs": 3
+  },
+  {
+   "format": "capacity-case/1",
+   "id": "connections/16",
+   "title": "The bare request with a pool of 16 connections, at 100 requests each second",
+   "subject": "node-http",
+   "instance": {
+    "resources": {
+     "cpu": {
+      "value": 1,
+      "unit": "{core}"
+     },
+     "memory": {
+      "value": 512,
+      "unit": "MiB"
+     }
+    }
+   },
+   "demand": {
+    "classes": [
+     {
+      "id": "pool",
+      "rate": {
+       "value": 100,
+       "unit": "{request}/s"
+      },
+      "request": {}
+     }
+    ],
+    "levels": {}
+   },
+   "duration": {
+    "value": 4,
+    "unit": "s"
+   },
+   "arrivals": {
+    "arrivals": "poisson",
+    "seed": "connections"
+   },
+   "connections": {
+    "mode": "pool",
+    "size": 16
+   },
+   "runs": 3
+  },
+  {
+   "format": "capacity-case/1",
+   "id": "connections/32",
+   "title": "The bare request with a pool of 32 connections, at 100 requests each second",
+   "subject": "node-http",
+   "instance": {
+    "resources": {
+     "cpu": {
+      "value": 1,
+      "unit": "{core}"
+     },
+     "memory": {
+      "value": 512,
+      "unit": "MiB"
+     }
+    }
+   },
+   "demand": {
+    "classes": [
+     {
+      "id": "pool",
+      "rate": {
+       "value": 100,
+       "unit": "{request}/s"
+      },
+      "request": {}
+     }
+    ],
+    "levels": {}
+   },
+   "duration": {
+    "value": 4,
+    "unit": "s"
+   },
+   "arrivals": {
+    "arrivals": "poisson",
+    "seed": "connections"
+   },
+   "connections": {
+    "mode": "pool",
+    "size": 32
+   },
+   "runs": 3
+  },
+  {
+   "format": "capacity-case/1",
+   "id": "connections/64",
+   "title": "The bare request with a pool of 64 connections, at 100 requests each second",
+   "subject": "node-http",
+   "instance": {
+    "resources": {
+     "cpu": {
+      "value": 1,
+      "unit": "{core}"
+     },
+     "memory": {
+      "value": 512,
+      "unit": "MiB"
+     }
+    }
+   },
+   "demand": {
+    "classes": [
+     {
+      "id": "pool",
+      "rate": {
+       "value": 100,
+       "unit": "{request}/s"
+      },
+      "request": {}
+     }
+    ],
+    "levels": {}
+   },
+   "duration": {
+    "value": 4,
+    "unit": "s"
+   },
+   "arrivals": {
+    "arrivals": "poisson",
+    "seed": "connections"
+   },
+   "connections": {
+    "mode": "pool",
+    "size": 64
+   },
+   "runs": 3
+  },
+  {
+   "format": "capacity-case/1",
+   "id": "connections/128",
+   "title": "The bare request with a pool of 128 connections, at 100 requests each second",
+   "subject": "node-http",
+   "instance": {
+    "resources": {
+     "cpu": {
+      "value": 1,
+      "unit": "{core}"
+     },
+     "memory": {
+      "value": 512,
+      "unit": "MiB"
+     }
+    }
+   },
+   "demand": {
+    "classes": [
+     {
+      "id": "pool",
+      "rate": {
+       "value": 100,
+       "unit": "{request}/s"
+      },
+      "request": {}
+     }
+    ],
+    "levels": {}
+   },
+   "duration": {
+    "value": 4,
+    "unit": "s"
+   },
+   "arrivals": {
+    "arrivals": "poisson",
+    "seed": "connections"
+   },
+   "connections": {
+    "mode": "pool",
+    "size": 128
+   },
+   "runs": 3
+  },
+  {
+   "format": "capacity-case/1",
+   "id": "connections/256",
+   "title": "The bare request with a pool of 256 connections, at 100 requests each second",
+   "subject": "node-http",
+   "instance": {
+    "resources": {
+     "cpu": {
+      "value": 1,
+      "unit": "{core}"
+     },
+     "memory": {
+      "value": 512,
+      "unit": "MiB"
+     }
+    }
+   },
+   "demand": {
+    "classes": [
+     {
+      "id": "pool",
+      "rate": {
+       "value": 100,
+       "unit": "{request}/s"
+      },
+      "request": {}
+     }
+    ],
+    "levels": {}
+   },
+   "duration": {
+    "value": 4,
+    "unit": "s"
+   },
+   "arrivals": {
+    "arrivals": "poisson",
+    "seed": "connections"
+   },
+   "connections": {
+    "mode": "pool",
+    "size": 256
+   },
+   "runs": 3
+  },
+  {
+   "format": "capacity-case/1",
+   "id": "connections/512",
+   "title": "The bare request with a pool of 512 connections, at 100 requests each second",
+   "subject": "node-http",
+   "instance": {
+    "resources": {
+     "cpu": {
+      "value": 1,
+      "unit": "{core}"
+     },
+     "memory": {
+      "value": 512,
+      "unit": "MiB"
+     }
+    }
+   },
+   "demand": {
+    "classes": [
+     {
+      "id": "pool",
+      "rate": {
+       "value": 100,
+       "unit": "{request}/s"
+      },
+      "request": {}
+     }
+    ],
+    "levels": {}
+   },
+   "duration": {
+    "value": 4,
+    "unit": "s"
+   },
+   "arrivals": {
+    "arrivals": "poisson",
+    "seed": "connections"
+   },
+   "connections": {
+    "mode": "pool",
+    "size": 512
+   },
+   "runs": 3
+  },
+  {
+   "format": "capacity-case/1",
+   "id": "connections/1024",
+   "title": "The bare request with a pool of 1024 connections, at 100 requests each second",
+   "subject": "node-http",
+   "instance": {
+    "resources": {
+     "cpu": {
+      "value": 1,
+      "unit": "{core}"
+     },
+     "memory": {
+      "value": 512,
+      "unit": "MiB"
+     }
+    }
+   },
+   "demand": {
+    "classes": [
+     {
+      "id": "pool",
+      "rate": {
+       "value": 100,
+       "unit": "{request}/s"
+      },
+      "request": {}
+     }
+    ],
+    "levels": {}
+   },
+   "duration": {
+    "value": 4,
+    "unit": "s"
+   },
+   "arrivals": {
+    "arrivals": "poisson",
+    "seed": "connections"
+   },
+   "connections": {
+    "mode": "pool",
+    "size": 1024
+   },
+   "runs": 3
+  }
+ ]
+}

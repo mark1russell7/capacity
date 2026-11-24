@@ -1,0 +1,447 @@
+{
+ "format": "capacity-plan/1",
+ "id": "block-rate",
+ "title": "The queue laws of the rate of the work that blocks the loop: a CPU time of 2000 us for each request, from 50 to 400 requests each second on one core",
+ "check": "rate",
+ "triggers": [],
+ "laws": {
+  "class": "block",
+  "variable": {
+   "id": "rate",
+   "unit": "{request}/s",
+   "scale": "linear"
+  },
+  "measures": [
+   {
+    "id": "latency.p50",
+    "title": "The median latency of a request",
+    "residual": "relative",
+    "forms": [
+     "constant",
+     "linear",
+     "power",
+     "hinge",
+     "queue"
+    ]
+   },
+   {
+    "id": "latency.p90",
+    "title": "The latency of a request at the level 0.9",
+    "residual": "relative",
+    "forms": [
+     "constant",
+     "linear",
+     "power",
+     "hinge",
+     "queue"
+    ]
+   },
+   {
+    "id": "cpu.request",
+    "title": "The CPU time of one request",
+    "residual": "relative",
+    "forms": [
+     "constant",
+     "linear",
+     "power",
+     "logarithm",
+     "hinge"
+    ]
+   }
+  ]
+ },
+ "cases": [
+  {
+   "format": "capacity-case/1",
+   "id": "block-rate/50",
+   "title": "The request with a CPU time of 2000 us, at 50 requests each second",
+   "subject": "node-http",
+   "instance": {
+    "resources": {
+     "cpu": {
+      "value": 1,
+      "unit": "{core}"
+     },
+     "memory": {
+      "value": 512,
+      "unit": "MiB"
+     }
+    }
+   },
+   "demand": {
+    "classes": [
+     {
+      "id": "block",
+      "rate": {
+       "value": 50,
+       "unit": "{request}/s"
+      },
+      "request": {
+       "work": {
+        "value": 2000,
+        "unit": "us"
+       }
+      }
+     }
+    ],
+    "levels": {}
+   },
+   "duration": {
+    "value": 4,
+    "unit": "s"
+   },
+   "arrivals": {
+    "arrivals": "poisson",
+    "seed": "block-rate"
+   },
+   "connections": {
+    "mode": "pool",
+    "size": 64
+   },
+   "runs": 3
+  },
+  {
+   "format": "capacity-case/1",
+   "id": "block-rate/100",
+   "title": "The request with a CPU time of 2000 us, at 100 requests each second",
+   "subject": "node-http",
+   "instance": {
+    "resources": {
+     "cpu": {
+      "value": 1,
+      "unit": "{core}"
+     },
+     "memory": {
+      "value": 512,
+      "unit": "MiB"
+     }
+    }
+   },
+   "demand": {
+    "classes": [
+     {
+      "id": "block",
+      "rate": {
+       "value": 100,
+       "unit": "{request}/s"
+      },
+      "request": {
+       "work": {
+        "value": 2000,
+        "unit": "us"
+       }
+      }
+     }
+    ],
+    "levels": {}
+   },
+   "duration": {
+    "value": 4,
+    "unit": "s"
+   },
+   "arrivals": {
+    "arrivals": "poisson",
+    "seed": "block-rate"
+   },
+   "connections": {
+    "mode": "pool",
+    "size": 64
+   },
+   "runs": 3
+  },
+  {
+   "format": "capacity-case/1",
+   "id": "block-rate/150",
+   "title": "The request with a CPU time of 2000 us, at 150 requests each second",
+   "subject": "node-http",
+   "instance": {
+    "resources": {
+     "cpu": {
+      "value": 1,
+      "unit": "{core}"
+     },
+     "memory": {
+      "value": 512,
+      "unit": "MiB"
+     }
+    }
+   },
+   "demand": {
+    "classes": [
+     {
+      "id": "block",
+      "rate": {
+       "value": 150,
+       "unit": "{request}/s"
+      },
+      "request": {
+       "work": {
+        "value": 2000,
+        "unit": "us"
+       }
+      }
+     }
+    ],
+    "levels": {}
+   },
+   "duration": {
+    "value": 4,
+    "unit": "s"
+   },
+   "arrivals": {
+    "arrivals": "poisson",
+    "seed": "block-rate"
+   },
+   "connections": {
+    "mode": "pool",
+    "size": 64
+   },
+   "runs": 3
+  },
+  {
+   "format": "capacity-case/1",
+   "id": "block-rate/200",
+   "title": "The request with a CPU time of 2000 us, at 200 requests each second",
+   "subject": "node-http",
+   "instance": {
+    "resources": {
+     "cpu": {
+      "value": 1,
+      "unit": "{core}"
+     },
+     "memory": {
+      "value": 512,
+      "unit": "MiB"
+     }
+    }
+   },
+   "demand": {
+    "classes": [
+     {
+      "id": "block",
+      "rate": {
+       "value": 200,
+       "unit": "{request}/s"
+      },
+      "request": {
+       "work": {
+        "value": 2000,
+        "unit": "us"
+       }
+      }
+     }
+    ],
+    "levels": {}
+   },
+   "duration": {
+    "value": 4,
+    "unit": "s"
+   },
+   "arrivals": {
+    "arrivals": "poisson",
+    "seed": "block-rate"
+   },
+   "connections": {
+    "mode": "pool",
+    "size": 64
+   },
+   "runs": 3
+  },
+  {
+   "format": "capacity-case/1",
+   "id": "block-rate/250",
+   "title": "The request with a CPU time of 2000 us, at 250 requests each second",
+   "subject": "node-http",
+   "instance": {
+    "resources": {
+     "cpu": {
+      "value": 1,
+      "unit": "{core}"
+     },
+     "memory": {
+      "value": 512,
+      "unit": "MiB"
+     }
+    }
+   },
+   "demand": {
+    "classes": [
+     {
+      "id": "block",
+      "rate": {
+       "value": 250,
+       "unit": "{request}/s"
+      },
+      "request": {
+       "work": {
+        "value": 2000,
+        "unit": "us"
+       }
+      }
+     }
+    ],
+    "levels": {}
+   },
+   "duration": {
+    "value": 4,
+    "unit": "s"
+   },
+   "arrivals": {
+    "arrivals": "poisson",
+    "seed": "block-rate"
+   },
+   "connections": {
+    "mode": "pool",
+    "size": 64
+   },
+   "runs": 3
+  },
+  {
+   "format": "capacity-case/1",
+   "id": "block-rate/300",
+   "title": "The request with a CPU time of 2000 us, at 300 requests each second",
+   "subject": "node-http",
+   "instance": {
+    "resources": {
+     "cpu": {
+      "value": 1,
+      "unit": "{core}"
+     },
+     "memory": {
+      "value": 512,
+      "unit": "MiB"
+     }
+    }
+   },
+   "demand": {
+    "classes": [
+     {
+      "id": "block",
+      "rate": {
+       "value": 300,
+       "unit": "{request}/s"
+      },
+      "request": {
+       "work": {
+        "value": 2000,
+        "unit": "us"
+       }
+      }
+     }
+    ],
+    "levels": {}
+   },
+   "duration": {
+    "value": 4,
+    "unit": "s"
+   },
+   "arrivals": {
+    "arrivals": "poisson",
+    "seed": "block-rate"
+   },
+   "connections": {
+    "mode": "pool",
+    "size": 64
+   },
+   "runs": 3
+  },
+  {
+   "format": "capacity-case/1",
+   "id": "block-rate/350",
+   "title": "The request with a CPU time of 2000 us, at 350 requests each second",
+   "subject": "node-http",
+   "instance": {
+    "resources": {
+     "cpu": {
+      "value": 1,
+      "unit": "{core}"
+     },
+     "memory": {
+      "value": 512,
+      "unit": "MiB"
+     }
+    }
+   },
+   "demand": {
+    "classes": [
+     {
+      "id": "block",
+      "rate": {
+       "value": 350,
+       "unit": "{request}/s"
+      },
+      "request": {
+       "work": {
+        "value": 2000,
+        "unit": "us"
+       }
+      }
+     }
+    ],
+    "levels": {}
+   },
+   "duration": {
+    "value": 4,
+    "unit": "s"
+   },
+   "arrivals": {
+    "arrivals": "poisson",
+    "seed": "block-rate"
+   },
+   "connections": {
+    "mode": "pool",
+    "size": 64
+   },
+   "runs": 3
+  },
+  {
+   "format": "capacity-case/1",
+   "id": "block-rate/400",
+   "title": "The request with a CPU time of 2000 us, at 400 requests each second",
+   "subject": "node-http",
+   "instance": {
+    "resources": {
+     "cpu": {
+      "value": 1,
+      "unit": "{core}"
+     },
+     "memory": {
+      "value": 512,
+      "unit": "MiB"
+     }
+    }
+   },
+   "demand": {
+    "classes": [
+     {
+      "id": "block",
+      "rate": {
+       "value": 400,
+       "unit": "{request}/s"
+      },
+      "request": {
+       "work": {
+        "value": 2000,
+        "unit": "us"
+       }
+      }
+     }
+    ],
+    "levels": {}
+   },
+   "duration": {
+    "value": 4,
+    "unit": "s"
+   },
+   "arrivals": {
+    "arrivals": "poisson",
+    "seed": "block-rate"
+   },
+   "connections": {
+    "mode": "pool",
+    "size": 64
+   },
+   "runs": 3
+  }
+ ]
+}

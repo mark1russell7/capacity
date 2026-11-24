@@ -8,12 +8,12 @@ import { readLaw } from "@mark1russell7/capacity/schema";
 import { escapeMarkdown } from "@mark1russell7/text";
 import { describe, expect, it } from "vitest";
 import type { Case } from "./case.ts";
-import { CPU_IDS, OVERHEAD_SUFFIX, conditionsOf, lawSetProblems, lawsOf, lawsSummaryOf, runPointsOf, servedShare, tailNeed, type KnownMark, type LawJob, type LawSet } from "./laws.ts";
+import { CPU_IDS, OVERHEAD_SUFFIX, POOL_VARIABLE, conditionsOf, lawPointOf, lawSetProblems, lawsOf, lawsSummaryOf, runPointsOf, servedShare, tailNeed, type KnownMark, type LawJob, type LawSet } from "./laws.ts";
 import { readPlans } from "./plan.ts";
 import type { CaseRecord, RunRecord } from "./record.ts";
 import { isStartCase } from "./start.ts";
 import type { Timed } from "./timed.ts";
-import { BASE, RATE, CASES, EPYC, XEON, OTHER, KNEE, SET, PLAN, FAST, FAST_PLAN, SERVED, recordOf, runOf, timedOf, jobOf, jobsOf, TAIL, tailJobs, floorOf, FLOORS, OPTIONS, OVERHEAD, OVERHEAD_SET, overheadJobsOf } from "./law-fixtures.ts";
+import { BASE, RATE, CASES, EPYC, XEON, OTHER, KNEE, SET, PLAN, FAST, FAST_PLAN, SERVED, recordOf, recordFor, runOf, timedOf, jobOf, jobsOf, TAIL, tailJobs, floorOf, FLOORS, OPTIONS, OVERHEAD, OVERHEAD_SET, overheadJobsOf } from "./law-fixtures.ts";
 
 describe("the laws of a plan", () => {
   it("gives a law of each measure on each CPU model, with its evidence, its noise and the forms that lost", () => {
@@ -94,6 +94,21 @@ describe("the laws of a plan", () => {
       harness: BASE.machine.harness,
       keepalive: true,
     });
+  });
+
+  it("reads the variable concurrency from the pool of connections of a case, and keeps the size of the pool out of the conditions", () => {
+    const set: LawSet = { ...SET, variable: { id: POOL_VARIABLE, unit: "{connection}", scale: "log" } };
+    const pooled = { ...CASES[0]!, connections: { mode: "pool" as const, size: 128 } };
+    const record = recordFor(pooled, 0, 1, EPYC);
+    expect(lawSetProblems(set, [pooled])).toEqual([]);
+    expect(lawPointOf(set, set.measures[0]!, record, "job")).toMatchObject({ x: 128 });
+    const conditions = conditionsOf(record, set);
+    expect(conditions["connections"]).toBe("pool");
+    expect(conditions).not.toHaveProperty("connections.size");
+    expect(conditionsOf(record, SET)["connections.size"]).toBe(128);
+    // a case with no pool, thus a pipeline, gives no amount of the variable
+    const { connections: _pool, ...pipelined } = CASES[0]!;
+    expect(lawSetProblems(set, [pipelined]).map((each) => each.message)).toEqual([expect.stringContaining(`no amount for the variable "${POOL_VARIABLE}"`)]);
   });
 
   it("skips a job of another plan, with no CI run, with a problem in its verdict or with no record", () => {

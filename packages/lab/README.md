@@ -373,9 +373,36 @@ The manifest has the plan, the CI run and its `attempt`. It also has the machine
 - **A case that throws** stops the plan with no manifest. The files of the cases before it stay in the artifact.
 - **The command.** `node src/timed.main.ts plan --event <event>` gives the matrix as JSON, with no Docker. `node src/timed.main.ts measure --plan <id> --out <folder> --run <number>` measures a plan. Only CI starts `measure`. The run turns the order of the arms of a start case.
 
+### The connections, the requests in flight and the work that blocks the loop
+
+Four plans give the laws of duration and concurrency (CAP-22). Each plan moves one amount, and the other amounts stay at the values of the plan `rate`.
+
+| Plan | The variable | The values | The rate | The pool |
+| --- | --- | --- | --- | --- |
+| `connections` | `concurrency`, the size of the pool | 1 to 1024 connections, in steps of two times | 100 requests each second | The variable |
+| `inflight` | `wait`, the wait of a request with no CPU time | 1 ms to 1024 ms, in steps of two times | 100 requests each second | 256 |
+| `block-work` | `work`, the CPU time of a request on the main thread | 100 µs to 8000 µs | 100 requests each second | 64 |
+| `block-rate` | `rate` | 50 to 400 requests each second | The variable, with a CPU time of 2000 µs for each request | 64 |
+
+- **The open connections.** The harness opens each connection of the pool at the start, and the subject keeps each one. Thus the slope of `memory.high` over `concurrency` is the memory of one open connection.
+- **The requests in flight.** At the rate λ, a wait of w gives λ·w requests in flight (the law of Little). Thus the slope of `memory.high` over `wait`, divided by the rate, is the memory of one request in flight. At 1024 ms, approximately 102 requests are in flight. The pool of 256 keeps the client from a queue.
+- **The work that blocks the loop.** The work of a request blocks the event loop of the subject. Thus the requests wait in a queue for the loop, and the latency is a queue law. The form `queue` gives its capacity: the work or the rate where the latency has no limit.
+- **The load stays below the capacity.** At 8000 µs and 100 requests each second, the loop is busy 0.8 of the time. At 400 requests each second and 2000 µs, it is busy 0.8 of the time too. Past the capacity, the queue grows with no limit, and a run has no stable latency.
+- **The lag of the loop.** The lab has no measure of the lag of the loop of the subject. The latency of the driver holds the wait in the queue. CAP-68 adds the lag measure.
+
+The law sets have these measures:
+
+| Plan | Measures |
+| --- | --- |
+| `connections` and `inflight` | `memory.high`, `cpu.request` and `latency.p50`, with the forms `constant`, `linear`, `power`, `logarithm` and `hinge` |
+| `block-work` and `block-rate` | `latency.p50` and `latency.p90` with the forms `constant`, `linear`, `power`, `hinge` and `queue`, and `cpu.request` |
+
+- The check `rate` judges the records, as for the plans of the request size.
+- The plans have no trigger: a person starts each one with 5 runs.
+
 ## The laws
 
-A plan with the field `laws` gives laws from its records. The law set tells the class of its cases, the load variable and each measure of a law. The plans `rate`, `overhead`, `size-body` and `size-reply` have a law set. The variable of a law set is the rate, a field of the request or a level.
+A plan with the field `laws` gives laws from its records. The law set tells the class of its cases, the load variable and each measure of a law. The plans `rate`, `overhead`, `size-body`, `size-reply`, `connections`, `inflight`, `block-work` and `block-rate` have a law set. The variable of a law set is the rate, a field of the request, a level or `concurrency`. The size of the pool of connections of each case gives `concurrency`.
 
 ```json
 "laws": {
