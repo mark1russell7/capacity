@@ -36,6 +36,9 @@ const cornersOf = (variables: readonly Variable[]): readonly (readonly number[])
  * interval of the level 0.95, and that the evidence names its runs. It examines that the noise
  * has a floor of 0 or more, a CPU model and its runs.
  *
+ * A law with points must have one point for each residual. Each point must be in the ranges of the
+ * variables and name a run of the evidence.
+ *
  * The interval of each constant must have a width above 0. A constant with the same value in each
  * replicate is a bound of a search, not a measured value. For example, a shape at the edge of its
  * search in each fit of the bootstrap gives this.
@@ -192,6 +195,29 @@ export const checkLaw = (law: Law): readonly LawProblem[] => {
   };
   // The evidence: the runs that measured the points.
   runs("evidence", "evidence.runs", law.evidence.runs);
+
+  // The points of the fit: one for each residual, each in the ranges of the variables, each from a run of the evidence.
+  if (law.points !== undefined) {
+    if (law.points.length !== law.fit.residuals.length) {
+      add("point", "points", `The law has ${law.points.length} points and ${law.fit.residuals.length} residuals. Each point has one residual.`);
+    }
+    law.points.forEach((point, index) => {
+      const path = `points[${index}]`;
+      const names = Object.keys(point.load);
+      const other = names.find((name) => !variables.includes(name));
+      if (other !== undefined) add("point", `${path}.load.${other}`, `The law has no variable "${other}".`);
+      for (const variable of law.variables) {
+        const load = point.load[variable.id];
+        if (load === undefined || !finite(load)) add("point", `${path}.load.${variable.id}`, `The point gives no finite value for the variable "${variable.id}".`);
+        else if (load < variable.min || load > variable.max) add("point", `${path}.load.${variable.id}`, `The value ${load} is outside the range of "${variable.id}".`);
+      }
+      if (!finite(point.value)) add("point", `${path}.value`, "The value is not a finite number.");
+      if (!Number.isInteger(point.run) || point.run < 0 || point.run >= law.evidence.runs.length) {
+        add("point", `${path}.run`, `The run ${point.run} is not an index of the ${law.evidence.runs.length} runs of the evidence.`);
+      }
+      if (!Number.isFinite(Date.parse(point.job))) add("point", `${path}.job`, `The job "${point.job}" is not a time.`);
+    });
+  }
 
   // The noise: the floor of the measure on one CPU model, and the runs that measured it.
   if (!finite(law.noise.floor) || law.noise.floor < 0) add("noise", "noise.floor", "The noise floor is not a finite number, 0 or more.");

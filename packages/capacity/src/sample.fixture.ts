@@ -1,5 +1,5 @@
 import { app, lit, ref, type Expr } from "@mark1russell7/vex";
-import type { Law } from "./law.ts";
+import type { Law, RunPoint } from "./law.ts";
 
 /** This function gives a number from -1 to 1 for a row and a column. It needs no random source. */
 export const wave = (row: number, column: number): number => ((row * 7919 + column * 104_729) % 2001) / 1000 - 1;
@@ -16,6 +16,17 @@ export const hingeOf = (c0: number, c1: number, c2: number, knee: number, rate: 
   c0 + c1 * rate + c2 * Math.max(0, rate - knee);
 
 const ESTIMATE = [0.08, 0.000_01, 0.000_05, 2500] as const;
+
+/**
+ * This function gives the points of the fit of the sample law, one for each residual. The rates go from 100 to 4000 at
+ * equal ratios. Each point comes from the run of the evidence.
+ */
+export const samplePoints = (): RunPoint[] =>
+  Array.from({ length: 60 }, (_, row) => {
+    const rate = 100 * 40 ** (row / 59);
+    const value = hingeOf(ESTIMATE[0], ESTIMATE[1], ESTIMATE[2], ESTIMATE[3], rate) * (1 + 0.05 * wave(row, 7));
+    return { load: { rate: Math.min(4000, rate) }, value, run: 0, job: `2026-11-18T14:0${row % 6}:00.000Z` };
+  });
 
 /** This function gives a sample law: the CPU time of one request against the request rate, as a hinge. */
 export const sampleLaw = (): Law => ({

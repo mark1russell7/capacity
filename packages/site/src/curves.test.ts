@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import type { Law } from "@mark1russell7/capacity";
 import { describe, expect, it } from "vitest";
 import { kneeRuleOf } from "./coverage.ts";
-import { amountText, axisUnit, curveOf, kneeSentence, linearTicks, logTicks, ruleText, stepsOf, unitWords, type Curve } from "./curves.ts";
+import { amountText, axisUnit, curveOf, kneeSentence, linearTicks, logTicks, ruleText, runsOf, runsSentence, stepsOf, unitWords, type Curve } from "./curves.ts";
 import { LAWS, PLANS } from "./data.ts";
 
 const lawFile = (path: string): Law => JSON.parse(readFileSync(new URL(path, import.meta.url), "utf8")) as Law;
@@ -58,6 +58,35 @@ describe("the curve of each law file of the repository", () => {
     const result = curve("node-http", "cpu.request");
     expect(result.knee).toBeUndefined();
     expect(result.noKnee).toMatch(/no knee rule/);
+  });
+});
+
+describe("the run points of a curve", () => {
+  it("gives each point of the fit with the date of its run, and tells them in one sentence", () => {
+    const found = entry("node-http", "cpu.request");
+    const law = lawFile(found.path);
+    const run = law.evidence.runs.length - 1;
+    const points = [
+      { load: { rate: 100 }, value: 0.02, run: 0, job: "2026-11-20T06:00:00.000Z" },
+      { load: { rate: 1000 }, value: 0.03, run, job: "2026-11-20T07:00:00.000Z" },
+      { load: { size: 5 }, value: 0.04, run: 0, job: "2026-11-20T07:00:00.000Z" },
+    ];
+    const result = curveOf({ ...law, points }, undefined);
+    if (typeof result === "string") throw new Error(result);
+    expect(result.runs).toEqual([
+      { x: 100, value: 0.02, run: 0, date: law.evidence.runs[0]!.date },
+      { x: 1000, value: 0.03, run, date: law.evidence.runs[run]!.date },
+    ]);
+    expect(runsSentence(result)).toBe(`The dots are the 2 points of the fit, from ${run === 0 ? "1 run" : "2 runs"}.`);
+    expect(runsOf({ ...law, points: [{ ...points[0]!, run: 99 }] }, "rate")).toEqual([{ x: 100, value: 0.02, run: 99, date: undefined }]);
+  });
+
+  it("gives a law file with no points a curve with no run points and no sentence of them", () => {
+    const { points: _points, ...old } = lawFile(entry("node-http", "cpu.request").path);
+    const result = curveOf(old, undefined);
+    if (typeof result === "string") throw new Error(result);
+    expect(result.runs).toEqual([]);
+    expect(runsSentence(result)).toBe("");
   });
 });
 

@@ -82,6 +82,8 @@ describe("the laws of the start records", () => {
       expect(law.variables[0]).toMatchObject({ id: "log", unit: "MiB", scale: "log", min: 2, max: 400_000_000 / 2 ** 20 });
       expect(Object.keys(law.conditions)).toEqual(expect.arrayContaining([...START_CONDITIONS]));
       expect(law.conditions).toMatchObject({ "cpu.model": EPYC, start: "first", seeder: CASE.seeder, watch: CASE.watch });
+      expect(law.points).toHaveLength(law.fit.residuals.length);
+      expect(law.points?.every((point) => point.run >= 0 && point.load["log"] !== undefined)).toBe(true);
     }
   });
 

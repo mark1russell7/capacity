@@ -500,6 +500,50 @@ select {
   stroke-width: 2;
 }
 
+/* The points of the fit of a law: dots in the quiet ink under the line, each with a ring in the color of the page. */
+.curve-run {
+  fill: var(--quiet);
+  fill-opacity: 0.6;
+  stroke: var(--page);
+  stroke-width: 2;
+  pointer-events: none;
+}
+
+/* A hit target of 12 px for each point. It has no color, but it gets the pointer. */
+.curve-run-hit {
+  fill: transparent;
+  cursor: crosshair;
+}
+
+.curve-run-ring {
+  fill: none;
+  stroke: var(--ink);
+  stroke-width: 2;
+  pointer-events: none;
+}
+
+.curve-dot,
+.curve-cross {
+  pointer-events: none;
+}
+
+.curve-swatch.law {
+  height: 0.125rem;
+  border-radius: 0.0625rem;
+  background: var(--chart-1);
+}
+
+.curve-swatch.band {
+  background: color-mix(in srgb, var(--chart-1) 18%, var(--page));
+}
+
+.curve-swatch.runs {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--quiet) 60%, var(--page));
+}
+
 .curve-tip {
   position: absolute;
   display: grid;

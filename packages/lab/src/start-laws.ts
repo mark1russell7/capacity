@@ -342,7 +342,7 @@ export const startLawsOf = (plan: { readonly id: string; readonly startLaws?: St
             variable: set.variable,
             x: each.points.map((point) => point.x),
             y,
-            groups: each.points.map((point) => jobName(point.timed)),
+            jobs: each.points.map((point) => point.timed),
             conditions: each.facts.conditions,
             runs,
             noise,

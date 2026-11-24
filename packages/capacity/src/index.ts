@@ -31,6 +31,7 @@ export type {
   ProblemCode,
   ResidualKind,
   Run,
+  RunPoint,
   Scale,
   Variable,
 } from "./law.ts";

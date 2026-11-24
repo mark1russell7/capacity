@@ -29,6 +29,7 @@ A law is plain data, thus a law file is JSON. Its format is `capacity-law/1`.
 | `constants` | The fitted numbers that the program reads, each with an id and a value. |
 | `replicates` | More fits of the constants, from resamples of the points. Each row has one number for each constant. |
 | `fit` | The method, the residuals of the law, and each form that lost with its error. |
+| `points` | Optional. Each point that the fit used, in the order of the residuals: its load, its value, the index of its run in `evidence.runs` and the start time of its job. |
 | `evidence` | The CI runs that measured the points: an address, a commit and a time for each. |
 | `noise` | The noise floor of the measure on one CPU model, the CPU model, and the CI runs that measured the floor. |
 
@@ -191,6 +192,7 @@ The options, the search and the fields `edge`, `search` and `outside` are as in 
 - The replicates of each constant have a width. A column of one value gives the code `flat`. A shape at the edge of its search in each fit gives this.
 - Each form that lost has an error, and the form of the law is not in that list.
 - The evidence names one run or more, each with an `https` address, a full commit and a UTC time.
+- A law with points has one point for each residual. Each point gives a finite value of each variable in its range, a finite value and the index of a run of the evidence.
 - The noise has a floor of 0 or more and a CPU model. It names its runs as the evidence does.
 
 The noise floor is two standard deviations of the differences of A/A pairs: two equal cases, each in its own container. A difference of two measurements below the floor is not a result. The plan `floor` of the lab measures it each night, on the CPU model of the runner.
@@ -277,6 +279,8 @@ gh run download <laws run> -R mark1russell7/capacity -n laws-<laws run> -D packa
 ```
 
 A pull request puts the files into the folder. A test reads each file with `readLaw`. The id of each law is its path, and each run of its evidence and its noise is a run of CI. A folder with no law file fails the test.
+
+Each file that the workflow gives keeps the points of its fit in the field `points`. The site draws them on the curve of the law. The files of this folder come from fits before the field, thus they have no points yet. The next fit of `laws.yml` gives them.
 
 ### The laws of the request rate
 

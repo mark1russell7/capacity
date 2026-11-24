@@ -24,6 +24,7 @@ import {
   type ProblemCode,
   type ResidualKind,
   type Run,
+  type RunPoint,
   type Scale,
 } from "@mark1russell7/capacity";
 import { isRecord } from "@mark1russell7/optional/read";
@@ -694,7 +695,7 @@ const pointsOf = (set: LawSet, base: string, jobs: readonly LawJob[], side?: str
 
 /**
  * A law input is the data of one law, for each kind of record: its id, its measure, its variable, its points and its
- * facts. Each value of `groups` is the job of a point, because the bootstrap draws whole jobs.
+ * facts. Each value of `jobs` is the job of a point. The bootstrap draws whole jobs, and each point of the law names its job.
  */
 export interface LawInput {
   readonly id: string;
@@ -707,15 +708,27 @@ export interface LawInput {
   readonly variable: LawVariable;
   readonly x: readonly number[];
   readonly y: readonly number[];
-  readonly groups: readonly string[];
+  readonly jobs: readonly Timed[];
   readonly conditions: Readonly<Record<string, ConditionValue>>;
   readonly runs: readonly Run[];
   readonly noise: Noise;
 }
 
 /**
+ * This function gives the point of a law at each point of an input. A point has its load, its value, the index of its run
+ * in `runs` and the start time of its job. A job with no run in `runs` gives the index -1, and `checkLaw` refuses it.
+ */
+export const runPointsOf = (input: Pick<LawInput, "variable" | "x" | "y" | "jobs" | "runs">): readonly RunPoint[] =>
+  input.x.map((x, index) => {
+    const timed = input.jobs[index];
+    const url = timed?.run?.url;
+    return { load: { [input.variable.id]: x }, value: input.y[index]!, run: input.runs.findIndex((run) => run.url === url), job: timed?.at.started ?? "" };
+  });
+
+/**
  * This function gives the law of one input with `fitLaw` of `@mark1russell7/capacity`, and the rank of each form that competed.
- * The law keeps each form that lost. `checkLaw` examines the law, and each problem that it finds is a problem with the code `law`.
+ * The law keeps each form that lost, and each point of the fit (`runPointsOf`). `checkLaw` examines the law, and each problem
+ * that it finds is a problem with the code `law`.
  */
 export const fitLawFrom = (input: LawInput, options: LawsOptions = {}): { readonly law: Law; readonly ranks: readonly FormRank[] } | readonly LawsProblem[] => {
   const forms = input.forms === undefined ? undefined : FORMS.filter((form) => input.forms?.includes(form.id));
@@ -724,7 +737,7 @@ export const fitLawFrom = (input: LawInput, options: LawsOptions = {}): { readon
     {
       binding: { variable: input.variable.id },
       residual: input.residual,
-      bootstrapGroups: input.groups,
+      bootstrapGroups: input.jobs.map(jobName),
       ...(forms === undefined ? {} : { forms }),
       ...(options.runs === undefined ? {} : { runs: options.runs }),
       ...(options.seed === undefined ? {} : { seed: options.seed }),
@@ -744,6 +757,7 @@ export const fitLawFrom = (input: LawInput, options: LawsOptions = {}): { readon
     constants,
     replicates,
     fit,
+    points: runPointsOf(input),
     evidence: { runs: input.runs },
     noise: input.noise,
   };
@@ -781,7 +795,7 @@ const lawOf =(set: LawSet, measure: LawMeasure, id: string, range: RangePoints, 
       variable: set.variable,
       x: points.x,
       y,
-      groups: points.jobs.map(jobName),
+      jobs: points.jobs,
       conditions: {
         ...points.facts.conditions,
         ...(measure.served === undefined ? {} : { served: measure.served }),
