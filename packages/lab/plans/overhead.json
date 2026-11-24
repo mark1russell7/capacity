@@ -103,6 +103,50 @@
         ],
         "served": 0.97,
         "tail": 10
+      },
+      {
+        "id": "loop.lag.mean",
+        "title": "The mean lag of the event loop of the subject",
+        "residual": "absolute",
+        "forms": [
+          "constant",
+          "linear",
+          "power",
+          "fall-power",
+          "logarithm",
+          "hinge",
+          "queue"
+        ],
+        "served": 0.97
+      },
+      {
+        "id": "loop.lag.max",
+        "title": "The largest lag of the event loop of the subject in a run",
+        "residual": "absolute",
+        "forms": [
+          "constant",
+          "linear",
+          "power",
+          "fall-power",
+          "logarithm",
+          "hinge",
+          "queue"
+        ],
+        "served": 0.97
+      },
+      {
+        "id": "loop.busy",
+        "title": "The busy part of the event loop of the subject",
+        "residual": "absolute",
+        "forms": [
+          "constant",
+          "linear",
+          "power",
+          "fall-power",
+          "logarithm",
+          "hinge"
+        ],
+        "served": 0.97
       }
     ]
   },
