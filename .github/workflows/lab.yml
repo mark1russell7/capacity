@@ -19,7 +19,9 @@
 #
 # The bench of the scale query times the head against its base commit, one job for each case (bench-scale.main.ts). A pull
 # request always starts it. Its gate, the job bench-gate, fails when a case takes more than 1.1 times the time of the base,
-# when a case is too noisy to decide, or when a case has no record. For example, one run of the bench only:
+# when a case is too noisy to decide, or when a case has no record. A head can change the value of a case on purpose.
+# Then packages/lab/bench-changes.json names the case with the hashes of its two values and the reason. The gate does not
+# time that case, and a change of value with no entry fails the job. For example, one run of the bench only:
 #     gh workflow run lab.yml -R mark1russell7/capacity --ref <branch> -f bench=only
 name: Lab
 

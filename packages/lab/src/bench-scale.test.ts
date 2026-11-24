@@ -8,18 +8,22 @@ import type { ArmProcess } from "@mark1russell7/rigor-bench/fresh";
 import {
   AA_ARM,
   BASE_ARM,
+  BENCH_CHANGES_FORMAT,
   BENCH_FORMAT,
   BENCH_RECORD,
   HEAD_ARM,
   benchCases,
   benchAgainOf,
   benchGate,
+  benchNotesOf,
   benchRecordsAgain,
   benchRead,
   benchSummaryOf,
   pairedTimes,
+  readBenchChanges,
   readBenchRecords,
   resultHash,
+  type BenchChange,
   type BenchRecord,
 } from "./bench-scale.ts";
 import { readCompositions, readLaws } from "./jobs.ts";
@@ -56,6 +60,8 @@ const recordOf = (id: string, factor: number, same = true, commits = { base: "a"
   rounds: ROUNDS,
   ...processesOf(id, factor),
   same,
+  // A changed case has a different hash on the head.
+  hashes: { base: `base-${id}`, head: same ? `base-${id}` : `head-${id}` },
 });
 
 let folder = "";
@@ -157,12 +163,43 @@ describe("benchGate", () => {
     expect(result.read.cases.map((each) => each.case)).toEqual(["x", "y"]);
     expect(result.missing).toEqual(["z"]);
     expect(result.changed).toEqual(["y"]);
+    expect(result.unexplained).toEqual(["y"]);
     expect(benchSummaryOf(result.read, result.commits)).toContain("| y |");
+    expect(benchNotesOf(result)).toContain("The gate stops: y.");
+  });
+
+  it("does not time a case that the head changes on purpose, and names a change of value with other hashes as unused", () => {
+    const change: BenchChange = { case: "y", base: "base-y", head: "head-y", reason: "The base gave no value." };
+    const result = benchGate([recordOf("x", 0.5), recordOf("y", 3, false)], ["x", "y"], { changes: [change] });
+    expect(result.read.cases.map((each) => each.case)).toEqual(["x"]);
+    expect(result.read.gate.outcome).toBe("pass");
+    expect(result.intended.map((each) => [each.case, each.reason])).toEqual([["y", "The base gave no value."]]);
+    expect(result.intended[0]?.headMs).toBeGreaterThan(result.intended[0]?.baseMs ?? Infinity);
+    expect(result.unexplained).toEqual([]);
+    expect(result.unused).toEqual([]);
+    expect(benchNotesOf(result)).toContain("| y |");
+    const old = benchGate([recordOf("x", 0.5), recordOf("y", 3, false)], ["x", "y"], { changes: [{ ...change, head: "head-old" }] });
+    expect(old.unexplained).toEqual(["y"]);
+    expect(old.unused).toEqual(["y"]);
+    expect(old.read.gate.outcome).toBe("block");
   });
 
   it("refuses records of two pairs of commits, and a run with no record", () => {
     expect(() => benchGate([recordOf("x", 0.5), recordOf("y", 0.5, true, { base: "c".repeat(40), head: "b".repeat(40) })], ["x", "y"])).toThrow(/two pairs/);
     expect(() => benchGate([], ["x"])).toThrow(/no bench record/);
+  });
+});
+
+describe("readBenchChanges", () => {
+  it("gives no change for a file that does not exist, and refuses a file of another format", () => {
+    folder = mkdtempSync(join(tmpdir(), "bench-changes-"));
+    const file = join(folder, "changes.json");
+    expect(readBenchChanges(file)).toEqual([]);
+    const changes = [{ case: "x", base: "a", head: "b", reason: "A fix." }];
+    writeFileSync(file, JSON.stringify({ format: BENCH_CHANGES_FORMAT, changes }));
+    expect(readBenchChanges(file)).toEqual(changes);
+    writeFileSync(file, JSON.stringify({ format: "other", changes }));
+    expect(() => readBenchChanges(file)).toThrow(/not a file of changes/);
   });
 });
 
