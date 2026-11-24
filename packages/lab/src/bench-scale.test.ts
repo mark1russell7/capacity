@@ -86,6 +86,13 @@ describe("resultHash", () => {
     expect(resultHash({ a: 1, b: [2, Infinity] })).toBe(resultHash({ b: [2, null], a: 1 }));
     expect(resultHash({ a: 1 })).not.toBe(resultHash({ a: 2 }));
   });
+
+  it("gives the same hash when a number changes only past its 12th significant digit", () => {
+    // These two values are the reach of the case scale:node-http on the base and on the head of CAP-76: one bit apart.
+    expect(resultHash({ factor: 33.77034684862871 })).toBe(resultHash({ factor: 33.7703468486287 }));
+    expect(resultHash({ factor: 33.77034684862871 })).not.toBe(resultHash({ factor: 33.7703468487 }));
+    expect(resultHash({ zero: -0, small: 1e-300 })).toBe(resultHash({ zero: 0, small: 1.0000000000001e-300 }));
+  });
 });
 
 describe("pairedTimes", () => {

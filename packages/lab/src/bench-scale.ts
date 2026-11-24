@@ -90,8 +90,25 @@ export const benchCases = (catalog: BenchCatalog): readonly BenchCase[] => {
   return [...scales, knee];
 };
 
-/** This function gives the hash of the value of one call: the SHA-256 of its canonical JSON. Infinite numbers become null. */
-export const resultHash = (value: unknown): string => sha256Hex(canonicalJson(value, { form: "json" }));
+/**
+ * This number is the count of significant digits of each number that the hash of a result reads. A faster path can add
+ * the same terms in a different order and change the last bit of a float. That is the same result.
+ */
+export const RESULT_DIGITS = 12;
+
+/** This function gives a copy of a value with each finite number rounded to `RESULT_DIGITS` significant digits. */
+const roundedOf = (value: unknown): unknown => {
+  if (typeof value === "number") return Number.isFinite(value) ? Number(value.toPrecision(RESULT_DIGITS)) : value;
+  if (Array.isArray(value)) return value.map(roundedOf);
+  if (value !== null && typeof value === "object") return Object.fromEntries(Object.entries(value).map(([key, each]) => [key, roundedOf(each)]));
+  return value;
+};
+
+/**
+ * This function gives the hash of the value of one call: the SHA-256 of its canonical JSON, with each number rounded to
+ * `RESULT_DIGITS` significant digits. Infinite numbers become null.
+ */
+export const resultHash = (value: unknown): string => sha256Hex(canonicalJson(roundedOf(value), { form: "json" }));
 
 /**
  * This function gives the paired times of the base and the head from the processes of a run of arms. Each round of each
