@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
-import type { Law } from "@mark1russell7/capacity";
-import { readLaw } from "@mark1russell7/capacity/schema";
+import type { Composition, Law } from "@mark1russell7/capacity";
+import { readComposition, readLaw } from "@mark1russell7/capacity/schema";
 import type { LawJob } from "./laws.ts";
 import { RECORD_FORMAT, type CaseRecord } from "./record.ts";
 import { START_RECORD_FORMAT, type StartRecord } from "./start-measure.ts";
@@ -9,6 +9,9 @@ import { MANIFEST, TIMED_FORMAT, type Timed } from "./timed.ts";
 
 /** This text is the end of the name of a law file. */
 export const LAW_SUFFIX = ".law.json";
+
+/** This text is the end of the name of a composition file. */
+export const COMPOSITION_SUFFIX = ".composition.json";
 
 const readJson = (file: string): unknown => JSON.parse(readFileSync(file, "utf8"));
 
@@ -51,3 +54,19 @@ export const readLaws = (folder: string): readonly Law[] =>
     .filter((name) => name.endsWith(LAW_SUFFIX))
     .sort()
     .map((name) => readLawFile(join(folder, name)));
+
+/**
+ * This function gives each composition of a folder: each file `<id>.composition.json` in the folder or in a subfolder. It
+ * reads each file with `readComposition` of `@mark1russell7/capacity`. The order of the compositions is the order of their paths.
+ * It throws an `Error` for a file that is not a correct composition, with each problem of the file.
+ */
+export const readCompositions = (folder: string): readonly Composition[] =>
+  readdirSync(folder, { recursive: true, encoding: "utf8" })
+    .filter((name) => name.endsWith(COMPOSITION_SUFFIX))
+    .sort()
+    .map((name) => {
+      const file = join(folder, name);
+      const result = readComposition(readJson(file));
+      if (result.tag === "err") throw new Error(`The file ${file} is not a correct composition:\n${result.error.map((each) => `  ${each.path}: ${each.message}`).join("\n")}`);
+      return result.value;
+    });
