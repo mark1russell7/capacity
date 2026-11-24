@@ -1014,6 +1014,7 @@ interface LawPart extends PartBase {
   readonly kind: "law";
   readonly law: string;
   readonly class: string | null;
+  readonly base: boolean;
   readonly outside: readonly string[];
 }
 
@@ -1026,6 +1027,7 @@ interface LawTerm {
   readonly over: Over;
   readonly load?: Load | undefined;
   readonly factor?: number | undefined;
+  readonly base?: Amounts | undefined;
 }
 
 ### build/instance.chunk.d.ts#LawValue

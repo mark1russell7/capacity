@@ -101,6 +101,7 @@ export const compositionSchema: z.ZodType<Composition> = z.strictObject({
         over: z.union([z.literal("instance"), z.literal("each"), z.array(z.string())]),
         load: z.enum(["class", "total"]).optional(),
         factor: factorSchema,
+        base: z.lazy(() => amountsSchema).optional(),
       }),
       z.strictObject({ composition: z.string(), factor: factorSchema }),
     ]),

@@ -41,15 +41,21 @@ export interface Stack {
 /** This unit is the unit of the request rate of a demand. */
 export const RATE_UNIT = "{request}/s";
 
-/** This function gives the ids of the laws that a composition reads, in its terms and in its nested compositions, each one time. */
-export const lawIdsOf = (composition: Composition, compositions: readonly Composition[]): readonly string[] => {
+/**
+ * This function gives the ids of the laws that a composition reads, in its terms and in its nested compositions, each
+ * one time. With `load`, it gives only the laws that move with the load. A term with a base reads its own level, and
+ * its change is 0 at the base point. Thus `load` leaves out each term with a base.
+ */
+export const lawIdsOf = (composition: Composition, compositions: readonly Composition[], which: "all" | "load" = "all"): readonly string[] => {
   const ids = new Set<string>();
   const seen = new Set<string>();
   const walk = (each: Composition): void => {
     if (seen.has(each.id)) return;
     seen.add(each.id);
     for (const term of each.terms) {
-      if ("law" in term) ids.add(term.law);
+      if ("law" in term) {
+        if (which === "all" || term.base === undefined) ids.add(term.law);
+      }
       else {
         const nested = compositions.find((other) => other.id === term.composition);
         if (nested !== undefined) walk(nested);

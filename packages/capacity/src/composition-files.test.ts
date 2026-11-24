@@ -2,7 +2,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { checkComposition, compositionValue, type Catalog, type Composition } from "./composition.ts";
+import { checkComposition, compositionValue, type Catalog, type Composition, type LawTerm } from "./composition.ts";
 import type { Law } from "./law.ts";
 import { readComposition, readLaw } from "./schema.ts";
 import type { Demand } from "./workload.ts";
@@ -30,10 +30,13 @@ const laws: readonly Law[] = filesOf(LAWS, ".law.json").map((name) => readWith(r
 const compositions: readonly Composition[] = files.map((name) => readWith(readComposition, join(COMPOSITIONS, name)));
 const CATALOG: Catalog = { laws, compositions };
 
-/** This function gives the laws that a composition reads, in its terms and in its nested compositions. */
+/**
+ * This function gives the laws that a composition reads over its load variable, in its terms and in
+ * its nested compositions. A term with a base reads its own level, thus it is not in the list.
+ */
 const lawsOf = (composition: Composition): readonly Law[] =>
   composition.terms.flatMap((term) => {
-    if ("law" in term) return laws.filter((law) => law.id === term.law);
+    if ("law" in term) return term.base === undefined ? laws.filter((law) => law.id === term.law) : [];
     const nested = compositions.find((each) => each.id === term.composition);
     return nested === undefined ? [] : lawsOf(nested);
   });
@@ -62,6 +65,10 @@ const demandAt = (composition: Composition, amount: number): Demand => {
   return { classes: [], levels: { [id]: { value: amount, unit } } };
 };
 
+/** This function gives the terms of a composition with a base, each with its law. */
+const basedOf = (composition: Composition): readonly { readonly term: LawTerm; readonly law: Law }[] =>
+  composition.terms.flatMap((term) => ("law" in term && term.base !== undefined ? laws.filter((law) => law.id === term.law).map((law) => ({ term, law })) : []));
+
 /** This function gives the conditions of a law with no `base`. */
 const withoutBase = (law: Law): Law["conditions"] => Object.fromEntries(Object.entries(law.conditions).filter(([key]) => key !== "base"));
 
@@ -89,6 +96,26 @@ describe("the composition files", () => {
       if (result.tag !== "ok") continue;
       expect([result.value.value, result.value.interval.low, result.value.interval.high].every(Number.isFinite)).toBe(true);
       expect(result.value.extrapolated).toBe(false);
+    }
+  });
+
+  it.each(files)("%s reads the level of each term with a base, and it has a finite value at each end of its range", (name) => {
+    // The load stays at the start of its range. Each level of a base moves alone, over the range of its law.
+    const composition = compositions[files.indexOf(name)]!;
+    const start = demandAt(composition, rangeOf(composition).min);
+    for (const { term, law } of basedOf(composition)) {
+      for (const level of Object.keys(term.base!)) {
+        const variable = law.variables.find((each) => each.id === level);
+        expect(variable, `${law.id} reads ${level}`).toBeDefined();
+        for (const amount of [variable!.min, variable!.max]) {
+          const demand: Demand = { ...start, levels: { ...start.levels, [level]: { value: amount, unit: variable!.unit } } };
+          const result = compositionValue(composition, CATALOG, demand);
+          expect(result.tag === "err" ? result.error : null).toBeNull();
+          if (result.tag !== "ok") continue;
+          expect([result.value.value, result.value.interval.low, result.value.interval.high].every(Number.isFinite)).toBe(true);
+          expect(result.value.extrapolated).toBe(false);
+        }
+      }
     }
   });
 

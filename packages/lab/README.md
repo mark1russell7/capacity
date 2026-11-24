@@ -734,12 +734,16 @@ The two Lab runs [45434176798](https://github.com/metrograph-labs/capacity/actio
 | `heap` | A hinge: 229 MB at 1 person, and 363 MB [336, 386] at 3000. | A power law with the exponent 0.77 [0.70, 0.83]: 189 MB at 1 feed, and 391 MB [384, 398] at 10000. |
 | `heapPeak` | A hinge: 229 MB at 1 person, and 394 MB [375, 418] at 3000. | A line: 244 MB [243, 246], and 27.4 kB [26.9, 28.1] for each feed. At 10000, 519 MB [513, 525]. |
 | `watchPeak` | A power law with the exponent 0.47 [0.37, 0.64]: 382 MB at 1 person, and 696 MB [689, 711] at 3000. | A power law with the exponent 0.67 [0.64, 0.68]: 395 MB at 1 feed, and 707 MB [696, 718] at 10000. |
+| `watchHeapPeak` | A power law with the exponent 0.46 [0.36, 0.57]: 182 MB at 1 person, and 469 MB [460, 486] at 3000. | A power law with the exponent 0.76: 192 MB at 1 feed, and 439 MB [433, 447] at 10000. |
+| `watchCores` | A power law with the exponent 0.63 [0.53, 0.77]: 0.003 core at 1 person, and 0.575 core [0.52, 0.665] at 3000. | A hinge: 0.017 core at 1 feed, and 0.198 core [0.175, 0.221] at 10000. |
 
 - The law `heapPeak` of the persons reaches the heap limit at 6255 persons, outside the range of the fit. The low end of its interval is 4734 persons, and the search found no high end. The failures at 10000 agree with it.
 - The laws of the heap of the persons have wide intervals: 40 points is the least count for a law.
 - The law `heapPeak` of the feeds reaches the heap limit at 11370 [11120, 11610] feeds, a little past the top rung.
 - The law `watchPeak` reaches 676 MB at 2617 [2275, 2773] persons and at 8562 [8147, 9020] feeds. 676 MB is the memory of the small cloud machine with no headroom.
 - Each ladder holds the other levels at the base point: 10 feeds or 10 persons, 10 incidents and 16 MiB of log.
+- The Laws run [45493330469](https://github.com/metrograph-labs/capacity/actions/runs/45493330469) adds the measures `watchHeapPeak` and `watchCores` over the same two runs (CAP-37). The compositions of alerts read them.
+- The CPU of the watch grows faster with the persons than with the feeds: 0.575 core at 3000 persons, and 0.198 core at 10000 feeds.
 
 #### The start gate of alerts
 

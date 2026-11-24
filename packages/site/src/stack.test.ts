@@ -28,6 +28,14 @@ describe("the layers of a composition", () => {
     expect([...ids].sort()).toEqual(["node-http-service/overhead/xeon-6975p-c/cpu.request.overhead", "node-http/rate/xeon-6975p-c/cpu.request"]);
   });
 
+  it("gives the laws that move with the load, with no term of a base", () => {
+    const memory = byId("alerts-runtime/xeon-6975p-c/memory");
+    const all = lawIdsOf(memory, COMPOSITIONS);
+    const load = lawIdsOf(memory, COMPOSITIONS, "load");
+    expect(all.length).toBe(3);
+    expect(load).toEqual(["alerts-runtime/alerts-start-event/xeon-6975p-c/main/first/watch-peak"]);
+  });
+
   it("gives the common range of the rate of the laws, or the reason for none", () => {
     expect(rateRangeOf([lawWith("a", rate(100, 36000)), lawWith("b", rate(50, 8000))])).toEqual({ min: 100, max: 8000, scale: "log" });
     expect(rateRangeOf([lawWith("a", rate(100, 200)), lawWith("b", rate(1, 300, "linear"))])).toEqual({ min: 100, max: 200, scale: "linear" });
