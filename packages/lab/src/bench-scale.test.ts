@@ -68,10 +68,10 @@ describe("benchCases", () => {
   const catalog = { laws: readLaws(join(CAPACITY, "laws")), compositions: readCompositions(join(CAPACITY, "compositions")) };
   const cases = benchCases(catalog);
 
-  it("gives a scale case and a reach case for each composition of the processor time, and the case knee", () => {
+  it("gives a scale case, a reach case and a slider case for each composition of the processor time, and the case knee", () => {
     const cpus = catalog.compositions.filter((each) => each.measure.id === "cpu").map((each) => each.id);
     expect(cpus.length).toBeGreaterThan(0);
-    expect(cases.map((each) => each.id)).toEqual([...cpus.flatMap((id) => [`scale:${id}`, `reach:${id}`]), "knee"]);
+    expect(cases.map((each) => each.id)).toEqual([...cpus.flatMap((id) => [`scale:${id}`, `reach:${id}`, `slider:${id}`]), "knee"]);
   });
 
   it("gives the same hash for two calls of a case, so a child of each arm has one hash", async () => {

@@ -9,7 +9,7 @@ import { intervalOf, levelProblem, type LevelOptions, type LoadPoint, type Range
 export const KNEE_STEPS = 64;
 
 /** This number is the largest count of steps of the grid of a knee search. It sets a limit on the work of one search. */
-const MAX_STEPS = 4096;
+export const MAX_STEPS = 4096;
 
 /**
  * A knee rule tells where a law leaves its cheap region.

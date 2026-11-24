@@ -7,7 +7,7 @@ import type { Composition } from "./composition.ts";
 import { scaleDemand } from "./demand.ts";
 import type { Limit } from "./instance.ts";
 import { sampleInstance } from "./instance.fixture.ts";
-import { countReach, scaleRule, type ScaleModel, type ScaleProblem } from "./scale.ts";
+import { countReach, scaleLadder, scaleRule, type ScaleModel, type ScaleProblem } from "./scale.ts";
 import type { Demand } from "./workload.ts";
 
 // The model of the tests. The CPU of one request costs 0.5 core·ms, and the memory of an instance
@@ -136,6 +136,65 @@ describe("the reach of a count", () => {
       { numRuns: 8, seed: 6 },
     );
   }, 120_000);
+});
+
+/**
+ * This function compares two values of a query. A number agrees with a relative difference of 1e-9 at most, because the
+ * bisections of two searches end at different floats. Each other value must be equal.
+ */
+const agree = (a: unknown, b: unknown, path = "value"): void => {
+  if (typeof a === "number" && typeof b === "number") {
+    if (a === b || Math.abs(a - b) <= 1e-9 * Math.max(Math.abs(a), Math.abs(b))) return;
+    throw new Error(`${path}: ${a} and ${b} do not agree.`);
+  }
+  if (typeof a === "object" && a !== null && typeof b === "object" && b !== null) {
+    expect(Object.keys(a).sort(), path).toEqual(Object.keys(b).sort());
+    for (const [key, value] of Object.entries(a)) agree(value, (b as Record<string, unknown>)[key], `${path}.${key}`);
+    return;
+  }
+  expect(a, path).toEqual(b);
+};
+
+describe("the scale ladder", () => {
+  const RANGE = { low: 0.01, high: 100 };
+  const ladder = must(scaleLadder(MODEL, DEMAND, RANGE, { steps: 32 }));
+
+  it("gives the first load on one instance where each row of each limit breaks", () => {
+    expect(ladder).toMatchObject({ level: 0.95, most: 2 ** 20, range: RANGE, search: { low: 0.01 / 2 ** 20, high: 100 * 2 ** 20 } });
+    expect(ladder.limits.map(({ limit, rows }) => [limit, rows.length])).toEqual([
+      ["cpu", ROWS + 1],
+      ["memory", ROWS + 1],
+    ]);
+    expect(ladder.limits[0]?.rows[0]).toBeCloseTo(1 / 4.5, 9);
+    expect(ladder.limits[1]?.rows[0]).toBeCloseTo(MEMORY_SHARE, 9);
+  });
+
+  it("agrees with the scale rule and the reach of a count at each factor of its range", () => {
+    fc.assert(
+      fc.property(uniformDouble({ min: 0.01, max: 100 }), fc.integer({ min: 1, max: 600 }), (factor, count) => {
+        const demand = must(scaleDemand(DEMAND, factor));
+        agree(must(ladder.ruleAt(factor)), must(scaleRule(MODEL, demand, { steps: 32 })), "rule");
+        agree(must(ladder.reachAt(count, factor)), must(countReach(MODEL, count, demand, { steps: 32 })), "reach");
+      }),
+      { numRuns: 12, seed: 11 },
+    );
+  }, 120_000);
+
+  it("agrees with the scale rule past the largest count of the search", () => {
+    const small = must(scaleLadder(MODEL, DEMAND, RANGE, { most: 4, steps: 32 }));
+    agree(must(small.ruleAt(1)), must(scaleRule(MODEL, DEMAND, { most: 4, steps: 32 })), "rule");
+    expect(must(small.ruleAt(1)).count.value).toBeNull();
+  });
+
+  it("gives a problem for a whole level, a range that is not correct, a factor outside the range and a bad count", () => {
+    const codeOf = (result: Result<unknown, ScaleProblem>): string => (result.tag === "err" ? `${result.error.code} at ${result.error.path}` : "no problem");
+    expect(codeOf(scaleLadder(MODEL, DEMAND, RANGE, { whole: ["connections"] }))).toBe("variable at whole");
+    expect(codeOf(scaleLadder(MODEL, DEMAND, { low: 0, high: 1 }))).toBe("factor at range");
+    expect(codeOf(scaleLadder(MODEL, DEMAND, { low: 2, high: 1 }))).toBe("factor at range");
+    expect(codeOf(ladder.ruleAt(200))).toBe("factor at factor");
+    expect(codeOf(ladder.reachAt(0, 1))).toBe("factor at count");
+    expect(codeOf(ladder.reachAt(2, 0.001))).toBe("factor at factor");
+  });
 });
 
 describe("the problems of a scale query", () => {

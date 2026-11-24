@@ -134,5 +134,5 @@ export { INSTANCE_FORMAT, LIMITS_FORMAT, RESOURCE_UNITS } from "./instance.ts";
 export { checkInstance, checkLimits, instanceProblems, limitProblems } from "./instance-check.ts";
 export type { LimitUse } from "./limit.ts";
 export { limitAmount, limitUse, limitUses } from "./limit.ts";
-export type { CountReach, LimitCount, LimitReach, ScaleModel, ScaleOptions, ScaleProblem, ScaleProblemCode, ScaleRule } from "./scale.ts";
-export { SCALE_MOST, SCALE_STEPS, countReach, scaleRule } from "./scale.ts";
+export type { CountReach, LimitCount, LimitLadder, LimitReach, ScaleLadder, ScaleModel, ScaleOptions, ScaleProblem, ScaleProblemCode, ScaleRule } from "./scale.ts";
+export { SCALE_MOST, SCALE_STEPS, countReach, scaleLadder, scaleRule } from "./scale.ts";
