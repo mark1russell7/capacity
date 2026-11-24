@@ -1,0 +1,10 @@
+{
+  "format": "capacity-instance/1",
+  "id": "lab-target-1gb",
+  "title": "The 1 GB target of the lab: 2 cores, the memory limit of its container and the V8 heap limit",
+  "resources": {
+    "cpu": { "value": 2, "unit": "{core}" },
+    "memory": { "value": 1011425280, "unit": "B" },
+    "heap": { "value": 556269568, "unit": "B" }
+  }
+}

@@ -174,17 +174,24 @@ export interface ScaleSubject {
 
 /**
  * This function gives each subject that has a composition of a resource on one CPU model. A composition is on a CPU
- * model when each of its laws is on it. The subjects of the slider come first, in the order of `SUBJECT_NAMES`.
+ * model when each of its laws is on it. The slider moves the request rate, thus each law of a composition reads the
+ * variable `rate`. The laws of alerts read a level of events, and the slider does not show them (CAP-93). The subjects
+ * of the slider come first, in the order of `SUBJECT_NAMES`.
  */
-export const scaleSubjects = (compositions: readonly Composition[], laws: readonly { readonly id: string; readonly cpu: string }[], cpu: string): readonly ScaleSubject[] => {
+export const scaleSubjects = (
+  compositions: readonly Composition[],
+  laws: readonly { readonly id: string; readonly cpu: string; readonly variables: readonly string[] }[],
+  cpu: string,
+): readonly ScaleSubject[] => {
   const cpuOf = new Map(laws.map((law) => [law.id, law.cpu]));
+  const readsRate = new Set(laws.filter((law) => law.variables.includes("rate")).map((law) => law.id));
   const order = Object.keys(SUBJECT_NAMES);
   const rank = (subject: string): number => (order.includes(subject) ? order.indexOf(subject) : order.length);
   const groups = new Map<string, { compositions: Composition[]; laws: Set<string> }>();
   for (const composition of compositions) {
     if (RESOURCES[composition.measure.id] === undefined) continue;
     const ids = lawIdsOf(composition, compositions);
-    if (ids.length === 0 || !ids.every((id) => cpuOf.get(id) === cpu)) continue;
+    if (ids.length === 0 || !ids.every((id) => cpuOf.get(id) === cpu && readsRate.has(id))) continue;
     const group = groups.get(composition.subject) ?? { compositions: [], laws: new Set<string>() };
     group.compositions.push(composition);
     for (const id of ids) group.laws.add(id);

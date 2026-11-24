@@ -38,14 +38,29 @@ const lawsOf = (composition: Composition): readonly Law[] =>
     return nested === undefined ? [] : lawsOf(nested);
   });
 
-/** This function gives the range of the rate that each law of a composition holds: the highest start and the lowest end. */
+/**
+ * This function gives the load variable of a composition: the first variable of its first law. Each
+ * law of the composition reads it. The variable `rate` is the rate of a class. Each other variable is
+ * a level of the demand, for example the events each second of alerts.
+ */
+const loadOf = (composition: Composition): { readonly id: string; readonly unit: string } => {
+  const variable = lawsOf(composition)[0]!.variables[0]!;
+  return { id: variable.id, unit: variable.unit };
+};
+
+/** This function gives the range of the load variable that each law of a composition holds: the highest start and the lowest end. */
 const rangeOf = (composition: Composition): { readonly min: number; readonly max: number } => {
-  const variables = lawsOf(composition).map((law) => law.variables.find((variable) => variable.id === "rate")!);
+  const { id } = loadOf(composition);
+  const variables = lawsOf(composition).map((law) => law.variables.find((variable) => variable.id === id)!);
   return { min: Math.max(...variables.map((each) => each.min)), max: Math.min(...variables.map((each) => each.max)) };
 };
 
-/** This function gives a demand of one class at a rate, in requests each second. */
-const demandAt = (rate: number): Demand => ({ classes: [{ id: "request", rate: { value: rate, unit: "{request}/s" }, request: {} }], levels: {} });
+/** This function gives a demand at an amount of the load variable: one class at a rate in requests each second, or a level. */
+const demandAt = (composition: Composition, amount: number): Demand => {
+  const { id, unit } = loadOf(composition);
+  if (id === "rate") return { classes: [{ id: "request", rate: { value: amount, unit: "{request}/s" }, request: {} }], levels: {} };
+  return { classes: [], levels: { [id]: { value: amount, unit } } };
+};
 
 /** This function gives the conditions of a law with no `base`. */
 const withoutBase = (law: Law): Law["conditions"] => Object.fromEntries(Object.entries(law.conditions).filter(([key]) => key !== "base"));
@@ -62,13 +77,14 @@ describe("the composition files", () => {
     expect(composition.id).toBe(name.slice(0, -".composition.json".length));
   });
 
-  it.each(files)("%s reads laws of a rate, and it has a finite value at each end of their range", (name) => {
+  it.each(files)("%s reads laws of one load variable, and it has a finite value at each end of their range", (name) => {
     const composition = compositions[files.indexOf(name)]!;
-    expect(lawsOf(composition).every((law) => law.variables.some((variable) => variable.id === "rate"))).toBe(true);
+    const { id } = loadOf(composition);
+    expect(lawsOf(composition).every((law) => law.variables.some((variable) => variable.id === id))).toBe(true);
     const { min, max } = rangeOf(composition);
     expect(min).toBeLessThan(max);
-    for (const rate of [min, max]) {
-      const result = compositionValue(composition, CATALOG, demandAt(rate));
+    for (const amount of [min, max]) {
+      const result = compositionValue(composition, CATALOG, demandAt(composition, amount));
       expect(result.tag === "err" ? result.error : null).toBeNull();
       if (result.tag !== "ok") continue;
       expect([result.value.value, result.value.interval.low, result.value.interval.high].every(Number.isFinite)).toBe(true);
@@ -103,7 +119,7 @@ describe("the compositions of the service runner", () => {
     const composition = layer2.find((each) => each.id === id)!;
     const { min, max } = rangeOf(composition);
     for (const rate of [min, max]) {
-      const result = compositionValue(composition, CATALOG, demandAt(rate));
+      const result = compositionValue(composition, CATALOG, demandAt(composition, rate));
       if (result.tag !== "ok") throw new Error(result.error.message);
       const overhead = result.value.parts.filter((part) => part.kind === "law");
       expect(overhead.length).toBe(1);

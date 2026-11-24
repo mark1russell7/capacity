@@ -1,0 +1,10 @@
+{
+  "format": "capacity-limits/1",
+  "id": "alerts-scale",
+  "title": "The limits of one copy of alerts for its scale rule",
+  "limits": [
+    { "id": "cpu", "measure": "cpu", "ceiling": { "kind": "resource", "resource": "cpu" }, "headroom": 0.3 },
+    { "id": "memory", "measure": "memory", "ceiling": { "kind": "resource", "resource": "memory" }, "headroom": 0.2 },
+    { "id": "heap", "measure": "heap", "ceiling": { "kind": "resource", "resource": "heap" }, "headroom": 0.2 }
+  ]
+}

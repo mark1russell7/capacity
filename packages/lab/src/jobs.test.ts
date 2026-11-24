@@ -66,8 +66,9 @@ describe("the reader of the law files", () => {
     const ids = readLaws(LAWS).map((law) => law.id);
     expect(ids).toContain("node-http/rate/xeon-6975p-c/cpu.request");
     expect(ids).toContain("node-http-service/overhead/xeon-6975p-c/cpu.request.overhead");
-    // Each id is in the folder `<subject>/<plan>` of a plan with a law set: the plan `rate` of the bare server, or the plan `overhead` of the runner.
-    expect(ids.filter((id) => !id.startsWith("node-http/rate/") && !id.startsWith("node-http-service/overhead/"))).toEqual([]);
+    // Each id is in the folder `<subject>/<plan>` of a plan with a law set: the plan `rate` of the bare server, the plan `overhead` of the runner, or the events of alerts.
+    const folders = ["node-http/rate/", "node-http-service/overhead/", "alerts-runtime/alerts-start-event/"];
+    expect(ids.filter((id) => !folders.some((folder) => id.startsWith(folder)))).toEqual([]);
   });
 
   it("reads only the files with the end of a law file, in the order of their paths, and throws for a law file with a problem", () => {
