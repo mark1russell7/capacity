@@ -3,7 +3,7 @@ import { app, lit, ref } from "@mark1russell7/vex";
 import { describe, expect, it } from "vitest";
 import type { Law } from "./law.ts";
 import { fallingLaw, hinge, hingeOf, sampleLaw } from "./sample.fixture.ts";
-import { constantIntervals, lawValue, type LawValue } from "./value.ts";
+import { constantIntervals, edgeValuesOf, lawValue, type LawValue } from "./value.ts";
 
 const valueOf = (law: Law, rate: number, level?: number): LawValue => {
   const result = lawValue(law, { rate }, level === undefined ? {} : { level });
@@ -189,5 +189,17 @@ describe("lawValue past the measures", () => {
     const past = valueOf(law, 10_000);
     expect(past.interval.low).toBeCloseTo(Math.min(quantile(spread, 0.025), past.value), 12);
     expect(past.interval.high).toBeCloseTo(quantile(spread, 0.975), 12);
+  });
+});
+
+describe("edgeValuesOf", () => {
+  it("evaluates a law at an edge point one time, and keeps the values when the cache clears", () => {
+    const law = fallingLaw();
+    const first = edgeValuesOf(law, { rate: 4000 });
+    expect(edgeValuesOf(law, { rate: 4000 })).toBe(first);
+    expect(first[0]).toBeCloseTo(0.04, 12);
+    expect(first).toHaveLength(law.replicates.length + 1);
+    for (let index = 0; index < 100; index += 1) expect(edgeValuesOf(law, { rate: 100 + index })[0]).toBeCloseTo(0.08 - 0.000_01 * (100 + index), 12);
+    expect(edgeValuesOf(law, { rate: 4000 })).toEqual(first);
   });
 });

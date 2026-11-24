@@ -14,7 +14,7 @@ import { instancePointOf, loadPointOf, totalRate, type Load } from "./demand.ts"
 import { DEFAULT_LEVEL, type Law, type Measure, type Problem, type ProblemCode } from "./law.ts";
 import { SLUG, finite, repeated } from "./names.ts";
 import { recordOf, valuesAt } from "./program.ts";
-import { edgePointOf, heldValue, intervalOf, levelProblem, pointValuesOf, runOf, type LevelOptions, type LoadPoint, type Range } from "./value.ts";
+import { edgePointOf, edgeValuesOf, heldValue, intervalOf, levelProblem, pointValuesOf, runOf, type LevelOptions, type LoadPoint, type Range } from "./value.ts";
 import { demandProblems } from "./workload-check.ts";
 import type { Amounts, Demand, WorkloadClass, WorkloadProblemCode } from "./workload.ts";
 
@@ -591,22 +591,20 @@ export const rowValuesOf = (parts: readonly FlatPart[], first: number, last: num
   for (let row = first; row <= last; row += 1) sums.push(0);
   for (const { law, point, weight } of parts) {
     const edge = edgePointOf(law, point);
+    const atEdge = edge === undefined ? undefined : edgeValuesOf(law, edge);
     const records: Readonly<Record<string, number>>[] = [];
-    const edges: Readonly<Record<string, number>>[] = [];
     const slots: number[] = [];
     for (let row = first; row <= last; row += 1) {
       const record = sums[row - first] === undefined ? undefined : rowRecordOf(law, point, row);
       if (record === undefined) sums[row - first] = undefined;
       else {
         records.push(record);
-        if (edge !== undefined) edges.push(rowRecordOf(law, edge, row) as Readonly<Record<string, number>>);
         slots.push(row - first);
       }
     }
-    const atEdge = edge === undefined ? [] : valuesAt(law.form.program, edges);
     valuesAt(law.form.program, records).forEach((value, index) => {
       const slot = slots[index] as number;
-      const found = edge === undefined ? value : heldValue(value, atEdge[index]);
+      const found = atEdge === undefined ? value : heldValue(value, atEdge[slot + first]);
       sums[slot] = found === undefined ? undefined : (sums[slot] as number) + weight * found;
     });
   }

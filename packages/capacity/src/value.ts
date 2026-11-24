@@ -95,6 +95,30 @@ export const edgePointOf = (law: Law, point: LoadPoint): LoadPoint | undefined =
 export const heldValue = (value: number | undefined, edge: number | undefined): number | undefined =>
   value === undefined || edge === undefined || !Number.isFinite(edge) ? value : Math.max(value, edge);
 
+/** This count is the most edge points that the cache keeps for one law. A law with one variable has at most two. */
+const EDGE_POINTS = 64;
+
+/** This cache keeps the values of each law at each edge point, one value for each row: the constants, then each replicate. */
+const edges = new WeakMap<Law, Map<string, readonly (number | undefined)[]>>();
+
+/**
+ * This function gives the values of a law at an edge point, one for each row: row 0 with the constants, then each
+ * replicate. Each load past the top of a variable has the same edge point. Thus a search past the measures evaluates
+ * the law at the edge one time, and the cache gives the values after that.
+ */
+export const edgeValuesOf = (law: Law, edge: LoadPoint): readonly (number | undefined)[] => {
+  const key = law.variables.map((variable) => edge[variable.id]).join(",");
+  let byPoint = edges.get(law);
+  const known = byPoint?.get(key);
+  if (known !== undefined) return known;
+  const names = law.constants.map((constant) => constant.id);
+  const rows = [law.constants.map((constant) => constant.value), ...law.replicates];
+  const values = valuesAt(law.form.program, rows.map((row) => recordOf(names, row, edge)));
+  if (byPoint === undefined || byPoint.size >= EDGE_POINTS) edges.set(law, (byPoint = new Map()));
+  byPoint.set(key, values);
+  return values;
+};
+
 /** These values are the value of a law at a point with its constants, then with each replicate, and the variables outside their ranges. */
 export interface PointValues {
   readonly values: readonly [number, ...number[]];
@@ -123,18 +147,14 @@ export const pointValuesOf = (law: Law, point: LoadPoint): Result<PointValues, L
 
   const names = law.constants.map((constant) => constant.id);
   const constants = law.constants.map((constant) => constant.value);
-  const recordsAt = (at: LoadPoint): Readonly<Record<string, number>>[] => [
-    recordOf(names, constants, at),
-    ...law.replicates.map((row) => recordOf(names, row, at)),
-  ];
-  const values = valuesOf(law.form.program, recordsAt(load));
+  const values = valuesOf(law.form.program, [recordOf(names, constants, load), ...law.replicates.map((row) => recordOf(names, row, load))]);
   if (values.tag === "err") return err(problem("value", "form.program", `The law has no value at this point: ${values.error}.`));
   const outside = law.variables
     .filter((variable) => (load[variable.id] as number) < variable.min || (load[variable.id] as number) > variable.max)
     .map((variable) => variable.id);
   const edge = outside.length === 0 ? undefined : edgePointOf(law, load);
   if (edge === undefined) return ok({ values: values.value as readonly [number, ...number[]], outside });
-  const atEdge = valuesAt(law.form.program, recordsAt(edge));
+  const atEdge = edgeValuesOf(law, edge);
   const held = values.value.map((value, row) => heldValue(value, atEdge[row]) ?? value);
   return ok({ values: held as readonly number[] as readonly [number, ...number[]], outside });
 };
