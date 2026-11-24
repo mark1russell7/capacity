@@ -719,6 +719,28 @@ The plans `alerts-start-feeds`, `alerts-start-persons` and `alerts-start-inciden
 - The contract accepts a log from 2,000,000 B to 400,000,000 B. Thus the log ladder stops at 400,000,000 B, and not at 512 MiB as the old plan `alerts-start`.
 - The jobs of one run can land on more than one CPU model. A law needs 5 jobs on one CPU model. Thus a ladder can need a second run of the same plan.
 
+#### The laws of the persons and the feeds
+
+The two Lab runs [45434176798](https://github.com/metrograph-labs/capacity/actions/runs/45434176798) and [45467228308](https://github.com/metrograph-labs/capacity/actions/runs/45467228308) start the ladders of the persons and the feeds, with 11 jobs for each plan (CAP-36). The run [45485195729](https://github.com/metrograph-labs/capacity/actions/runs/45485195729) of `laws.yml` fits the laws over the two runs.
+
+- **No start with 10000 persons.** Each of the 11 jobs of the plan `alerts-start-persons` reached the heap limit of V8 (556 MB) at the rung 10000. The jobs were on 5 CPU models, and the two arms failed the same way.
+- Thus alerts cannot start with 10000 persons on the 1 GB target. The persons laws stop at 3000 persons.
+- On the Intel Xeon 6975P-C, the persons give 5 jobs and 40 points, and the feeds give 7 jobs and 63 points. The other CPU models have too few jobs.
+
+| The measure | The persons, from 1 to 3000 | The feeds, from 1 to 10000 |
+| --- | --- | --- |
+| `ready` | A line: 5.25 s [5.14, 5.37], and 3.30 ms [3.24, 3.39] for each person. At 3000, 15.2 s [15.0, 15.5]. | A hinge: 5.25 s [5.06, 5.56] at 1 feed, and 21.6 s [20.2, 24.3] at 10000. |
+| `peak` | A power law with the exponent 0.68 [0.48, 1.10]: 386 MB at 1 person, and 597 MB [579, 623] at 3000. | A power law with the exponent 0.67 [0.65, 0.69]: 384 MB at 1 feed, and 702 MB [691, 714] at 10000. |
+| `heap` | A hinge: 229 MB at 1 person, and 363 MB [336, 386] at 3000. | A power law with the exponent 0.77 [0.70, 0.83]: 189 MB at 1 feed, and 391 MB [384, 398] at 10000. |
+| `heapPeak` | A hinge: 229 MB at 1 person, and 394 MB [375, 418] at 3000. | A line: 244 MB [243, 246], and 27.4 kB [26.9, 28.1] for each feed. At 10000, 519 MB [513, 525]. |
+| `watchPeak` | A power law with the exponent 0.47 [0.37, 0.64]: 382 MB at 1 person, and 696 MB [689, 711] at 3000. | A power law with the exponent 0.67 [0.64, 0.68]: 395 MB at 1 feed, and 707 MB [696, 718] at 10000. |
+
+- The law `heapPeak` of the persons reaches the heap limit at 6255 persons, outside the range of the fit. The low end of its interval is 4734 persons, and the search found no high end. The failures at 10000 agree with it.
+- The laws of the heap of the persons have wide intervals: 40 points is the least count for a law.
+- The law `heapPeak` of the feeds reaches the heap limit at 11370 [11120, 11610] feeds, a little past the top rung.
+- The law `watchPeak` reaches 676 MB at 2617 [2275, 2773] persons and at 8562 [8147, 9020] feeds. 676 MB is the memory of the small cloud machine with no headroom.
+- Each ladder holds the other levels at the base point: 10 feeds or 10 persons, 10 incidents and 16 MiB of log.
+
 #### The start gate of alerts
 
 The plan `alerts-start-gate` gives the limits of the start of alerts (CAP-49). The CI gate of alerts reads the limits file.

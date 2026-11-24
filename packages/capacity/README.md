@@ -334,6 +334,13 @@ A test of the lab reads these files with the plan `overhead`. Each law names the
 
 The Laws run 45479208486 gives the laws of the plan `alerts-start-event` on the Intel Xeon 6975P-C (CAP-36 and CAP-86). Their folder is `laws/alerts-runtime/alerts-start-event/xeon-6975p-c/main/first`: the arm `main` at the first start. The variable of each law is `event`, the events each second from 0 to 55. The README of the lab has the table of the laws, in [The load ladder of events](../lab/README.md#the-load-ladder-of-events).
 
+### The laws of the persons and the feeds of alerts
+
+The Laws run 45485195729 gives the laws of the plans `alerts-start-persons` and `alerts-start-feeds` on the Intel Xeon 6975P-C (CAP-36). Their folders are `laws/alerts-runtime/alerts-start-persons` and `laws/alerts-runtime/alerts-start-feeds`. The variables are `persons`, from 1 to 3000, and `feeds`, from 1 to 10000. The README of the lab has the table of the laws, in [The laws of the persons and the feeds](../lab/README.md#the-laws-of-the-persons-and-the-feeds).
+
+- Alerts cannot start with 10000 persons on the 1 GB target: each job reached the heap limit of V8.
+- The compositions of the scale rule do not use these laws yet. CAP-37 adds them.
+
 ## The gate of the laws
 
 The gate tells if new measured values stay in the run ranges of their laws. A pull request that makes a subject slower or larger moves its values out of the ranges. `lawGate` gives the gate, and `lawRead` gives one read.
