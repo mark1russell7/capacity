@@ -14,7 +14,7 @@ The laws have three layers: bare Node, the service runner on Node, and each app.
 | --- | --- |
 | [`@mark1russell7/capacity`](packages/capacity/README.md) | The models and the rules: the law record and its value at a load point, the workload record and the algebra of demands. |
 | [`@capacity/lab`](packages/lab/README.md) | The subjects of the measurement: the bare server of Node and the request classes. |
-| `@capacity/site` | The site of the repository. |
+| `@capacity/site` | The site of the repository: the coverage matrix of the laws, and the curve of each law with the band of its interval, its knee and the points of its runs. |
 
 ## Rules
 

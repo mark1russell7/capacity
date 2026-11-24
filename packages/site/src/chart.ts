@@ -1,9 +1,9 @@
 /**
  * The charts of the page: the curve of a law, and the stack of a composition with layers. The two charts share one frame
  * (the axes, the ticks and the titles), one plot box and one hover. A chart draws at the width of its box, thus its text
- * keeps one size on a phone. A pointer or the arrow keys show the values at each step.
+ * keeps one size on a phone. A pointer or the arrow keys show the values at each step. A pointer on a run point shows its values.
  */
-import { amountText, axisUnit, kneeSentence, linearTicks, logTicks, significant, unitWords, type Curve } from "./curves.ts";
+import { amountText, axisUnit, kneeSentence, linearTicks, logTicks, runsSentence, significant, unitWords, type Curve } from "./curves.ts";
 import { RATE_UNIT, STACK_NAMES, bandText, stackSentence, type Stack } from "./stack.ts";
 
 const SVG = "http://www.w3.org/2000/svg";
@@ -107,23 +107,64 @@ const areaPath = (frame: Frame, xs: readonly number[], upper: (index: number) =>
 const linePath = (frame: Frame, xs: readonly number[], value: (index: number) => number): string =>
   `M${xs.map((x, index) => `${frame.xOf(x)},${frame.yOf(value(index))}`).join("L")}`;
 
-/** A hover spec tells the values of the dots at a step, with the class of each dot, and the rows of the tip. */
+/**
+ * The marks of a hover are the points with a hit target of their own. The attribute `data-mark` of a target gives the index
+ * of its mark. `at` gives the place of a mark, and `rows` gives the rows of its tip.
+ */
+interface HoverMarks {
+  readonly at: (index: number) => { readonly x: number; readonly y: number };
+  readonly rows: (index: number) => readonly HTMLElement[];
+}
+
+/** A hover spec tells the values of the dots at a step and the class of each dot. It also tells the rows of the tip and the marks. */
 interface HoverSpec {
   readonly xs: readonly number[];
   readonly dots: readonly { readonly className: string; readonly value: (index: number) => number }[];
   readonly rows: (index: number) => readonly HTMLElement[];
+  readonly marks?: HoverMarks;
 }
 
-/** This function adds the hover to a frame: a line and dots at the nearest step, a tip with the values, and the arrow keys. */
+/** This function gives the index of the mark of a hit target, or undefined for another element. */
+const markOf = (target: EventTarget | null): number | undefined => {
+  const value = target instanceof Element ? target.getAttribute("data-mark") : null;
+  return value === null ? undefined : Number(value);
+};
+
+/**
+ * This function adds the hover to a frame: a line and dots at the nearest step, a tip with the values, and the arrow keys.
+ * A pointer on the hit target of a mark shows a ring at the mark and the tip of the mark.
+ */
 const addHover = (frame: Frame, tip: HTMLElement, spec: HoverSpec): void => {
   const { chart, xOf, yOf, width } = frame;
   const { xs } = spec;
   const cross = svg("line", { y1: MARGIN.top, y2: HEIGHT - MARGIN.bottom, class: "curve-cross", visibility: "hidden" });
   const dots = spec.dots.map((dot) => svg("circle", { r: 5, class: `curve-dot ${dot.className}`, visibility: "hidden" }));
-  chart.append(cross, ...dots);
+  const ring = svg("circle", { r: 6, class: "curve-run-ring", visibility: "hidden" });
+  chart.append(cross, ...dots, ring);
+
+  /** This function puts the tip right of the place `x`, or left of it when the tip does not fit. */
+  const placeTip = (x: number, y: number): void => {
+    tip.hidden = false;
+    const left = x + 12 + tip.offsetWidth > width ? x - 12 - tip.offsetWidth : x + 12;
+    tip.style.left = `${Math.max(0, left)}px`;
+    tip.style.top = `${y}px`;
+  };
 
   let at = -1;
+  const showMark = (index: number): void => {
+    const marks = spec.marks;
+    if (marks === undefined) return;
+    cross.setAttribute("visibility", "hidden");
+    for (const dot of dots) dot.setAttribute("visibility", "hidden");
+    const place = marks.at(index);
+    ring.setAttribute("cx", String(place.x));
+    ring.setAttribute("cy", String(place.y));
+    ring.setAttribute("visibility", "visible");
+    tip.replaceChildren(...marks.rows(index));
+    placeTip(place.x, Math.max(0, Math.min(place.y - 12, HEIGHT - MARGIN.bottom - tip.offsetHeight)));
+  };
   const show = (index: number): void => {
+    ring.setAttribute("visibility", "hidden");
     at = Math.max(0, Math.min(xs.length - 1, index));
     const x = xOf(xs[at]!);
     cross.setAttribute("x1", String(x));
@@ -135,15 +176,18 @@ const addHover = (frame: Frame, tip: HTMLElement, spec: HoverSpec): void => {
       dots[which]!.setAttribute("visibility", "visible");
     });
     tip.replaceChildren(...spec.rows(at));
-    tip.hidden = false;
-    const left = x + 12 + tip.offsetWidth > width ? x - 12 - tip.offsetWidth : x + 12;
-    tip.style.left = `${Math.max(0, left)}px`;
-    tip.style.top = `${MARGIN.top}px`;
+    placeTip(x, MARGIN.top);
   };
   const hide = (): void => {
     cross.setAttribute("visibility", "hidden");
+    ring.setAttribute("visibility", "hidden");
     for (const dot of dots) dot.setAttribute("visibility", "hidden");
     tip.hidden = true;
+  };
+  const point = (event: PointerEvent): void => {
+    const mark = markOf(event.target);
+    if (mark === undefined) show(nearest(event.clientX));
+    else showMark(mark);
   };
   const nearest = (clientX: number): number => {
     const x = clientX - chart.getBoundingClientRect().left;
@@ -153,8 +197,8 @@ const addHover = (frame: Frame, tip: HTMLElement, spec: HoverSpec): void => {
     });
     return best;
   };
-  chart.addEventListener("pointermove", (event) => show(nearest(event.clientX)));
-  chart.addEventListener("pointerdown", (event) => show(nearest(event.clientX)));
+  chart.addEventListener("pointermove", point);
+  chart.addEventListener("pointerdown", point);
   chart.addEventListener("pointerleave", hide);
   chart.addEventListener("blur", hide);
   chart.addEventListener("keydown", (event) => {
@@ -202,21 +246,39 @@ const valueTable = (heads: readonly string[], count: number, cells: (index: numb
   return details;
 };
 
-/** This function makes the chart of a curve, its sentence of the knee and a table of its values. */
+/** This function gives the legend of a curve with run points: the law, its interval and the runs. */
+const curveLegend = (level: string): HTMLElement => {
+  const legend = html("ul", "curve-legend");
+  for (const [key, name] of [["law", "law"], ["band", level], ["runs", "runs"]] as const) {
+    const item = html("li");
+    item.append(html("span", `curve-swatch ${key}`), name);
+    legend.append(item);
+  }
+  return legend;
+};
+
+/**
+ * This function makes the chart of a curve, its sentence of the knee and a table of its values. A curve with run points
+ * also draws each point as a dot, with a hit target of 12 px and a tip, and a legend.
+ */
 export const curveChart = (curve: Curve, title: string): HTMLElement => {
-  const { points, variable, unit } = curve;
+  const { points, runs, variable, unit } = curve;
   const xs = points.map((each) => each.x);
   const log = variable.scale === "log" && variable.min > 0;
+  const level = `${Math.round(curve.level * 100)} % interval`;
+  // A point outside the steps of the curve stays out of the chart. The slack keeps a point at an end of the range.
+  const slack = (xs.at(-1)! - xs[0]!) * 1e-9;
+  const shown = runs.filter((each) => each.x >= xs[0]! - slack && each.x <= xs.at(-1)! + slack);
   const box = html("figure", "curve");
   const plot = plotBox((width, tip) => {
     const frame = frameOf(width, {
       xs,
       log,
       unit,
-      top: Math.max(...points.map((each) => each.high)),
-      bottom: Math.min(...points.map((each) => each.low)),
+      top: Math.max(...points.map((each) => each.high), ...shown.map((each) => each.value)),
+      bottom: Math.min(...points.map((each) => each.low), ...shown.map((each) => each.value)),
       xTitle: `${variable.id}, ${unitWords(variable.unit)}${log ? " (log scale)" : ""}`,
-      label: `${title}. ${amountText(points[0]!.value, unit)} at ${amountText(xs[0]!, variable.unit)}, ${amountText(points.at(-1)!.value, unit)} at ${amountText(xs.at(-1)!, variable.unit)}. ${kneeSentence(curve)}`,
+      label: `${title}. ${amountText(points[0]!.value, unit)} at ${amountText(xs[0]!, variable.unit)}, ${amountText(points.at(-1)!.value, unit)} at ${amountText(xs.at(-1)!, variable.unit)}. ${kneeSentence(curve)} ${runsSentence(curve)}`.trim(),
     });
     const { chart, xOf } = frame;
     const knee = curve.knee;
@@ -234,7 +296,13 @@ export const curveChart = (curve: Curve, title: string): HTMLElement => {
       chart.append(label);
     }
     chart.append(svg("path", { d: areaPath(frame, xs, (index) => points[index]!.high, (index) => points[index]!.low), class: "curve-band" }));
+    // The dots of the runs go under the line, thus the line of the law stays clear. Their hit targets go over the line.
+    const at = (index: number): { readonly x: number; readonly y: number } => ({ x: xOf(shown[index]!.x), y: frame.yOf(shown[index]!.value) });
+    const marks = shown.map((_, index) => svg("circle", { cx: at(index).x, cy: at(index).y, r: 3, class: "curve-run" }));
+    chart.append(...marks);
     chart.append(svg("path", { d: linePath(frame, xs, (index) => points[index]!.value), class: "curve-line" }));
+    const targets = shown.map((_, index) => svg("circle", { cx: at(index).x, cy: at(index).y, r: 6, class: "curve-run-hit", "data-mark": index }));
+    chart.append(...targets);
     addHover(frame, tip, {
       xs,
       dots: [{ className: "", value: (index) => points[index]!.value }],
@@ -246,13 +314,25 @@ export const curveChart = (curve: Curve, title: string): HTMLElement => {
           html("span", "", `at ${amountText(point.x, variable.unit)}`),
         ];
       },
+      marks: {
+        at,
+        rows: (index) => {
+          const run = shown[index]!;
+          return [
+            html("strong", "", amountText(run.value, unit)),
+            html("span", "", `at ${amountText(run.x, variable.unit)}`),
+            html("span", "", run.date === undefined ? "a run point" : `the run of ${run.date.slice(0, 10)}`),
+          ];
+        },
+      },
     });
     return chart;
   });
-  const level = `${Math.round(curve.level * 100)} % interval`;
+  const caption = `${kneeSentence(curve)} ${runsSentence(curve)}`.trim();
   box.append(
+    ...(shown.length > 0 ? [curveLegend(level)] : []),
     plot,
-    html("figcaption", "curve-caption", kneeSentence(curve)),
+    html("figcaption", "curve-caption", caption),
     valueTable([variable.id, "value", level], points.length, (index) => {
       const point = points[index]!;
       return [amountText(point.x, variable.unit), amountText(point.value, unit), `${amountText(point.low, unit)} to ${amountText(point.high, unit)}`];

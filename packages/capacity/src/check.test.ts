@@ -1,8 +1,8 @@
 import { app, lit, offset, ref, type Expr } from "@mark1russell7/vex";
 import { describe, expect, it } from "vitest";
 import { checkLaw } from "./check.ts";
-import type { Law, Variable } from "./law.ts";
-import { hinge, sampleLaw } from "./sample.fixture.ts";
+import type { Law, RunPoint, Variable } from "./law.ts";
+import { hinge, sampleLaw, samplePoints } from "./sample.fixture.ts";
 
 type Change = (law: Law) => Law;
 
@@ -19,6 +19,11 @@ const withNoise = (change: Partial<Law["noise"]>): Change => (law) => ({ ...law,
 const withNoiseRun = (change: Partial<Law["noise"]["runs"][number]>): Change => (law) => ({
   ...law,
   noise: { ...law.noise, runs: [{ ...(law.noise.runs[0] as Law["noise"]["runs"][number]), ...change }] },
+});
+
+const withPoint = (change: (point: RunPoint) => RunPoint): Change => (law) => ({
+  ...law,
+  points: samplePoints().map((point, index) => (index === 3 ? change(point) : point)),
 });
 
 /** Each case breaks one rule of a law. The check must find the problem with this code at this path. */
@@ -146,11 +151,23 @@ const cases: readonly (readonly [name: string, change: Change, code: string, pat
   ["a noise run with no secure address", withNoiseRun({ url: "http://example.com/run" }), "noise", "noise.runs[0].url"],
   ["a noise run with a short commit", withNoiseRun({ commit: "89abcde" }), "noise", "noise.runs[0].commit"],
   ["a noise run with a date and no time", withNoiseRun({ date: "2026-11-19" }), "noise", "noise.runs[0].date"],
+  ["fewer points than residuals", (law) => ({ ...law, points: samplePoints().slice(1) }), "point", "points"],
+  ["a point with no value of the variable", withPoint((point) => ({ ...point, load: {} })), "point", "points[3].load.rate"],
+  ["a point with a variable that the law does not have", withPoint((point) => ({ ...point, load: { ...point.load, size: 1 } })), "point", "points[3].load.size"],
+  ["a point outside the range of the variable", withPoint((point) => ({ ...point, load: { rate: 5000 } })), "point", "points[3].load.rate"],
+  ["a point with a value that is not finite", withPoint((point) => ({ ...point, value: Number.NaN })), "point", "points[3].value"],
+  ["a point with no run of the evidence", withPoint((point) => ({ ...point, run: 1 })), "point", "points[3].run"],
+  ["a point with a run that is not an index", withPoint((point) => ({ ...point, run: 0.5 })), "point", "points[3].run"],
+  ["a point with a job that is not a time", withPoint((point) => ({ ...point, job: "the second job" })), "point", "points[3].job"],
 ];
 
 describe("checkLaw", () => {
   it("finds no problem in the sample law", () => {
     expect(checkLaw(sampleLaw())).toEqual([]);
+  });
+
+  it("finds no problem in the sample law with the points of its fit", () => {
+    expect(checkLaw({ ...sampleLaw(), points: samplePoints() })).toEqual([]);
   });
 
   it("finds no problem in a law with no variable", () => {

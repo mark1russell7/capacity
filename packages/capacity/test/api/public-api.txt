@@ -122,6 +122,7 @@ type ReadSide: build/index.d.ts#ReadSide
 type ResidualKind: build/instance.chunk.d.ts#ResidualKind
 type ResourceCeiling: build/instance.chunk.d.ts#ResourceCeiling
 type Run: build/instance.chunk.d.ts#Run
+type RunPoint: build/instance.chunk.d.ts#RunPoint
 SCALE_MOST: build/index.d.ts#SCALE_MOST
 SCALE_STEPS: build/index.d.ts#SCALE_STEPS
 SLUG: build/index.d.ts#SLUG
@@ -956,6 +957,7 @@ interface Law {
   readonly constants: readonly Constant[];
   readonly replicates: readonly (readonly number[])[];
   readonly fit: Fit;
+  readonly points?: readonly RunPoint[];
   readonly evidence: Evidence;
   readonly noise: Noise;
 }
@@ -1134,6 +1136,14 @@ interface Run {
   readonly url: string;
   readonly commit: string;
   readonly date: string;
+}
+
+### build/instance.chunk.d.ts#RunPoint
+interface RunPoint {
+  readonly load: Readonly<Record<string, number>>;
+  readonly value: number;
+  readonly run: number;
+  readonly job: string;
 }
 
 ### build/instance.chunk.d.ts#Scale

@@ -86,12 +86,27 @@ export interface CurveKnee {
   readonly high: number | null;
 }
 
-/** A curve is the points of a law over its variable, its knee or the reason for no knee, and the level of its intervals. */
+/**
+ * A curve run is one point of the fit of a law: the amount of the variable and the value of the measure. `run` is the
+ * index of its run in the evidence of the law, and `date` is the date of that run.
+ */
+export interface CurveRun {
+  readonly x: number;
+  readonly value: number;
+  readonly run: number;
+  readonly date: string | undefined;
+}
+
+/**
+ * A curve is the points of a law over its variable, its knee or the reason for no knee, and the level of its intervals.
+ * The list `runs` has the points of the fit of the law. A law file with no points gives an empty list.
+ */
 export interface Curve {
   readonly variable: Law["variables"][number];
   readonly unit: string;
   readonly level: number;
   readonly points: readonly CurvePoint[];
+  readonly runs: readonly CurveRun[];
   readonly knee: CurveKnee | undefined;
   /** This text tells why the curve has no knee: no rule for the measure, or a problem of the rule. */
   readonly noKnee: string | undefined;
@@ -110,9 +125,26 @@ export const stepsOf = (min: number, max: number, scale: "log" | "linear", steps
   });
 };
 
+/** This function gives the points of the fit of a law at its variable `variable`, with the date of the run of each point. */
+export const runsOf = (law: Law, variable: string): readonly CurveRun[] =>
+  (law.points ?? []).flatMap((point) => {
+    const x = point.load[variable];
+    if (x === undefined || !Number.isFinite(x) || !Number.isFinite(point.value)) return [];
+    return [{ x, value: point.value, run: point.run, date: law.evidence.runs[point.run]?.date }];
+  });
+
+/** This function tells the points of the fit of a curve in one sentence. A curve with no points gives an empty text. */
+export const runsSentence = (curve: Curve): string => {
+  const count = curve.runs.length;
+  if (count === 0) return "";
+  const runs = new Set(curve.runs.map((each) => each.run)).size;
+  return `The dots are the ${count} points of the fit, from ${runs} ${runs === 1 ? "run" : "runs"}.`;
+};
+
 /**
  * This function gives the curve of a law with one variable. A law with more variables gives a text, because its curve
- * needs an amount of each other variable. A step where the law has no value is not in the points.
+ * needs an amount of each other variable. A step where the law has no value is not in the points. The curve also has
+ * the points of the fit of the law (`runsOf`).
  */
 export const curveOf = (law: Law, rule: KneeRule | undefined, steps = CURVE_STEPS): Curve | string => {
   const [variable, ...others] = law.variables;
@@ -128,11 +160,12 @@ export const curveOf = (law: Law, rule: KneeRule | undefined, steps = CURVE_STEP
     points.push({ x, value: read.value.value, low: read.value.interval.low, high: read.value.interval.high });
   }
   if (points.length === 0) return "The law has no value in the range of its variable.";
-  if (rule === undefined) return { variable, unit: law.measure.unit, level, points, knee: undefined, noKnee: "The lab gives no knee rule for this measure." };
+  const runs = runsOf(law, variable.id);
+  if (rule === undefined) return { variable, unit: law.measure.unit, level, points, runs, knee: undefined, noKnee: "The lab gives no knee rule for this measure." };
   const knee = lawKnee(law, variable.id, rule);
-  if (knee.tag !== "ok") return { variable, unit: law.measure.unit, level, points, knee: undefined, noKnee: knee.error.message };
+  if (knee.tag !== "ok") return { variable, unit: law.measure.unit, level, points, runs, knee: undefined, noKnee: knee.error.message };
   const found = knee.value.knee;
-  return { variable, unit: law.measure.unit, level, points, knee: { rule, value: found.value, low: found.interval.low, high: found.interval.high }, noKnee: undefined };
+  return { variable, unit: law.measure.unit, level, points, runs, knee: { rule, value: found.value, low: found.interval.low, high: found.interval.high }, noKnee: undefined };
 };
 
 /** This function tells a knee rule in words, with the words of `lawKnee` of capacity. */

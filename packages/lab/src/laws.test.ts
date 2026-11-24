@@ -8,7 +8,7 @@ import { readLaw } from "@mark1russell7/capacity/schema";
 import { escapeMarkdown } from "@mark1russell7/text";
 import { describe, expect, it } from "vitest";
 import type { Case } from "./case.ts";
-import { CPU_IDS, OVERHEAD_SUFFIX, conditionsOf, lawSetProblems, lawsOf, lawsSummaryOf, servedShare, tailNeed, type KnownMark, type LawJob, type LawSet } from "./laws.ts";
+import { CPU_IDS, OVERHEAD_SUFFIX, conditionsOf, lawSetProblems, lawsOf, lawsSummaryOf, runPointsOf, servedShare, tailNeed, type KnownMark, type LawJob, type LawSet } from "./laws.ts";
 import { readPlans } from "./plan.ts";
 import type { CaseRecord, RunRecord } from "./record.ts";
 import { isStartCase } from "./start.ts";
@@ -43,11 +43,29 @@ describe("the laws of a plan", () => {
     expect(epyc!.fit.residuals).toHaveLength(5 * CASES.length);
     expect(xeon!.evidence.runs).toEqual([runOf(2)]);
     expect(xeon!.fit.residuals).toHaveLength(5 * CASES.length);
+    // each point of the fit, in the order of the residuals: its load, its value, the run of the evidence and the start of its job
+    for (const law of [epyc!, xeon!]) {
+      expect(law.points).toHaveLength(law.fit.residuals.length);
+      expect(new Set(law.points?.map((point) => point.run))).toEqual(new Set([0]));
+      expect(new Set(law.points?.map((point) => point.job)).size).toBe(5);
+      expect(new Set(law.points?.map((point) => point.load["rate"]))).toEqual(new Set(CASES.map((each) => each.demand.classes[0]!.rate.value)));
+    }
     // the floor of the same CPU model, and else the model with the largest floor
     expect(epyc!.noise).toEqual({ floor: 0.01, cpu: EPYC, runs: [runOf(10)] });
     expect(xeon!.noise).toEqual({ floor: 0.03, cpu: "AMD EPYC 9V45 96-Core Processor", runs: [runOf(11)] });
     expect(laws[1]!.law.measure).toEqual({ id: "memory", unit: "B" });
     expect(epyc!.title).toBe(`The CPU time of one request, on the CPU ${EPYC}`);
+  });
+
+  it("gives each point the index of its run in the runs, or -1 for a job with no run there", () => {
+    const variable = { id: "rate", unit: "{request}/s", scale: "log" } as const;
+    const jobs = [timedOf("rate", runOf(2), EPYC, "2026-11-20T06:00:00.000Z"), timedOf("rate", runOf(3), EPYC, "2026-11-20T07:00:00.000Z"), timedOf("rate", null, EPYC, "2026-11-20T08:00:00.000Z")];
+    const points = runPointsOf({ variable, x: [100, 200, 300], y: [1, 2, 3], jobs, runs: [runOf(1), runOf(2), runOf(3)] });
+    expect(points).toEqual([
+      { load: { rate: 100 }, value: 1, run: 1, job: "2026-11-20T06:00:00.000Z" },
+      { load: { rate: 200 }, value: 2, run: 2, job: "2026-11-20T07:00:00.000Z" },
+      { load: { rate: 300 }, value: 3, run: -1, job: "2026-11-20T08:00:00.000Z" },
+    ]);
   });
 
   it("fits the hinge of the CPU time, with its knee near the true knee", () => {
@@ -440,6 +458,7 @@ describe("the laws of an overhead", () => {
       expect(law.conditions).toMatchObject({ base: "node-http", class: "rate", "cpu.model": EPYC });
       expect(law.title).toContain(": the overhead over node-http, on the CPU");
       expect(law.fit.residuals).toHaveLength(40);
+      expect(law.points).toHaveLength(40);
       expect(law.variables[0]).toMatchObject({ id: "rate", min: 100, max: 8000 });
     }
     const [cpu, memory] = result.laws;

@@ -71,6 +71,7 @@ export const lawSchema: z.ZodType<Law> = z.strictObject({
     residuals: z.array(z.number()),
     losers: z.array(z.strictObject({ form: z.string(), error: fitErrorSchema })),
   }),
+  points: z.array(z.strictObject({ load: z.record(z.string(), z.number()), value: z.number(), run: z.number(), job: z.string() })).exactOptional(),
   evidence: z.strictObject({ runs: z.array(runSchema) }),
   noise: z.strictObject({ floor: z.number(), cpu: z.string(), runs: z.array(runSchema) }),
 });

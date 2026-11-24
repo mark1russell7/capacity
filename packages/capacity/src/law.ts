@@ -88,6 +88,19 @@ export interface Run {
   readonly date: string;
 }
 
+/**
+ * A run point is one point of the fit of a law. Its load gives the value of each variable of the law, in the unit of the
+ * variable. Its value is the value of the measure, in the unit of the measure.
+ */
+export interface RunPoint {
+  readonly load: Readonly<Record<string, number>>;
+  readonly value: number;
+  /** This number is the index of the run of the point in `evidence.runs`. */
+  readonly run: number;
+  /** This text is the start time of the job of the point, as an ISO 8601 time. A run can have more than one job. */
+  readonly job: string;
+}
+
 /** The evidence of a law is the list of the runs that measured its points. */
 export interface Evidence {
   readonly runs: readonly Run[];
@@ -116,6 +129,9 @@ export interface Noise {
  * Each row of `replicates` is one more fit of the constants, in the order of `constants`. The rows
  * come from resamples of the points. Thus the spread of the rows is the doubt of the constants
  * together, and each query gets its interval from them. `noise` is the noise of one measurement.
+ *
+ * The list `points` keeps each point that the fit used, in the order of `fit.residuals`. A law file from before the
+ * points has no list.
  */
 export interface Law {
   readonly format: typeof LAW_FORMAT;
@@ -129,6 +145,7 @@ export interface Law {
   readonly constants: readonly Constant[];
   readonly replicates: readonly (readonly number[])[];
   readonly fit: Fit;
+  readonly points?: readonly RunPoint[];
   readonly evidence: Evidence;
   readonly noise: Noise;
 }

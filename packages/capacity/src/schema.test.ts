@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { leastCount } from "./law.ts";
-import { sampleLaw } from "./sample.fixture.ts";
+import { sampleLaw, samplePoints } from "./sample.fixture.ts";
 import { lawSchema, readLaw } from "./schema.ts";
 
 /** This function gives the sample law as the data of a file: the law after a turn through JSON text. */
@@ -9,6 +9,17 @@ const fileData = (): Record<string, unknown> => JSON.parse(JSON.stringify(sample
 describe("readLaw", () => {
   it("reads the sample law from the data of a file", () => {
     expect(readLaw(fileData())).toEqual({ tag: "ok", value: sampleLaw() });
+  });
+
+  it("reads a law with the points of its fit, and a law file with no points", () => {
+    const law = { ...sampleLaw(), points: samplePoints() };
+    expect(readLaw(JSON.parse(JSON.stringify(law)))).toEqual({ tag: "ok", value: law });
+    expect(readLaw(fileData())).toMatchObject({ tag: "ok" });
+  });
+
+  it("gives a shape problem with the path of a point of the wrong type", () => {
+    const points = samplePoints().map((point, index) => (index === 2 ? { ...point, run: "first" } : point));
+    expect(readLaw({ ...fileData(), points })).toMatchObject({ tag: "err", error: [{ code: "shape", path: "points.2.run" }] });
   });
 
   it("gives a shape problem for a field that a law does not have", () => {
