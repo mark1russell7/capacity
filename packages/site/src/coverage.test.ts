@@ -1,10 +1,11 @@
 import { readFileSync } from "node:fs";
-import { LOAD_GRID, LOAD_MEASURES, RUN_MEASURES } from "@capacity/lab";
+import { LOAD_GRID, LOAD_MEASURES, RUN_MEASURES, START_MEASURES } from "@capacity/lab";
 import { describe, expect, it } from "vitest";
 import {
   FAMILIES,
   ITEMS,
   RECORD_MEASURES,
+  START_FAMILIES,
   SUBJECTS,
   VARIABLES,
   coverage,
@@ -40,7 +41,15 @@ const law = (subject: string, variable: string, measure: string, cpu = "CPU A"):
   lawClass: undefined,
 });
 
-const plan = (id: string, subjects: readonly string[], variable: string | undefined, start: readonly string[] = []): PlanEntry => ({ id, title: id, subjects, variable, start, lawClass: undefined, knees: {} });
+const plan = (id: string, subjects: readonly string[], variable: string | undefined, start: readonly string[] = []): PlanEntry => ({
+  id,
+  title: id,
+  subjects,
+  variable,
+  start: Object.fromEntries(start.map((each) => [each, each])),
+  lawClass: undefined,
+  knees: {},
+});
 
 describe("the lists of the page and of the lab", () => {
   it("has the load variables of the grid of the lab, in its order and with its titles", () => {
@@ -75,7 +84,10 @@ describe("the family of a measure", () => {
     expect(familyOf("loop.lag.p99")).toBe("lag");
     expect(familyOf("elapsed")).toBeUndefined();
     expect(familyOf("ready")).toBeUndefined();
-    expect(familyOf("ready", new Set(["ready"]))).toBe("start");
+    expect(familyOf("ready", { ready: "ready" })).toBe("start");
+    expect(familyOf("watch-cores", { "watch-cores": "watchCores" })).toBe("cpu");
+    expect(familyOf("watch-peak", { "watch-peak": "watchPeak" })).toBe("memory");
+    expect(familyOf("heap-peak.overhead", { "heap-peak": "heapPeak" })).toBe("memory");
   });
 });
 
@@ -97,6 +109,20 @@ describe("the coverage of the law files of the repository", () => {
     expect(cellOf(matrices, "node", "rate", "network").plans.map((each) => each.id)).toContain("rate");
     expect(cellOf(matrices, "node", "rate", "gc").state).toBe("none");
     expect(cellOf(matrices, "node", "body", "cpu").state).toBe("none");
+  });
+
+  it("gives a family to each measure of a start record of the lab, from the families of the page", () => {
+    expect(Object.keys(START_FAMILIES).sort()).toEqual(Object.keys(START_MEASURES).sort());
+    const ids = new Set([...FAMILIES.map((each) => each.id), "start"]);
+    expect(Object.values(START_FAMILIES).filter((each) => !ids.has(each))).toEqual([]);
+  });
+
+  it("puts the CPU and the memory of a start plan in their families, not in the column start", () => {
+    const event = PLANS.find((each) => each.id === "alerts-start-event");
+    expect(event).toBeDefined();
+    const row = event!.variable!;
+    for (const family of ["cpu", "memory"]) expect(cellOf(matrices, "alerts", row, family).state).not.toBe("none");
+    expect(cellOf(matrices, "alerts", row, "start").state).not.toBe("none");
   });
 
   it("gives the start plans of alerts as rows of the app, out of the goal", () => {
