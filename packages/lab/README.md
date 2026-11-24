@@ -548,7 +548,22 @@ The plan `alerts-start-update` starts alerts at 6 rungs of the rate of updates f
 - The first event comes 1 s after the first request of the app. The fake skips the updates before it, thus less than 1 s of updates.
 - The plan has 5 jobs of 162 minutes, as the plan `alerts-start-event`.
 
-The plan has no results yet. Its first results come next.
+The first run of the plan is [Lab run 45362275890](https://github.com/mark1russell7/capacity/actions/runs/45362275890), with 5 jobs. Each value is the median of 10 readings, from the 2 arms of each job. No start failed.
+
+| Updates each second | `watchCores` | The live heap | `watchHeapPeak` | `watchPeak` | The GC time in the watch |
+| --- | --- | --- | --- | --- | --- |
+| 0 | 0.023 | 185 MiB | 233 MiB | 401 MiB | 197 ms |
+| 1 | 0.020 | 179 MiB | 221 MiB | 396 MiB | 129 ms |
+| 3 | 0.021 | 183 MiB | 224 MiB | 394 MiB | 164 ms |
+| 10 | 0.022 | 179 MiB | 224 MiB | 395 MiB | 169 ms |
+| 30 | 0.021 | 183 MiB | 225 MiB | 398 MiB | 162 ms |
+| 100 | 0.022 | 183 MiB | 239 MiB | 399 MiB | 169 ms |
+
+- The cores do not increase with the rate of updates. The slope of the least squares line is 0.002 ms of CPU time for each update.
+- The cause is in the fake and in the app. Each answer of the fake has only the last version of each live alert. Alerts polls its feeds.
+- Thus all the updates of an alert between two polls give one change of that alert. The rate of updates does not set the work of a poll.
+- The rung `update-0` agrees with the rung `event-1` of the ladder of events. The cores are 0.023 and 0.026, and `watchPeak` is 401 and 396 MiB.
+- The jobs are on 3 CPU models: 3 Xeon 6975P-C, 1 Xeon 6973P-C and 1 EPYC 7763. CAP-36 adds runs and fits the laws.
 
 #### The ladders of the levels and of the log
 
