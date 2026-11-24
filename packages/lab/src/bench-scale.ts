@@ -96,11 +96,24 @@ const sliderOf = (id: string, api: BenchApi, model: ScaleModel, demand: Demand):
 };
 
 /**
- * This function gives the cases of the bench. Each composition of the processor time gives a scale case, a reach case and a slider case. The
+ * This function tells if each law of a composition, and of each composition that it names, reads the rate of a class. The
+ * bench gives a demand of requests, thus it reads only these compositions. The laws of alerts read a level of events.
+ * The site has the same walk in `lawIdsOf`. This file imports only the types of `@mark1russell7/capacity`. Thus each
+ * child of the bench loads only the package of the checkout of its arm.
+ */
+export const readsRate = (composition: Composition, catalog: BenchCatalog): boolean =>
+  composition.terms.every((term) => {
+    if ("law" in term) return catalog.laws.find((law) => law.id === term.law)?.variables.some((variable) => variable.id === "rate") === true;
+    const nested = catalog.compositions.find((each) => each.id === term.composition);
+    return nested !== undefined && readsRate(nested, catalog);
+  });
+
+/**
+ * This function gives the cases of the bench. Each composition of the processor time over the rate gives a scale case, a reach case and a slider case. The
  * case `knee` gives the knee of each law by each rule. The order of the cases is the order of the compositions.
  */
 export const benchCases = (catalog: BenchCatalog): readonly BenchCase[] => {
-  const cpus = catalog.compositions.filter((composition) => composition.measure.id === "cpu");
+  const cpus = catalog.compositions.filter((composition) => composition.measure.id === "cpu" && readsRate(composition, catalog));
   const demand = demandAt(BENCH_RATE);
   const scales = cpus.flatMap((composition): BenchCase[] => {
     const model = cpuModel(composition, catalog);

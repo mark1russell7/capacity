@@ -8,8 +8,8 @@ import { demandAt } from "./stack.ts";
 const lawFile = (path: string): Law => JSON.parse(readFileSync(new URL(path, import.meta.url), "utf8")) as Law;
 const CATALOG = { laws: LAWS.map((each) => lawFile(each.path)), compositions: COMPOSITIONS };
 
-/** These subjects are the subjects of the slider on the CPU model of the laws. */
-const CPU = LAWS[0]!.cpu;
+/** These subjects are the subjects of the slider on the CPU model of the laws of the bare server. */
+const CPU = LAWS.find((law) => law.subject === "node-http")!.cpu;
 const SUBJECTS = scaleSubjects(COMPOSITIONS, LAWS, CPU);
 
 const sliderFor = (compositions: readonly Composition[], setting = DEFAULT_SETTING): Slider => {
@@ -36,6 +36,12 @@ describe("the scale model of the slider", () => {
 describe("the slider on the real compositions", () => {
   it("has the two subjects of the runner stack", () => {
     expect(SUBJECTS.map((each) => each.subject)).toEqual(["node-http", "node-http-service"]);
+  });
+
+  it("gives no subject for the compositions of alerts, because their laws read a level of events and not the rate", () => {
+    const alerts = COMPOSITIONS.filter((each) => each.subject === "alerts-runtime");
+    expect(alerts.length).toBeGreaterThan(0);
+    expect(SUBJECTS.some((each) => each.subject === "alerts-runtime")).toBe(false);
   });
 
   it("gives no subject on a CPU model with no laws, and the laws of each composition of a subject", () => {

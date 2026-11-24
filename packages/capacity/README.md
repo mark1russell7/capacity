@@ -330,6 +330,10 @@ The Laws run 45069050798 gives the laws of the plan `overhead` on the Intel Xeon
 
 A test of the lab reads these files with the plan `overhead`. Each law names the subject of its base side, and its residual is absolute. Its held-out error is less than its largest value at an end of its range.
 
+### The laws of the events of alerts
+
+The Laws run 45382785749 gives the laws of the plan `alerts-start-event` on the Intel Xeon 6975P-C (CAP-36). Their folder is `laws/alerts-runtime/alerts-start-event/xeon-6975p-c/main/first`: the arm `main` at the first start. The variable of each law is `event`, the events each second from 0 to 30. The README of the lab has the table of the laws, in [The load ladder of events](../lab/README.md#the-load-ladder-of-events).
+
 ## The gate of the laws
 
 The gate tells if new measured values stay in the run ranges of their laws. A pull request that makes a subject slower or larger moves its values out of the ranges. `lawGate` gives the gate, and `lawRead` gives one read.
@@ -683,6 +687,16 @@ The CPU is in `{core}`, and the memory is in MiB. A demand has one class at the 
 
 A test reads each composition file with `readComposition`. The id of each composition is its path. It has a value at each end of the range of its laws, with no extrapolation. A test also holds the part of the runner above 0 at each end of the range.
 
+### The compositions of alerts
+
+| Composition | Its terms |
+| --- | --- |
+| `alerts-runtime/xeon-6975p-c/cpu` | The law `watch-cores` of the plan `alerts-start-event`, over the instance |
+| `alerts-runtime/xeon-6975p-c/memory` | The law `watch-peak`, over the instance |
+| `alerts-runtime/xeon-6975p-c/heap` | The law `watch-heap-peak`, over the instance |
+
+The variable `event` of these laws is a level of the demand, in `{event}/s`. Thus a demand of alerts is `{ classes: [], levels: { event } }`, and a scale of the demand scales the events.
+
 ## An instance type
 
 An instance type is one size of a machine or a container: the amount of each resource of one instance. It is plain data, thus an instance file is JSON. Its format is `capacity-instance/1`.
@@ -763,6 +777,23 @@ The folder `limits` holds the limits files that the lab gives from CI runs. The 
 | `limits/alerts-start-gate.limits.json` | The start of alerts: the used heap, the peak of the resident set and the time to ready, at two sizes of the log | The plan `alerts-start-gate` and the command `start-limits.main.ts`. The README of the lab tells them. |
 
 Each point of a start limits file holds one limit set of the format `capacity-limits/1`. A test of the lab reads the file.
+
+### The instance files
+
+The folder `instances` holds the instance files, one instance type in each file. The id of each type is its path. A test reads each file with `readInstance`.
+
+| Instance type | CPU | Memory | Heap | Where the amounts come from |
+| --- | --- | --- | --- | --- |
+| `small-cloud-1gb` | 0.25 core | 676 MB | 556 MB | A small cloud machine with 1 GB that runs alerts. Its CPU is the baseline share of a shared core. Its memory is the free memory before the start of alerts. |
+| `lab-target-1gb` | 2 cores | 1011 MB | 556 MB | The target of the lab: the limits of its container and the heap limit of V8 |
+
+The limits file `limits/alerts-scale.limits.json` holds the limits of one copy of alerts:
+
+| Limit | Ceiling | Headroom | Why |
+| --- | --- | --- | --- |
+| `cpu` | The CPU of the instance | 0.3 | The baseline of a shared core is a mean. A burst of events needs more for a short time. |
+| `memory` | The memory of the instance | 0.2 | The law gives the peak of a watch of 180 s. A longer run and a larger log give higher peaks. |
+| `heap` | The heap limit of V8 | 0.2 | The same reason as the memory |
 
 ### What an instance type and a limit do not have
 
@@ -854,6 +885,30 @@ The interval tells the doubt of the laws. It does not tell the noise of one run.
 The search reads a grid along the share of one instance, `1 / n`, on a log scale. A bisection then finds each crossing. Two crossings in one step of the grid can hide the first.
 
 Tests hold the scale rule and the reach against each other on generated demands: the count holds the load, and one instance less does not.
+
+### The scale rule of alerts
+
+The test `src/scale-files.test.ts` reads the laws, the compositions, the instance files and the limits of alerts (CAP-37). The query `countReach` gives the highest rate of events that one copy holds.
+
+| Instance type | Limits | The rate of one copy, events each second | The limit that binds first | The next limits |
+| --- | --- | --- | --- | --- |
+| `small-cloud-1gb` | The limits file | 10.4 [10.0, 10.8] | `memory` | `heap` at 29.3, `cpu` at 29.6 |
+| `small-cloud-1gb` | No headroom | 21.3 [20.6, 21.9] | `memory` | `cpu` at 43.4, `heap` at 52.2 |
+| `lab-target-1gb` | The limits file | 29.3 [27.2, 30.6] | `heap` | `memory` at 32.0, `cpu` at 254 |
+| `lab-target-1gb` | No headroom | 48.3 [42.5, 49.5] | `memory` | `heap` at 52.2, `cpu` at 364 |
+
+- On the small cloud machine, the memory binds first, at less than half of the rate where the CPU binds.
+- The row with no headroom on the lab target gives the reach of the lab README: 48 events each second.
+- Each law is of the Intel Xeon 6975P-C. The CPU of the cloud machine is a different model, thus its CPU reach is a forecast.
+- Each law is at the base point of the ladder: 16 MiB of log, 10 feeds, 10 persons and 10 incidents.
+- A reach past 30 events each second is outside the range of the laws. CAP-86 adds the rungs from 40 to 70.
+
+The rule does not tell these parts yet. CAP-37 adds them:
+
+- The laws of the polls, the routes, the incidents and the bursts, and the lag of the event loop (CAP-36 and CAP-68).
+- The new shared config of alerts: more sources, a score rule and a chain report. The contract of alerts names them.
+- The live load of the cloud copy, and the smallest instance type that holds it.
+- What stops a second copy of alerts. Until then, the count of copies is 1.
 
 ## The homes of the parts
 
