@@ -1,41 +1,4 @@
 {
   "format": "capacity-bench-changes/1",
-  "changes": [
-    {
-      "case": "scale:node-http/xeon-6975p-c/cpu",
-      "base": "292ff26a87f30a41f999783517cb9a7632795d61b69a1d521247778c01ab96c9",
-      "head": "9d68b54bb7e318017cdbbf98729ad01391d68d0bb1fb5783682f471f902f0ae6",
-      "reason": "CAP-79: past its last measure, each law holds the value at that measure. Thus the rows of the ladder change past the measures."
-    },
-    {
-      "case": "reach:node-http/xeon-6975p-c/cpu",
-      "base": "4eca80cd14226dcfeac38e7068393a12a26d15b62438bec26a0d4288f86854ab",
-      "head": "3821b9b3a0b73f4bcabbec61f9174ee9d2bc571b4038806e3f90e0dea447e124",
-      "reason": "CAP-79: the hold rule gives the factor of the reach. The base gave no factor, and that was wrong."
-    },
-    {
-      "case": "slider:node-http/xeon-6975p-c/cpu",
-      "base": "b7ee8ddc9b008e6977be9361007aab8fdf08e0e32774e0c3b0bea4c434b55fca",
-      "head": "522db046227a4bf4ab9885b50047c1879e640b0d27d75d578b4b73d2c1fb1d30",
-      "reason": "CAP-79: the hold rule changes the rows of the slider past the measures of each law."
-    },
-    {
-      "case": "scale:node-http-service/xeon-6975p-c/cpu",
-      "base": "08daff53d1b84238d04d7e6a2041472d709697ea99c006cb4c452d62c88b1715",
-      "head": "e7371b6c568b7be8dde542a8fe2537a283720611a56c5fa22da0c58c6b06ab02",
-      "reason": "CAP-79: past its last measure, each law holds the value at that measure. Thus the rows of the ladder change past the measures."
-    },
-    {
-      "case": "reach:node-http-service/xeon-6975p-c/cpu",
-      "base": "267d682b4f20b65d6d7c275675fda45fb75625626d89a4910d76da680fe64eeb",
-      "head": "1dcb38a23711b43e18a2b6989d4954db8219052591e5b2b6ee58adbf38604c36",
-      "reason": "CAP-79: the hold rule gives the factor of the reach. The base gave no factor, and that was wrong."
-    },
-    {
-      "case": "slider:node-http-service/xeon-6975p-c/cpu",
-      "base": "1b8019a11089c7a529defbb6e1c3b2c483cd8c703d4502948369283c843d99bc",
-      "head": "13a380a1cd8ae1c9fdcf5231521f8048a894f51822886c2d377f53acab673e9a",
-      "reason": "CAP-79: the hold rule changes the rows of the slider past the measures of each law."
-    }
-  ]
+  "changes": []
 }
