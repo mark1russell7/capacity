@@ -283,7 +283,7 @@ A timed run is one job of the workflow `lab.yml`: it measures one plan on one ru
 | Event | The plans |
 | --- | --- |
 | The schedule, each night at 06:22 UTC | Each plan with the trigger `schedule` |
-| A pull request that changes the lab, the model, the lockfile or the workflow | Each plan with the trigger `pull_request` |
+| A pull request that changes the lab, the model, the laws, the lockfile or the workflow | Each plan with the trigger `pull_request`. A gate plan starts only for a change of a file of the gate. |
 | A push of such a change to `main` | Each plan with the trigger `pull_request` |
 | A dispatch by hand, with the input `plans` | The plans of the input. With no input, each plan with the trigger `pull_request`. |
 
@@ -410,16 +410,42 @@ gh workflow run laws.yml -R mark1russell7/capacity -f runs='<run of the plan rat
 
 A gate plan measures the subject again at some points of the laws of another plan. The gate compares each value with the run range of its law (`planGate`). Thus a change of Node, of the runner or of the subject cannot move a law with no signal.
 
-- **The plan.** A gate plan has the check `gate`, the field `gate` and 2 jobs or more. Its id starts with `gate-`.
+- **The plan.** A gate plan has the check `gate`, the field `gate` and 13 jobs or more (`GATE_PLAN_JOBS`). Its id starts with `gate-`.
 - **The cases.** A gate plan has each A/A pair of the plan `floor`, for the noise floor of its job. Its other cases are cases of the plan of the laws, with the same ids. `gatePlanProblems` examines them.
 - **The noise.** A job with a noise floor over its limit (`FLOOR_LIMITS`) gives no read of the laws of that measure.
 - **The laws.** A job reads each law of its CPU model. A job on a CPU model with no law gives no read. The laws of the plan `rate` are on the Intel Xeon 6975P-C only.
+- **The harness.** Each law has the version of `@mark1russell7/harness` as a condition. A record of a different version gives no read. Thus a new version of the harness needs new laws.
 - **The outcome.** `lawGate` of `@mark1russell7/capacity` counts the reads above and below the run range in each job. A side needs 2 jobs or more, and Holm corrects the family. A gate with too few reads gives "no read". No read is not a pass.
 - **The proof.** A case can add a CPU time to each request (`cost`, in us). A plan with a cost expects a block (`expectedOf`). Each other gate plan expects a pass.
 
-The plans `gate-rate` and `gate-rate-cost` measure 4 rates of the plan `rate` from 300 to 3000 requests each second, in 12 jobs each night. The second plan adds 100 us to each request, thus its gate must block. Thus each night shows that the gate can block, and that the subject agrees with its laws.
+The plans `gate-rate` and `gate-rate-cost` measure 4 rates of the plan `rate` from 300 to 3000 requests each second, in 13 jobs each night. The second plan adds 100 us to each request, thus its gate must block. Thus each night shows that the gate can block, and that the subject agrees with its laws.
 
-The count of jobs comes from the share of the CPU model of the laws. In the first run of the two plans, 5 of 12 jobs had the Intel Xeon 6975P-C. With 6 jobs, a night at that share gives no read of a plan 1 time in 5. With 12 jobs, the chance is less than 2 in 100. The item CAP-60 calculates the count of jobs from the share of each CPU model in the runs.
+The plan `gate-rate` also starts on a pull request that changes a file of the gate (CAP-60). The step `gate` of the job `changes` finds these files:
+
+| Part | The files |
+| --- | --- |
+| The subject and the cell | `packages/lab/src/**`, other than the tests |
+| The harness | `pnpm-lock.yaml` and `packages/lab/package.json`: they have the version of `@mark1russell7/harness` |
+| The laws | `packages/capacity/laws/**`, and the plans `floor`, `rate` and `gate-*` |
+| The gate | `packages/capacity/src/**`, other than the tests, and the workflow `lab.yml` |
+
+A pull request that changes no such file starts no gate plan. The plan `gate-rate-cost` starts only each night.
+
+### The count of jobs of a gate plan
+
+A runner gets its CPU model at random, and a side of a law needs 2 jobs on the CPU model with laws. Thus the count of jobs comes from the share of that CPU model.
+
+- **The share.** In the Lab run 45016177414 of CAP-26, 5 of 12 jobs had the Intel Xeon 6975P-C (`LAW_CPU_SHARE`). The others had the AMD EPYC 7763 (4), the Intel Xeon Platinum 8573C (2), the Intel Xeon Platinum 8370C (1) and the AMD EPYC 9V74 (1).
+- **The target.** A plan gets fewer than 2 such jobs less than 1 time in 100 (`GATE_MISS`).
+- **The count.** `gateJobsFor` gives the least count n with P(X ≤ 1) below the target, for X ~ Binomial(n, 5/12). The chance comes from `binomialTest` of `@mark1russell7/rigor-statistics`.
+
+| Jobs | The chance of fewer than 2 jobs on the CPU model with laws |
+| ---: | ---: |
+| 6 | 0.21 |
+| 12 | 0.015 |
+| 13 | 0.009 |
+
+Thus a gate plan has 13 jobs. `planProblems` refuses a gate plan with fewer. A noise floor over its limit also gives no read of a job, and the target does not include it.
 
 The job `gate` of the workflow `lab.yml` starts after the jobs of the plans. It downloads the artifacts `lab-gate-*`, then it starts the command:
 

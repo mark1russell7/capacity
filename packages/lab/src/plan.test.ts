@@ -2,14 +2,33 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { GATE_JOBS } from "@mark1russell7/capacity";
 import { valueIn } from "@mark1russell7/quantity";
+import { binomialTest } from "@mark1russell7/rigor-statistics";
 import { afterEach, describe, expect, it } from "vitest";
 import { CASE_FORMAT, MAX_ARRIVALS, arrivalsOf, type Case } from "./case.ts";
 import { windowOf } from "./cell.ts";
 import { CONTROL_CASES } from "./control.ts";
 import { FLOOR_IDS, FLOOR_PAIRS, floorPair } from "./floor.ts";
 import { expectedOf } from "./gate.ts";
-import { MAX_JOB_MINUTES, MAX_JOBS, PLAN_FORMAT, SETUP_MINUTES, gatePlanProblems, matrixOf, planMinutes, planProblems, planSwap, readPlans, selectPlans, type Plan } from "./plan.ts";
+import {
+  GATE_MISS,
+  GATE_PLAN_JOBS,
+  LAW_CPU_SHARE,
+  MAX_JOB_MINUTES,
+  MAX_JOBS,
+  PLAN_FORMAT,
+  SETUP_MINUTES,
+  gateJobsFor,
+  gatePlanProblems,
+  matrixOf,
+  planMinutes,
+  planProblems,
+  planSwap,
+  readPlans,
+  selectPlans,
+  type Plan,
+} from "./plan.ts";
 import type { StartLawSet } from "./start-laws.ts";
 import { isStartCase, startWindowOf, type StartCase } from "./start.ts";
 
@@ -67,11 +86,13 @@ describe("the plan files of the lab", () => {
     expect(planMinutes(floor!)).toBe(SETUP_MINUTES + Math.ceil((10 * 4 * 50) / 60));
   });
 
-  it("have the two gate plans of the laws of the request rate, in 12 jobs each night: the second adds a cost and must block", () => {
+  it("have the two gate plans of the laws of the request rate, in 13 jobs: the first also on a pull request, the second adds a cost and must block", () => {
     const { plans } = readPlans(PLANS);
     const [pass, block] = ["gate-rate", "gate-rate-cost"].map((id) => plans.find((each) => each.id === id)!);
+    expect(pass!.triggers).toEqual(["pull_request", "schedule"]);
+    expect(block!.triggers).toEqual(["schedule"]);
     for (const each of [pass!, block!]) {
-      expect([each.check, each.gate, each.jobs, each.triggers]).toEqual(["gate", { laws: "rate" }, 12, ["schedule"]]);
+      expect([each.check, each.gate, each.jobs]).toEqual(["gate", { laws: "rate" }, GATE_PLAN_JOBS]);
       expect(each.cases.map((value) => value.id)).toEqual([...FLOOR_IDS, "rate/300", "rate/1000", "rate/2000", "rate/3000"]);
       expect(gatePlanProblems(each, plans)).toEqual([]);
     }
@@ -206,14 +227,14 @@ describe("the problems of a plan", () => {
     expect(paths(plan({ jobs: MAX_JOBS }))).toEqual([]);
   });
 
-  it("examines the shape of a gate plan: its id, the id of the plan of its laws, the check gate, no law set and 2 jobs or more", () => {
-    const gate = plan({ id: "gate-idle", check: "gate", gate: { laws: "rate" }, jobs: 2 });
+  it("examines the shape of a gate plan: its id, the id of the plan of its laws, the check gate, no law set and GATE_PLAN_JOBS jobs or more", () => {
+    const gate = plan({ id: "gate-idle", check: "gate", gate: { laws: "rate" }, jobs: GATE_PLAN_JOBS });
     expect(paths(gate)).toEqual([]);
     expect(paths({ ...gate, id: "idle" })).toEqual(["gate id"]);
     expect(paths({ ...gate, gate: {} })).toEqual(["gate gate"]);
     expect(paths({ ...gate, gate: { laws: "Rate" } })).toEqual(["gate gate"]);
     expect(paths({ ...gate, check: "rate" })).toEqual(["gate check"]);
-    expect(paths({ ...gate, jobs: 1 })).toEqual(["gate jobs"]);
+    expect(paths({ ...gate, jobs: GATE_PLAN_JOBS - 1 })).toEqual(["gate jobs"]);
     expect(paths({ ...gate, jobs: undefined })).toEqual(["gate jobs"]);
     const rate = readPlans(PLANS).plans.find((each) => each.id === "rate")!;
     expect(paths({ ...gate, laws: rate.laws })).toContain("gate laws");
@@ -286,6 +307,48 @@ describe("the reader of the plan files", () => {
   });
 });
 
+describe("the count of jobs of a gate plan", () => {
+  /** This function gives the chance of fewer than 2 jobs on the CPU model with laws, in n jobs at a share. */
+  const miss = (jobs: number, share: number): number => binomialTest(GATE_JOBS - 1, jobs, share, "less");
+
+  it("gives 13 jobs at the share 5/12 of the Lab run 45016177414: 12 jobs miss 2 jobs more than 1 time in 100", () => {
+    expect(LAW_CPU_SHARE).toBe(5 / 12);
+    expect(GATE_MISS).toBe(0.01);
+    expect(gateJobsFor(LAW_CPU_SHARE)).toBe(13);
+    expect(GATE_PLAN_JOBS).toBe(13);
+    expect(miss(13, LAW_CPU_SHARE)).toBeLessThan(GATE_MISS);
+    expect(miss(12, LAW_CPU_SHARE)).toBeGreaterThanOrEqual(GATE_MISS);
+    // 6 jobs, the count of each plan in that run, give no read of a plan 1 time in 5
+    expect(miss(6, LAW_CPU_SHARE)).toBeCloseTo(0.208, 3);
+  });
+
+  it("gives the least count: each count below it misses more often than the chance", () => {
+    for (const share of [0.1, 0.25, 0.5, 0.8]) {
+      for (const chance of [0.05, 0.01, 0.001]) {
+        const jobs = gateJobsFor(share, chance);
+        expect(miss(jobs, share)).toBeLessThan(chance);
+        if (jobs > GATE_JOBS) expect(miss(jobs - 1, share)).toBeGreaterThanOrEqual(chance);
+      }
+    }
+  });
+
+  it("gives more jobs for a smaller share, a smaller chance and a larger need", () => {
+    expect(gateJobsFor(0.25)).toBeGreaterThan(gateJobsFor(0.5));
+    expect(gateJobsFor(0.5, 0.001)).toBeGreaterThan(gateJobsFor(0.5, 0.01));
+    expect(gateJobsFor(0.5, 0.01, 3)).toBeGreaterThan(gateJobsFor(0.5, 0.01, 2));
+    expect(gateJobsFor(1)).toBe(GATE_JOBS);
+    // one job: the chance of no job on the model is 0.5 ** n, below 0.01 from 7 jobs
+    expect(gateJobsFor(0.5, 0.01, 1)).toBe(7);
+  });
+
+  it("refuses a share, a chance or a need out of range, and a count above MAX_JOBS", () => {
+    for (const share of [0, -0.1, 1.1, Number.NaN]) expect(() => gateJobsFor(share)).toThrow(RangeError);
+    for (const chance of [0, 1, Number.NaN]) expect(() => gateJobsFor(0.5, chance)).toThrow(RangeError);
+    for (const need of [0, 1.5]) expect(() => gateJobsFor(0.5, 0.01, need)).toThrow(RangeError);
+    expect(() => gateJobsFor(0.001)).toThrow(/256 jobs/);
+  });
+});
+
 describe("the selection of the plans", () => {
   const CONTROL = plan({ id: "control", triggers: ["pull_request", "schedule"] });
   const NIGHT = plan({ id: "night", triggers: ["schedule"] });
@@ -298,6 +361,18 @@ describe("the selection of the plans", () => {
     expect(ids("push")).toEqual(["control"]);
     expect(ids("workflow_dispatch")).toEqual(["control"]);
     expect(ids("schedule")).toEqual(["control", "night"]);
+  });
+
+  it("leaves out the gate plans of a selection by the event with gates false, not of a selection by ids", () => {
+    const gate = plan({ id: "gate-idle", check: "gate", gate: { laws: "rate" }, jobs: GATE_PLAN_JOBS, triggers: ["pull_request", "schedule"] });
+    const of = (selection: { event: string; ids?: readonly string[]; gates?: boolean }): readonly string[] =>
+      selectPlans([...ALL, gate], { ids: [], ...selection }).map((each) => each.id);
+    expect(of({ event: "pull_request" })).toEqual(["control", "gate-idle"]);
+    expect(of({ event: "pull_request", gates: true })).toEqual(["control", "gate-idle"]);
+    expect(of({ event: "pull_request", gates: false })).toEqual(["control"]);
+    expect(of({ event: "schedule", gates: false })).toEqual(["control", "night"]);
+    expect(of({ event: "workflow_dispatch", ids: ["gate-idle"], gates: false })).toEqual(["gate-idle"]);
+    expect(() => selectPlans([gate], { event: "pull_request", ids: [], gates: false })).toThrow(/selects no plan/);
   });
 
   it("gives the plans of the ids of a dispatch, in the order of the plans, also a plan with no trigger", () => {
