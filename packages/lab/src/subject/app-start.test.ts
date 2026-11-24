@@ -161,8 +161,22 @@ describe("the recorder of the lines of a run", () => {
       passes: 2,
       writes: [{ ms: 1, writeMs: 4 }],
       readings: [{ ms: 3, readings: [{ series: "rows", at: "2026-11-24T12:00:00.000Z", value: 7 }] }],
+      amounts: null,
     });
-    expect(runLineFields([{ kind: "pass" }], lines, 0, 20)).toEqual({ passes: 3, writes: null, readings: null });
-    expect(runLineFields([], lines, 0, 20)).toEqual({ passes: null, writes: null, readings: null });
+    expect(runLineFields([{ kind: "pass" }], lines, 0, 20)).toEqual({ passes: 3, writes: null, readings: null, amounts: null });
+    expect(runLineFields([], lines, 0, 20)).toEqual({ passes: null, writes: null, readings: null, amounts: null });
+  });
+
+  it("keeps the amounts of the last line amounts to the end of the watch, only for the run variables, in their units", () => {
+    const lines = [
+      { kind: "amounts", ms: 2, fields: { ev: "a", amounts: { routes: 10, holds: 3 } } },
+      { kind: "amounts", ms: 8, fields: { ev: "a", amounts: { routes: 1001, holds: Number.NaN, other: 4 } } },
+      { kind: "amounts", ms: 30, fields: { ev: "a", amounts: { routes: 5 } } },
+    ];
+    const units = { routes: "{route}", holds: "{hold}" };
+    expect(runLineFields([{ kind: "amounts" }], lines, 0, 20, units).amounts).toEqual({ routes: { value: 1001, unit: "{route}" } });
+    expect(runLineFields([{ kind: "amounts" }], lines, 0, 1, units).amounts).toEqual({});
+    expect(runLineFields([{ kind: "amounts" }], [{ kind: "amounts", ms: 1, fields: { ev: "a", amounts: [1] } }], 0, 20, units).amounts).toEqual({});
+    expect(runLineFields([{ kind: "pass" }], lines, 0, 20, units).amounts).toBeNull();
   });
 });

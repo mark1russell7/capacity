@@ -19,6 +19,12 @@ const SUFFIX = ".law.json";
 const FOLDERS = ["node-http-service/overhead", "node-http/rate"];
 
 /**
+ * These folders hold the laws of start plans, each `<subject>/<plan>`. Their files are
+ * `<cpu>/<arm>/<start>/<law>.law.json`, and the start law set of the plan names each law.
+ */
+const START_FOLDERS = ["alerts-runtime/alerts-start-event"];
+
+/**
  * This number is the largest root mean square of the relative held-out residuals of a law.
  * Before the cut, the latency laws had 1.60, 1.25 and 0.70. Thus a law of 1 or more is a regression.
  * For absolute residuals, the limit is this number times the largest value of the law at an end of its range.
@@ -32,6 +38,11 @@ const files = readdirSync(LAWS, { recursive: true, encoding: "utf8" })
 
 /** This function gives the folder `<subject>/<plan>` of a law file. */
 const folderOf = (name: string): string => name.split("/").slice(0, 2).join("/");
+
+/** These files are the law files of the plans with a law set. */
+const rateFiles = files.filter((name) => FOLDERS.includes(folderOf(name)));
+/** These files are the law files of the start plans. */
+const startFiles = files.filter((name) => START_FOLDERS.includes(folderOf(name)));
 
 /** This function reads one law file, or throws with each problem of the file. */
 const lawOf = (name: string): Law => {
@@ -52,7 +63,7 @@ const lawMeasureOf = (plan: Plan & { readonly laws: NonNullable<Plan["laws"]> },
 
 describe("the law files of the plans", () => {
   it("has the law files of each folder, and each folder has a plan with a law set", () => {
-    expect([...new Set(files.map(folderOf))].sort()).toEqual(FOLDERS);
+    expect([...new Set(files.map(folderOf))].sort()).toEqual([...FOLDERS, ...START_FOLDERS].sort());
     for (const folder of FOLDERS) expect(planOf(folder).laws.measures.length).toBeGreaterThan(0);
   });
 
@@ -69,7 +80,7 @@ describe("the law files of the plans", () => {
     for (const model of models) expect(inside.filter((name) => name.startsWith(`${model}/`)).map((name) => name.slice(model.length + 1))).toEqual(measures);
   });
 
-  it.each(files)("%s has the rules of its measure, a finite value with an interval at each end of its range, and its knee in the range", (name) => {
+  it.each(rateFiles)("%s has the rules of its measure, a finite value with an interval at each end of its range, and its knee in the range", (name) => {
     const law = lawOf(name);
     const plan = planOf(folderOf(name));
     const measure = plan.laws.measures.find((each) => lawMeasureOf(plan, each.id) === law.measure.id);
@@ -106,5 +117,35 @@ describe("the law files of the plans", () => {
       expect(load as number).toBeLessThanOrEqual(variable.max);
     }
     expect(knee.value.edge.value).toBeNull();
+  });
+});
+
+describe("the law files of the start plans", () => {
+  it.each(startFiles)("%s is a law of the start law set of its plan, with a finite value at each end of its range", (name) => {
+    const law = lawOf(name);
+    const plan = PLANS.find((each) => each.id === folderOf(name).split("/")[1]);
+    expect(plan?.startLaws).toBeDefined();
+    if (plan?.startLaws === undefined) return;
+    const parts = name.split("/");
+    // The path is `<subject>/<plan>/<cpu>/<arm>/<start>/<law>.law.json`.
+    expect(parts.length).toBe(6);
+    expect(["first", "second"]).toContain(parts[4]);
+    const measure = plan.startLaws.measures.find((each) => `${each.law}${SUFFIX}` === parts[5]);
+    expect(measure).toBeDefined();
+    if (measure === undefined) return;
+    expect(law.fit.residual).toBe(measure.residual);
+    const variable = law.variables[0]!;
+    expect([law.variables.length, variable.id]).toEqual([1, plan.startLaws.variable.id]);
+    const ends: number[] = [];
+    for (const load of [variable.min, variable.max]) {
+      const value = lawValue(law, { [variable.id]: load });
+      expect(value.tag === "err" ? value.error : []).toEqual([]);
+      if (value.tag !== "ok") continue;
+      expect([value.value.value, value.value.interval.low, value.value.interval.high].every(Number.isFinite)).toBe(true);
+      ends.push(Math.abs(value.value.value));
+    }
+    const residuals = law.fit.residuals;
+    const rms = Math.sqrt(residuals.reduce((sum, residual) => sum + residual * residual, 0) / residuals.length);
+    expect(rms).toBeLessThan(law.fit.residual === "relative" ? HELD_OUT_LIMIT : HELD_OUT_LIMIT * Math.max(...ends));
   });
 });

@@ -1,0 +1,16 @@
+{
+  "format": "capacity-composition/1",
+  "id": "alerts-runtime/xeon-6975p-c/heap",
+  "title": "The highest V8 heap of alerts under the load of the events on the Intel Xeon 6975P-C",
+  "subject": "alerts-runtime",
+  "measure": {
+    "id": "heap",
+    "unit": "B"
+  },
+  "terms": [
+    {
+      "law": "alerts-runtime/alerts-start-event/xeon-6975p-c/main/first/watch-heap-peak",
+      "over": "instance"
+    }
+  ]
+}

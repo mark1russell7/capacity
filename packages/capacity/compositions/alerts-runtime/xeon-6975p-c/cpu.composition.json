@@ -1,0 +1,16 @@
+{
+  "format": "capacity-composition/1",
+  "id": "alerts-runtime/xeon-6975p-c/cpu",
+  "title": "The CPU cores of alerts under the load of the events on the Intel Xeon 6975P-C",
+  "subject": "alerts-runtime",
+  "measure": {
+    "id": "cpu",
+    "unit": "{core}"
+  },
+  "terms": [
+    {
+      "law": "alerts-runtime/alerts-start-event/xeon-6975p-c/main/first/watch-cores",
+      "over": "instance"
+    }
+  ]
+}

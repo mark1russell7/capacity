@@ -1,0 +1,10 @@
+{
+  "format": "capacity-instance/1",
+  "id": "small-cloud-1gb",
+  "title": "A small cloud machine with 1 GB: 0.25 core of baseline CPU and 676 MB free for the app",
+  "resources": {
+    "cpu": { "value": 0.25, "unit": "{core}" },
+    "memory": { "value": 676, "unit": "MB" },
+    "heap": { "value": 556269568, "unit": "B" }
+  }
+}

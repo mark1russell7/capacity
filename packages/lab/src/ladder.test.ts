@@ -2,7 +2,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { compositionValue, scaleDemand, scaleLadder, scaleRule, type Composition, type CompositionValue, type ScaleRule } from "@mark1russell7/capacity";
 import { describe, expect, it } from "vitest";
-import { BENCH_OPTIONS, BENCH_RATE, cpuModel, demandAt } from "./bench-scale.ts";
+import { BENCH_OPTIONS, BENCH_RATE, cpuModel, demandAt, readsRate } from "./bench-scale.ts";
 import { readCompositions, readLaws } from "./jobs.ts";
 
 /** This folder holds the files of the package capacity. */
@@ -32,7 +32,7 @@ const seen = (rule: ScaleRule) => ({
 describe("the scale ladder on the real compositions", () => {
   const laws = readLaws(join(CAPACITY, "laws"));
   const compositions = readCompositions(join(CAPACITY, "compositions"));
-  const cpus = compositions.filter((composition) => composition.measure.id === "cpu");
+  const cpus = compositions.filter((composition) => composition.measure.id === "cpu" && readsRate(composition, { laws, compositions }));
   const demand = demandAt(BENCH_RATE);
 
   it("has a composition of the processor time to compare", () => {
@@ -62,7 +62,7 @@ describe("the real compositions past their measures", () => {
   const laws = readLaws(join(CAPACITY, "laws"));
   const compositions = readCompositions(join(CAPACITY, "compositions"));
   const catalog = { laws, compositions };
-  const cpus = compositions.filter((composition) => composition.measure.id === "cpu");
+  const cpus = compositions.filter((composition) => composition.measure.id === "cpu" && readsRate(composition, catalog));
 
   /** This function gives the id of each law in the parts of a composition value, in its nested parts too. */
   const lawsIn = (parts: CompositionValue["parts"]): readonly string[] => parts.flatMap((part) => (part.kind === "law" ? [part.law] : lawsIn(part.parts)));

@@ -16,8 +16,10 @@ export const APP_FILE = "capacity-app.json";
  * - `request`: an amount of one request of a class, for example the bytes of its body.
  * - `level`: an amount that stays in the app and does not come with each request, for example the open incidents.
  * - `store`: an amount of a store at the start of the app, for example the bytes of its log.
+ * - `run`: an amount that the run of the app gives in its line `amounts`, for example the routes that its configuration makes.
+ *   No workload and no start case sets it. A start law can read it as its variable.
  */
-export type VariableKind = "request" | "level" | "store";
+export type VariableKind = "request" | "level" | "store" | "run";
 
 /**
  * A range tells the amounts of a variable that the app accepts and that a run can measure. The unit
@@ -30,7 +32,7 @@ export interface AppRange {
   readonly scale: Scale;
 }
 
-/** A load variable of an app is one amount that a workload or a start case sets. A program of a law reads it by its id. */
+/** A load variable of an app is one amount that a workload or a start case sets, or that the run gives. A program of a law reads it by its id. */
 export interface AppVariable extends AppRange {
   readonly id: string;
   readonly title: string;
@@ -106,7 +108,7 @@ export interface AppProcess extends AppCommand {
 }
 
 /** The kinds of the lines of a run that the lab records. The lab knows the fields of each kind. */
-export const APP_LINE_KINDS = ["pass", "write", "readings"] as const;
+export const APP_LINE_KINDS = ["pass", "write", "readings", "amounts"] as const;
 
 /**
  * The kind of a line of a run.
@@ -116,6 +118,8 @@ export const APP_LINE_KINDS = ["pass", "write", "readings"] as const;
  *   give its times in milliseconds. The lab keeps the longest value of each time.
  * - `readings`: one collection of the live metrics of the app. The field `readings` is a list of `SeriesReading`. The
  *   lab keeps each collection with its time, so the record of a start has the series of the metrics of the app.
+ * - `amounts`: the amounts of the run variables. The field `amounts` gives the amount of each run variable by its id, in the
+ *   unit of the variable. The lab keeps the last line up to the end of the watch.
  */
 export type AppLineKind = (typeof APP_LINE_KINDS)[number];
 

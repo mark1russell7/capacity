@@ -11,6 +11,7 @@ import { APP_START_PROGRAM, RUN_SLOTS, type AppRunFile } from "./start-app.ts";
 import {
   CHECK_PROGRAM,
   START_RECORD_FORMAT,
+  amountsOf,
   ballastsOf,
   childLimitOf,
   measureStart,
@@ -552,6 +553,12 @@ describe("seedPointOf, ballastsOf, samplesOf and metricsOf", () => {
     const fields = { extra: { readings: [{ ms: 5, readings: [reading, { series: "rows" }] }, { readings: [reading] }, 3] } };
     expect(metricsOf(fields)).toEqual([{ ms: 5, readings: [reading] }]);
     expect([metricsOf({}), metricsOf({ extra: { readings: null } })]).toEqual([undefined, undefined]);
+  });
+
+  it("amountsOf keeps each amount of the run variables, and gives undefined with no record", () => {
+    const routes = { value: 1001, unit: "{route}" };
+    expect(amountsOf({ extra: { amounts: { routes, holds: 3, other: null } } })).toEqual({ routes });
+    expect([amountsOf({}), amountsOf({ extra: { amounts: [routes] } })]).toEqual([undefined, undefined]);
   });
 });
 

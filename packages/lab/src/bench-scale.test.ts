@@ -27,6 +27,7 @@ import {
   readBenchChanges,
   readBenchLimits,
   readBenchRecords,
+  readsRate,
   resultHash,
   slotJobs,
   type BenchJob,
@@ -89,9 +90,11 @@ describe("benchCases", () => {
   const catalog = { laws: readLaws(join(CAPACITY, "laws")), compositions: readCompositions(join(CAPACITY, "compositions")) };
   const cases = benchCases(catalog);
 
-  it("gives a scale case, a reach case and a slider case for each composition of the processor time, and the case knee", () => {
-    const cpus = catalog.compositions.filter((each) => each.measure.id === "cpu").map((each) => each.id);
+  it("gives a scale case, a reach case and a slider case for each composition of the processor time over the rate, and the case knee", () => {
+    const cpus = catalog.compositions.filter((each) => each.measure.id === "cpu" && readsRate(each, catalog)).map((each) => each.id);
     expect(cpus.length).toBeGreaterThan(0);
+    // The compositions of alerts read a level of events, not the rate of a class. The bench has no case for them.
+    expect(catalog.compositions.filter((each) => each.measure.id === "cpu" && !readsRate(each, catalog)).map((each) => each.id)).toEqual(["alerts-runtime/xeon-6975p-c/cpu"]);
     expect(cases.map((each) => each.id)).toEqual([...cpus.flatMap((id) => [`scale:${id}`, `reach:${id}`, `slider:${id}`]), "knee"]);
   });
 

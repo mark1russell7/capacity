@@ -49,6 +49,8 @@ export interface AppRunFile {
   readonly ready: AppReady;
   /** These lines of the output of the run are the lines that the program `app-start` records. */
   readonly lines: readonly AppLine[];
+  /** These units are the unit of each run variable of the contract, by its id. The line `amounts` gives these variables. */
+  readonly units: Readonly<Record<string, string>>;
   readonly slots: { readonly store: string; readonly port?: string | undefined };
 }
 
@@ -98,6 +100,10 @@ export const variableValues = (app: AppContract, point: StartPoint): Readonly<Re
     }),
   );
 
+/** This function gives the unit of each run variable of a contract, by its id. */
+export const runUnits = (app: AppContract): Readonly<Record<string, string>> =>
+  Object.fromEntries(app.variables.filter((each) => each.kind === "run").map((each) => [each.id, each.unit]));
+
 /** This function gives the placeholders of the argv and of the environment of a command. */
 const commandPlaceholders = (command: AppCommand): readonly string[] => [...command.argv, ...Object.values(command.env)].flatMap(placeholdersOf);
 
@@ -113,7 +119,7 @@ export const appRunOf = (tree: TreeApp, dir: string): { readonly file: AppRunFil
   const port = run.ready.kind === "http" || commandPlaceholders(run).includes("port");
   const slots = { store: RUN_SLOTS.store, ...(port ? { port: RUN_SLOTS.port } : {}) };
   const filled = fillCommand({ argv: args, cwd: run.cwd, env: run.env }, { ...slots, ...serviceValues(tree.app) });
-  return { file: { app: tree.app.id, script: resolve(cwd, script), cwd, args: filled.argv, env: filled.env, ready: run.ready, lines: run.lines ?? [], slots }, options };
+  return { file: { app: tree.app.id, script: resolve(cwd, script), cwd, args: filled.argv, env: filled.env, ready: run.ready, lines: run.lines ?? [], units: runUnits(tree.app), slots }, options };
 };
 
 /**
