@@ -29,10 +29,9 @@ export const BENCH_OPTIONS: ScaleOptions = { steps: 16, most: 64 };
 export const BENCH_LIMIT = 1.1;
 
 /**
- * The functions of the package capacity that the bench times. The arm of the base imports them from its own checkout. A base
- * before CAP-77 has no `scaleLadder`.
+ * The functions of the package capacity that the bench times. The arm of the base imports them from its own checkout.
  */
-export type BenchApi = Pick<typeof Capacity, "scaleRule" | "countReach" | "lawKnee" | "scaleDemand"> & Partial<Pick<typeof Capacity, "scaleLadder">>;
+export type BenchApi = Pick<typeof Capacity, "scaleRule" | "countReach" | "lawKnee" | "scaleLadder">;
 
 /** These factors of the demand are the moves of the slider case. */
 export const SLIDER_FACTORS: readonly number[] = [0.25, 0.5, 2, 4];
@@ -76,15 +75,8 @@ const valueOf = <T>(id: string, result: { readonly tag: "ok"; readonly value: T 
   return result.value;
 };
 
-/**
- * This function gives the scale rule at each move of the slider case. With a ladder, the work is one search and then
- * arithmetic for each move. A base with no ladder sends one query of the scale rule for each move. This branch ends
- * when the base of each bench has `scaleLadder`: the PR of CAP-74 removes it.
- */
+/** This function gives the scale rule at each move of the slider case: one search of the ladder, then arithmetic for each move. */
 const sliderOf = (id: string, api: BenchApi, model: ScaleModel, demand: Demand): unknown => {
-  if (api.scaleLadder === undefined) {
-    return SLIDER_FACTORS.map((factor) => valueOf(id, api.scaleRule(model, valueOf(id, api.scaleDemand(demand, factor)), BENCH_OPTIONS)));
-  }
   const ladder = valueOf(id, api.scaleLadder(model, demand, SLIDER_RANGE, BENCH_OPTIONS));
   return SLIDER_FACTORS.map((factor) => valueOf(id, ladder.ruleAt(factor)));
 };

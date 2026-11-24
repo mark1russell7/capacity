@@ -681,3 +681,176 @@ select {
     font-size: 0.75rem;
   }
 }
+
+/* The load slider: the size of one instance, the load, the count of instances and the fill of each resource. */
+.scale-controls {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
+  gap: 0.5rem 1rem;
+  margin: 1rem 0;
+}
+
+.scale-controls label {
+  display: grid;
+  gap: 0.25rem;
+  color: var(--quiet);
+  font-size: 0.9rem;
+}
+
+.scale-controls select {
+  width: 100%;
+}
+
+.scale-rate {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem;
+  color: var(--quiet);
+}
+
+.scale-rate output {
+  color: var(--ink);
+  font-size: 1.25rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.scale-slider {
+  width: 100%;
+  min-height: 2.75rem;
+  margin: 0;
+  accent-color: var(--chart-1);
+}
+
+.scale-ends {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  font-size: 0.85rem;
+}
+
+.scale-result {
+  margin: 1rem 0;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: 0.5rem;
+  background: var(--panel);
+}
+
+.scale-result.past {
+  border-style: dashed;
+}
+
+.scale-tiles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem 2rem;
+  align-items: flex-start;
+}
+
+.scale-count {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: baseline;
+  column-gap: 0.5rem;
+  min-width: 9rem;
+}
+
+.scale-number {
+  font-size: 3rem;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.scale-unit {
+  font-size: 1.1rem;
+}
+
+.scale-count .quiet {
+  grid-column: 1 / -1;
+  font-size: 0.9rem;
+}
+
+.scale-fills {
+  flex: 1 1 16rem;
+  min-width: 0;
+}
+
+.scale-meters {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.scale-meter {
+  margin: 0 0 0.6rem;
+}
+
+.scale-meter.binding .bar-name {
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 0.2em;
+}
+
+.scale-track {
+  height: 0.75rem;
+  margin-top: 0.25rem;
+  overflow: hidden;
+  border-radius: 0.375rem;
+  background: var(--line);
+}
+
+.scale-fill {
+  display: block;
+  height: 100%;
+  border-radius: 0.375rem;
+  background: var(--chart-1);
+  transition: width 0.15s ease-out;
+}
+
+.scale-fill.scale-memory {
+  background: var(--chart-2);
+}
+
+.scale-caption {
+  margin: 0;
+  font-size: 0.85rem;
+}
+
+.scale-sentences p {
+  margin: 0.75rem 0 0;
+}
+
+.scale-past {
+  fill: var(--quiet);
+  fill-opacity: 0.1;
+}
+
+.scale-edge {
+  stroke: var(--quiet);
+  stroke-width: 1;
+  stroke-dasharray: 4 3;
+}
+
+.scale-mark {
+  stroke: var(--ink);
+  stroke-width: 1;
+}
+
+.scale-dot {
+  fill: var(--chart-1);
+  stroke: var(--page);
+  stroke-width: 2;
+}
+
+.scale[aria-busy="true"] {
+  opacity: 0.6;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scale-fill {
+    transition: none;
+  }
+}

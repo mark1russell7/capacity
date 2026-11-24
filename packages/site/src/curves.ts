@@ -8,10 +8,15 @@ import { BYTES_1024, DURATION_MS, formatOnScale, formatUnit, quantity, valueIn, 
 /** These scales of `@mark1russell7/quantity` print the amounts of the units of the laws that have a scale. */
 const SCALES: Readonly<Record<string, Scale>> = { B: BYTES_1024, ms: DURATION_MS };
 
-/** This function gives a number with 3 significant digits, in the plain form for a number from 0.001 to 1000000. */
+/** This function gives a number with 3 significant digits. A number from 1 million to 1 trillion shows as millions or billions. */
 export const significant = (value: number): string => {
-  const size = Math.abs(value);
-  return size !== 0 && (size < 1e-3 || size >= 1e6) ? value.toExponential(2) : Number(value.toPrecision(3)).toString();
+  const rounded = Number(value.toPrecision(3));
+  const size = Math.abs(rounded);
+  // A reader reads a million or a billion faster than an exponent. Only a smaller or a larger value uses an exponent.
+  for (const [step, word] of [[1e9, "billion"], [1e6, "million"]] as const) {
+    if (size >= step && size < step * 1000) return `${Number((rounded / step).toPrecision(3))} ${word}`;
+  }
+  return size !== 0 && (size < 1e-3 || size >= 1e12) ? value.toExponential(2) : rounded.toString();
 };
 
 /**

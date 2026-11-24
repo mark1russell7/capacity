@@ -4,11 +4,15 @@
  * keeps one size on a phone. A pointer or the arrow keys show the values at each step. A pointer on a run point shows its values.
  */
 import { amountText, axisUnit, kneeSentence, linearTicks, logTicks, runsSentence, significant, unitWords, type Curve } from "./curves.ts";
-import { RATE_UNIT, STACK_NAMES, bandText, stackSentence, type Stack } from "./stack.ts";
+import type { OpenValue } from "@mark1russell7/capacity";
+import type { Step } from "./scale.ts";
+import { RATE_UNIT, STACK_NAMES, bandText, stackSentence, type RateRange, type Stack } from "./stack.ts";
 
 const SVG = "http://www.w3.org/2000/svg";
 const HEIGHT = 240;
 const MARGIN = { top: 28, right: 14, bottom: 40, left: 52 } as const;
+/** This number is the width of one character of a label, in pixels, at the font size of the labels. It is a safe guess, not a measure. */
+const LABEL_WIDTH = 7;
 
 /** This count is the rows of the table of a chart. */
 const TABLE_ROWS = 9;
@@ -85,8 +89,12 @@ const frameOf = (width: number, spec: FrameSpec): Frame => {
     const x = xOf(tick);
     chart.append(svg("line", { x1: x, x2: x, y1: HEIGHT - MARGIN.bottom, y2: HEIGHT - MARGIN.bottom + 4, class: "curve-axis" }));
     if (index % every !== 0) return;
-    const label = svg("text", { x, y: HEIGHT - MARGIN.bottom + 17, class: "curve-label", "text-anchor": "middle" });
-    label.textContent = significant(tick);
+    const text = significant(tick);
+    // A label at an end of the axis that does not fit around its tick ends at the edge of the chart.
+    const half = (text.length * LABEL_WIDTH) / 2;
+    const anchor = x + half > width ? "end" : x - half < 0 ? "start" : "middle";
+    const label = svg("text", { x: anchor === "end" ? width - 1 : anchor === "start" ? 1 : x, y: HEIGHT - MARGIN.bottom + 17, class: "curve-label", "text-anchor": anchor });
+    label.textContent = text;
     chart.append(label);
   });
   chart.append(svg("line", { x1: MARGIN.left, x2: width - MARGIN.right, y1: HEIGHT - MARGIN.bottom, y2: HEIGHT - MARGIN.bottom, class: "curve-axis" }));
@@ -290,7 +298,7 @@ export const curveChart = (curve: Curve, title: string): HTMLElement => {
       chart.append(svg("line", { x1: x, x2: x, y1: MARGIN.top - 4, y2: HEIGHT - MARGIN.bottom, class: "curve-knee" }));
       const text = `knee ${amountText(knee.value, variable.unit)}`;
       // A label of 12 px is about 7 px for each character. A label that does not fit right of its line goes left of it.
-      const anchor = x + text.length * 7 > width - MARGIN.right ? "end" : "start";
+      const anchor = x + text.length * LABEL_WIDTH > width - MARGIN.right ? "end" : "start";
       const label = svg("text", { x, y: MARGIN.top - 8, class: "curve-label curve-knee-label", "text-anchor": anchor });
       label.textContent = text;
       chart.append(label);
@@ -401,4 +409,107 @@ export const stackChart = (stack: Stack, title: string): HTMLElement => {
     }),
   );
   return box;
+};
+
+/** A step chart is the figure of the count of instances over the rate. Its function `mark` moves the mark to the rate of the slider. */
+export interface StepChart {
+  readonly figure: HTMLElement;
+  readonly mark: (rate: number, count: number | null) => void;
+}
+
+/** This function gives the path of a line of steps. Each value holds up to the next x, then the line goes up or down. */
+const stepPath = (frame: Frame, xs: readonly number[], value: (index: number) => number): string =>
+  `M${xs.map((x, index) => `${index === 0 ? "" : `${frame.xOf(x)},${frame.yOf(value(index - 1))}L`}${frame.xOf(x)},${frame.yOf(value(index))}`).join("L")}`;
+
+/** This function gives the path of a band of steps between two lines of values. */
+const stepArea = (frame: Frame, xs: readonly number[], upper: (index: number) => number, lower: (index: number) => number): string => {
+  const line = (value: (index: number) => number): string[] =>
+    xs.flatMap((x, index) => (index === 0 ? [`${frame.xOf(x)},${frame.yOf(value(0))}`] : [`${frame.xOf(x)},${frame.yOf(value(index - 1))}`, `${frame.xOf(x)},${frame.yOf(value(index))}`]));
+  return `M${[...line(upper), ...line(lower).reverse()].join("L")}Z`;
+};
+
+/**
+ * This function makes the chart of the count of instances over the rate, with its interval. The region past the rates
+ * that each law measured has its own fill and label. A mark shows the rate of the slider.
+ */
+export const stepChart = (steps: readonly Step[], measured: RateRange, most: number, title: string): StepChart => {
+  const xs = steps.map((each) => each.rate);
+  // A count past the search draws at the top of the search. The tip tells that it is more.
+  const count = (index: number): number => steps[index]!.count.value ?? most;
+  const low = (index: number): number => steps[index]!.count.interval.low ?? most;
+  const high = (index: number): number => steps[index]!.count.interval.high ?? most;
+  const top = Math.max(4, ...steps.map((_, index) => high(index)));
+  let at: { rate: number; count: number | null } | undefined;
+  let place: ((rate: number, count: number | null) => void) | undefined;
+  const figure = html("figure", "curve scale-chart");
+  const plot = plotBox((width, tip) => {
+    const frame = frameOf(width, {
+      xs,
+      log: true,
+      unit: "{instance}",
+      top,
+      bottom: 0,
+      xTitle: "rate, requests/s (log scale)",
+      label: `${title}. The count of instances over the rate, from ${amountText(xs[0]!, RATE_UNIT)} to ${amountText(xs.at(-1)!, RATE_UNIT)}.`,
+    });
+    const { chart, xOf, yOf } = frame;
+    if (measured.max < xs.at(-1)!) {
+      const edge = xOf(Math.max(xs[0]!, measured.max));
+      chart.append(svg("rect", { x: edge, y: MARGIN.top, width: Math.max(0, width - MARGIN.right - edge), height: frame.plotHeight, class: "scale-past" }));
+      chart.append(svg("line", { x1: edge, x2: edge, y1: MARGIN.top - 4, y2: HEIGHT - MARGIN.bottom, class: "scale-edge" }));
+      // The label starts at the edge. Near the right end of the chart, it ends at the right end.
+      const text = "past the measures";
+      const room = width - MARGIN.right - edge - 6 >= text.length * LABEL_WIDTH;
+      const label = svg("text", { x: room ? edge + 6 : width - MARGIN.right, y: MARGIN.top - 8, class: "curve-label", "text-anchor": room ? "start" : "end" });
+      label.textContent = text;
+      chart.append(label);
+    }
+    chart.append(svg("path", { d: stepArea(frame, xs, high, low), class: "curve-band" }));
+    chart.append(svg("path", { d: stepPath(frame, xs, count), class: "curve-line" }));
+    const cross = svg("line", { y1: MARGIN.top, y2: HEIGHT - MARGIN.bottom, class: "scale-mark", visibility: "hidden" });
+    const dot = svg("circle", { r: 6, class: "scale-dot", visibility: "hidden" });
+    chart.append(cross, dot);
+    place = (rate, value) => {
+      const x = xOf(rate);
+      cross.setAttribute("x1", String(x));
+      cross.setAttribute("x2", String(x));
+      dot.setAttribute("cx", String(x));
+      dot.setAttribute("cy", String(yOf(value ?? most)));
+      cross.setAttribute("visibility", "visible");
+      dot.setAttribute("visibility", "visible");
+    };
+    if (at !== undefined) place(at.rate, at.count);
+    addHover(frame, tip, {
+      xs,
+      dots: [{ className: "", value: count }],
+      rows: (index) => {
+        const step = steps[index]!;
+        const value = step.count.value;
+        return [
+          html("strong", "", value === null ? `more than ${most} instances` : `${value} ${value === 1 ? "instance" : "instances"}`),
+          html("span", "", countInterval(step.count, most)),
+          html("span", "", `at ${amountText(step.rate, RATE_UNIT)}`),
+          ...(step.extrapolated ? [html("span", "quiet", "past the measures")] : []),
+        ];
+      },
+    });
+    return chart;
+  });
+  figure.append(plot, valueTable(["rate", "instances", "interval"], steps.length, (index) => {
+    const step = steps[index]!;
+    return [amountText(step.rate, RATE_UNIT), step.count.value === null ? `more than ${most}` : String(step.count.value), countInterval(step.count, most)];
+  }, true));
+  return {
+    figure,
+    mark: (rate, value) => {
+      at = { rate, count: value };
+      place?.(rate, value);
+    },
+  };
+};
+
+/** This function gives the text of the interval of a count of instances. */
+export const countInterval = (count: OpenValue, most: number): string => {
+  const end = (value: number | null): string => (value === null ? `more than ${most}` : String(value));
+  return `interval ${end(count.interval.low)} to ${end(count.interval.high)}`;
 };
