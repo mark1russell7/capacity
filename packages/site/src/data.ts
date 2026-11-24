@@ -1,4 +1,4 @@
-import type { KneeRule, Law } from "@mark1russell7/capacity";
+import type { Composition, KneeRule, Law } from "@mark1russell7/capacity";
 import type { LawEntry, PlanEntry } from "./coverage.ts";
 
 // Each glob imports one field of each law file. The build keeps only these fields in the page, and not the replicates.
@@ -61,3 +61,20 @@ export function planEntry(plan: PlanFile): PlanEntry {
 
 /** This function loads the whole law file of an entry, with its replicates. */
 export const loadLaw = async (entry: LawEntry): Promise<Law> => JSON.parse(await lawTexts[entry.path]!()) as Law;
+
+// A composition file is small: it names laws and other compositions, with no replicates. The page keeps each one whole.
+const compositionFiles = import.meta.glob<Composition>("../../capacity/compositions/**/*.composition.json", { eager: true, import: "default" });
+
+/** These compositions are the composition files of the package capacity, in the order of their paths. */
+export const COMPOSITIONS: readonly Composition[] = Object.keys(compositionFiles)
+  .sort()
+  .map((path) => compositionFiles[path]!);
+
+/** This function loads the whole law files with the ids, with their replicates. An id with no law file gives an error. */
+export const loadLaws = async (ids: readonly string[]): Promise<readonly Law[]> =>
+  Promise.all(
+    ids.map((id) => {
+      const entry = LAWS.find((each) => each.id === id);
+      return entry === undefined ? Promise.reject(new Error(`No law file has the id ${id}.`)) : loadLaw(entry);
+    }),
+  );
