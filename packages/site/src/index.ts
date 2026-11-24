@@ -1,9 +1,10 @@
 import { constantIntervals, type Law } from "@mark1russell7/capacity";
 import { byId, copyText, setupTheme } from "@mark1russell7/site-pages/chrome";
-import { curveChart } from "./chart.ts";
+import { curveChart, stackChart } from "./chart.ts";
 import { coverage, cpuModels, cpuName, goalCells, kneeRuleOf, nextItem, tally, type Cell, type SubjectMatrix } from "./coverage.ts";
 import { amountText, curveOf, significant as amount, unitWords } from "./curves.ts";
-import { LAWS, PLANS, loadLaw } from "./data.ts";
+import { COMPOSITIONS, LAWS, PLANS, loadLaw, loadLaws } from "./data.ts";
+import { lawIdsOf, stackBaseOf, stackOf } from "./stack.ts";
 
 const ROADMAP = "https://github.com/mark1russell7/capacity/blob/main/docs/ROADMAP.md";
 const STATE_TEXT = { law: "A law with its interval", measured: "Measured in CI, no law yet", none: "Not measured" } as const;
@@ -200,11 +201,68 @@ const showMatrices = (matrices: readonly SubjectMatrix[]): void => {
   );
 };
 
+const stacks = byId<HTMLDivElement>("stacks");
+
+/** These titles name the measure of a composition. The axis of the chart gives the unit. */
+const STACK_TITLES: Readonly<Record<string, string>> = { cpu: "CPU", memory: "The highest memory" };
+
+/** These compositions have a base layer: the runner on bare Node. Each one is on the CPU model of its laws. */
+const LAYERED = COMPOSITIONS.flatMap((composition) => {
+  if (stackBaseOf(composition, COMPOSITIONS) === undefined) return [];
+  const ids = lawIdsOf(composition, COMPOSITIONS);
+  const cpus = new Set(LAWS.filter((law) => ids.includes(law.id)).map((law) => law.cpu));
+  return cpus.size === 1 ? [{ composition, ids, cpu: [...cpus][0]! }] : [];
+});
+
+/** This function shows the stack of each composition with a base layer on a CPU model. It loads the law files of the charts. */
+const showStacks = async (cpu: string): Promise<void> => {
+  const chosen = LAYERED.filter((each) => each.cpu === cpu);
+  if (chosen.length === 0) {
+    stacks.replaceChildren(make("p", "quiet", `No composition of the service runner is on the ${cpuName(cpu)} yet.`));
+    return;
+  }
+  const laws = await loadLaws([...new Set(chosen.flatMap((each) => each.ids))]);
+  if (select.value !== cpu) return;
+  stacks.replaceChildren(
+    ...chosen.map(({ composition }) => {
+      const stack = stackOf(composition, { laws, compositions: COMPOSITIONS });
+      const title = STACK_TITLES[composition.measure.id] ?? composition.measure.id;
+      if (typeof stack === "string") {
+        const box = make("div", "stack");
+        box.append(make("h3", "", title), make("p", "quiet", stack));
+        return box;
+      }
+      const chart = stackChart(stack, composition.title);
+      chart.prepend(make("h3", "", title));
+      return chart;
+    }),
+  );
+};
+
+// The charts load about 0.4 MB of law files. They load when their section comes near the screen, not before.
+let stacksSeen = false;
+const loadStacks = (): void => {
+  if (!stacksSeen) return;
+  showStacks(select.value).catch((error: unknown) => {
+    stacks.replaceChildren(make("p", "quiet", `The law files of the charts did not load: ${String(error)}`));
+  });
+};
+new IntersectionObserver(
+  (entries, observer) => {
+    if (!entries.some((each) => each.isIntersecting)) return;
+    observer.disconnect();
+    stacksSeen = true;
+    loadStacks();
+  },
+  { rootMargin: "400px" },
+).observe(stacks);
+
 /** This function shows the page for the selected CPU model. */
 const render = (): void => {
   const matrices = coverage(LAWS, PLANS, select.value);
   showDone(matrices);
   showMatrices(matrices);
+  loadStacks();
 };
 
 select.addEventListener("change", () => {

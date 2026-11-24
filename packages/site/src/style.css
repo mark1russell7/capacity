@@ -5,8 +5,8 @@
   --quiet: #5c5c57;
   --line: #d6d6d0;
   --link: #1f5fbf;
-  --chart-law: #2346c4;
-  --chart-knee: #b26a00;
+  --chart-1: #2346c4;
+  --chart-2: #b26a00;
   color-scheme: light dark;
 }
 
@@ -18,8 +18,8 @@
     --quiet: #a9a9a3;
     --line: #3b3b38;
     --link: #8ab8ff;
-    --chart-law: #6585e8;
-    --chart-knee: #bf8224;
+    --chart-1: #6585e8;
+    --chart-2: #bf8224;
   }
 }
 
@@ -30,8 +30,8 @@
   --quiet: #a9a9a3;
   --line: #3b3b38;
   --link: #8ab8ff;
-  --chart-law: #6585e8;
-  --chart-knee: #bf8224;
+  --chart-1: #6585e8;
+  --chart-2: #bf8224;
   color-scheme: dark;
 }
 
@@ -467,24 +467,24 @@ select {
 }
 
 .curve-band {
-  fill: var(--chart-law);
+  fill: var(--chart-1);
   fill-opacity: 0.18;
 }
 
 .curve-line {
   fill: none;
-  stroke: var(--chart-law);
+  stroke: var(--chart-1);
   stroke-width: 2;
   stroke-linejoin: round;
 }
 
 .curve-knee-band {
-  fill: var(--chart-knee);
+  fill: var(--chart-2);
   fill-opacity: 0.14;
 }
 
 .curve-knee {
-  stroke: var(--chart-knee);
+  stroke: var(--chart-2);
   stroke-width: 2;
   stroke-dasharray: 4 3;
 }
@@ -495,7 +495,7 @@ select {
 }
 
 .curve-dot {
-  fill: var(--chart-law);
+  fill: var(--chart-1);
   stroke: var(--page);
   stroke-width: 2;
 }
@@ -530,6 +530,94 @@ select {
   color: var(--link);
   cursor: pointer;
   font-size: 0.95rem;
+}
+
+/* The stack of a composition: bare Node in the first color, and the part that the runner adds in the second color. */
+.stacks {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr));
+  gap: 1rem 1.5rem;
+}
+
+.stack h3 {
+  margin: 0 0 0.25rem;
+  font-size: 1rem;
+}
+
+.curve-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 1rem;
+  margin: 0 0 0.25rem;
+  padding: 0;
+  list-style: none;
+  font-size: 0.9rem;
+}
+
+.curve-legend li {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.curve-swatch {
+  display: inline-block;
+  width: 0.875rem;
+  height: 0.875rem;
+  border-radius: 0.2rem;
+}
+
+.curve-swatch.base,
+.stack-area.base,
+.stack-band.base {
+  fill: var(--chart-1);
+  background: var(--chart-1);
+}
+
+.curve-swatch.added,
+.stack-area.added,
+.stack-band.added {
+  fill: var(--chart-2);
+  background: var(--chart-2);
+}
+
+.stack-area {
+  fill-opacity: 0.16;
+}
+
+.stack-band {
+  fill-opacity: 0.3;
+}
+
+.stack-line {
+  fill: none;
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+
+.stack-line.base,
+.curve-dot.base {
+  stroke: var(--chart-1);
+}
+
+.stack-line.added,
+.curve-dot.added {
+  stroke: var(--chart-2);
+}
+
+.curve-dot.base {
+  fill: var(--chart-1);
+  stroke: var(--page);
+}
+
+.curve-dot.added {
+  fill: var(--chart-2);
+  stroke: var(--page);
+}
+
+.stack .curve-tip {
+  max-width: min(18rem, 80%);
+  white-space: normal;
 }
 
 /* On a phone, the 7 columns of an app and the names of the rows fit in a width of 328 px (a 360 px screen). */

@@ -1,13 +1,17 @@
 /**
- * The chart of the curve of a law: the line of the value, the band of its interval, and the knee with its interval.
- * The chart draws at the width of its box, thus its text keeps one size on a phone. A pointer or the arrow keys show the
- * value at each step of the curve.
+ * The charts of the page: the curve of a law, and the stack of a composition with layers. The two charts share one frame
+ * (the axes, the ticks and the titles), one plot box and one hover. A chart draws at the width of its box, thus its text
+ * keeps one size on a phone. A pointer or the arrow keys show the values at each step.
  */
 import { amountText, axisUnit, kneeSentence, linearTicks, logTicks, significant, unitWords, type Curve } from "./curves.ts";
+import { RATE_UNIT, STACK_NAMES, bandText, stackSentence, type Stack } from "./stack.ts";
 
 const SVG = "http://www.w3.org/2000/svg";
 const HEIGHT = 240;
 const MARGIN = { top: 28, right: 14, bottom: 40, left: 52 } as const;
+
+/** This count is the rows of the table of a chart. */
+const TABLE_ROWS = 9;
 
 const svg = <K extends keyof SVGElementTagNameMap>(tag: K, attributes: Readonly<Record<string, string | number>> = {}): SVGElementTagNameMap[K] => {
   const element = document.createElementNS(SVG, tag);
@@ -22,50 +26,46 @@ const html = <K extends keyof HTMLElementTagNameMap>(tag: K, className = "", tex
   return element;
 };
 
-/** This function makes the chart of a curve, its sentence of the knee and a table of its values. */
-export const curveChart = (curve: Curve, title: string): HTMLElement => {
-  const box = html("figure", "curve");
-  const plot = html("div", "curve-plot");
-  const tip = html("div", "curve-tip");
-  tip.hidden = true;
-  plot.append(tip);
-  const caption = html("figcaption", "curve-caption", kneeSentence(curve));
-  box.append(plot, caption, valueTable(curve));
-  let drawn = 0;
-  const draw = (): void => {
-    const width = Math.round(plot.clientWidth);
-    if (width === 0 || width === drawn) return;
-    drawn = width;
-    tip.hidden = true;
-    plot.querySelector("svg")?.remove();
-    plot.prepend(chartSvg(curve, title, width, tip));
-  };
-  new ResizeObserver(draw).observe(plot);
-  return box;
-};
+/** A frame spec tells the steps of the x axis, the range of the values, their unit and the titles of a chart. */
+interface FrameSpec {
+  readonly xs: readonly number[];
+  readonly log: boolean;
+  readonly xTitle: string;
+  readonly unit: string;
+  readonly top: number;
+  readonly bottom: number;
+  readonly label: string;
+}
 
-/** This function gives the SVG of a curve at one width. */
-const chartSvg = (curve: Curve, title: string, width: number, tip: HTMLElement): SVGSVGElement => {
-  const { points, variable, unit } = curve;
-  const log = variable.scale === "log" && variable.min > 0;
+/** A frame is the SVG of a chart with its axes. Its functions give the place of an amount of x and the place of a value. */
+interface Frame {
+  readonly chart: SVGSVGElement;
+  readonly width: number;
+  readonly plotHeight: number;
+  readonly xOf: (x: number) => number;
+  readonly yOf: (value: number) => number;
+}
+
+/** This function makes the frame of a chart at one width: the grid, the ticks and the titles of the two axes. */
+const frameOf = (width: number, spec: FrameSpec): Frame => {
+  const { xs, log, unit } = spec;
   const plotWidth = width - MARGIN.left - MARGIN.right;
   const plotHeight = HEIGHT - MARGIN.top - MARGIN.bottom;
-  const xLow = points[0]!.x;
-  const xHigh = points.at(-1)!.x;
+  const xLow = xs[0]!;
+  const xHigh = xs.at(-1)!;
   const xOf = (x: number): number =>
     MARGIN.left + plotWidth * (log ? Math.log(x / xLow) / Math.log(xHigh / xLow) : (x - xLow) / (xHigh - xLow || 1));
 
   // The axis of the value starts at 0, thus a flat law looks flat. A law with values below 0 shows its line of 0.
-  const top = Math.max(...points.map((each) => each.high));
-  const bottom = Math.min(0, ...points.map((each) => each.low));
-  const shown = axisUnit(unit, Math.max(Math.abs(top), Math.abs(bottom)));
-  const yTicks = linearTicks(bottom / shown.factor, top / shown.factor, 4);
+  const bottom = Math.min(0, spec.bottom);
+  const shown = axisUnit(unit, Math.max(Math.abs(spec.top), Math.abs(bottom)));
+  const yTicks = linearTicks(bottom / shown.factor, spec.top / shown.factor, 4);
   const yLow = Math.min(bottom / shown.factor, yTicks[0]!);
-  const yHigh = Math.max(top / shown.factor, yTicks.at(-1)!);
+  const yHigh = Math.max(spec.top / shown.factor, yTicks.at(-1)!);
   const yOf = (value: number): number => MARGIN.top + plotHeight * (1 - (value / shown.factor - yLow) / (yHigh - yLow || 1));
 
   const chart = svg("svg", { width, height: HEIGHT, viewBox: `0 0 ${width} ${HEIGHT}`, class: "curve-svg", tabindex: 0, role: "img" });
-  chart.setAttribute("aria-label", `${title}. ${amountText(points[0]!.value, unit)} at ${amountText(xLow, variable.unit)}, ${amountText(points.at(-1)!.value, unit)} at ${amountText(xHigh, variable.unit)}. ${kneeSentence(curve)}`);
+  chart.setAttribute("aria-label", spec.label);
 
   for (const tick of yTicks) {
     const y = yOf(tick * shown.factor);
@@ -91,49 +91,50 @@ const chartSvg = (curve: Curve, title: string, width: number, tip: HTMLElement):
   });
   chart.append(svg("line", { x1: MARGIN.left, x2: width - MARGIN.right, y1: HEIGHT - MARGIN.bottom, y2: HEIGHT - MARGIN.bottom, class: "curve-axis" }));
   const xTitle = svg("text", { x: MARGIN.left + plotWidth / 2, y: HEIGHT - 4, class: "curve-label", "text-anchor": "middle" });
-  xTitle.textContent = `${variable.id}, ${unitWords(variable.unit)}${log ? " (log scale)" : ""}`;
+  xTitle.textContent = spec.xTitle;
   chart.append(xTitle);
+  return { chart, width, plotHeight, xOf, yOf };
+};
 
-  const knee = curve.knee;
-  if (knee?.value != null) {
-    const from = xOf(Math.max(xLow, knee.low ?? xLow));
-    const to = xOf(Math.min(xHigh, knee.high ?? xHigh));
-    chart.append(svg("rect", { x: from, y: MARGIN.top, width: Math.max(1, to - from), height: plotHeight, class: "curve-knee-band" }));
-    const x = xOf(knee.value);
-    chart.append(svg("line", { x1: x, x2: x, y1: MARGIN.top - 4, y2: HEIGHT - MARGIN.bottom, class: "curve-knee" }));
-    const text = `knee ${amountText(knee.value, variable.unit)}`;
-    // A label of 12 px is about 7 px for each character. A label that does not fit right of its line goes left of it.
-    const anchor = x + text.length * 7 > width - MARGIN.right ? "end" : "start";
-    const label = svg("text", { x, y: MARGIN.top - 8, class: "curve-label curve-knee-label", "text-anchor": anchor });
-    label.textContent = text;
-    chart.append(label);
-  }
+/** This function gives the path of a band between two lines of values over the steps of x. */
+const areaPath = (frame: Frame, xs: readonly number[], upper: (index: number) => number, lower: (index: number) => number): string => {
+  const top = xs.map((x, index) => `${frame.xOf(x)},${frame.yOf(upper(index))}`);
+  const under = xs.map((x, index) => `${frame.xOf(x)},${frame.yOf(lower(index))}`).reverse();
+  return `M${[...top, ...under].join("L")}Z`;
+};
 
-  const band = [...points.map((each) => `${xOf(each.x)},${yOf(each.high)}`), ...[...points].reverse().map((each) => `${xOf(each.x)},${yOf(each.low)}`)];
-  chart.append(svg("path", { d: `M${band.join("L")}Z`, class: "curve-band" }));
-  chart.append(svg("path", { d: `M${points.map((each) => `${xOf(each.x)},${yOf(each.value)}`).join("L")}`, class: "curve-line" }));
+/** This function gives the path of a line of values over the steps of x. */
+const linePath = (frame: Frame, xs: readonly number[], value: (index: number) => number): string =>
+  `M${xs.map((x, index) => `${frame.xOf(x)},${frame.yOf(value(index))}`).join("L")}`;
 
+/** A hover spec tells the values of the dots at a step, with the class of each dot, and the rows of the tip. */
+interface HoverSpec {
+  readonly xs: readonly number[];
+  readonly dots: readonly { readonly className: string; readonly value: (index: number) => number }[];
+  readonly rows: (index: number) => readonly HTMLElement[];
+}
+
+/** This function adds the hover to a frame: a line and dots at the nearest step, a tip with the values, and the arrow keys. */
+const addHover = (frame: Frame, tip: HTMLElement, spec: HoverSpec): void => {
+  const { chart, xOf, yOf, width } = frame;
+  const { xs } = spec;
   const cross = svg("line", { y1: MARGIN.top, y2: HEIGHT - MARGIN.bottom, class: "curve-cross", visibility: "hidden" });
-  const dot = svg("circle", { r: 5, class: "curve-dot", visibility: "hidden" });
-  chart.append(cross, dot);
+  const dots = spec.dots.map((dot) => svg("circle", { r: 5, class: `curve-dot ${dot.className}`, visibility: "hidden" }));
+  chart.append(cross, ...dots);
 
   let at = -1;
   const show = (index: number): void => {
-    at = Math.max(0, Math.min(points.length - 1, index));
-    const point = points[at]!;
-    const x = xOf(point.x);
-    const y = yOf(point.value);
+    at = Math.max(0, Math.min(xs.length - 1, index));
+    const x = xOf(xs[at]!);
     cross.setAttribute("x1", String(x));
     cross.setAttribute("x2", String(x));
-    dot.setAttribute("cx", String(x));
-    dot.setAttribute("cy", String(y));
     cross.setAttribute("visibility", "visible");
-    dot.setAttribute("visibility", "visible");
-    tip.replaceChildren(
-      html("strong", "", amountText(point.value, unit)),
-      html("span", "", `${amountText(point.low, unit)} to ${amountText(point.high, unit)}`),
-      html("span", "", `at ${amountText(point.x, variable.unit)}`),
-    );
+    spec.dots.forEach((dot, which) => {
+      dots[which]!.setAttribute("cx", String(x));
+      dots[which]!.setAttribute("cy", String(yOf(dot.value(at))));
+      dots[which]!.setAttribute("visibility", "visible");
+    });
+    tip.replaceChildren(...spec.rows(at));
     tip.hidden = false;
     const left = x + 12 + tip.offsetWidth > width ? x - 12 - tip.offsetWidth : x + 12;
     tip.style.left = `${Math.max(0, left)}px`;
@@ -141,14 +142,14 @@ const chartSvg = (curve: Curve, title: string, width: number, tip: HTMLElement):
   };
   const hide = (): void => {
     cross.setAttribute("visibility", "hidden");
-    dot.setAttribute("visibility", "hidden");
+    for (const dot of dots) dot.setAttribute("visibility", "hidden");
     tip.hidden = true;
   };
   const nearest = (clientX: number): number => {
     const x = clientX - chart.getBoundingClientRect().left;
     let best = 0;
-    points.forEach((each, index) => {
-      if (Math.abs(xOf(each.x) - x) < Math.abs(xOf(points[best]!.x) - x)) best = index;
+    xs.forEach((each, index) => {
+      if (Math.abs(xOf(each) - x) < Math.abs(xOf(xs[best]!) - x)) best = index;
     });
     return best;
   };
@@ -157,33 +158,167 @@ const chartSvg = (curve: Curve, title: string, width: number, tip: HTMLElement):
   chart.addEventListener("pointerleave", hide);
   chart.addEventListener("blur", hide);
   chart.addEventListener("keydown", (event) => {
-    const step = { ArrowRight: 1, ArrowLeft: -1, Home: -points.length, End: points.length }[event.key];
+    const step = { ArrowRight: 1, ArrowLeft: -1, Home: -xs.length, End: xs.length }[event.key];
     if (step === undefined) return;
     event.preventDefault();
-    show(at < 0 ? (step > 0 ? 0 : points.length - 1) : at + step);
+    show(at < 0 ? (step > 0 ? 0 : xs.length - 1) : at + step);
   });
-  return chart;
 };
 
-/** This function gives a table of 9 steps of a curve, for a reader who does not read the chart. */
-const valueTable = (curve: Curve): HTMLElement => {
+/** This function makes the box of a plot. It draws the SVG at the width of the box, and again after a change of the width. */
+const plotBox = (draw: (width: number, tip: HTMLElement) => SVGSVGElement): HTMLElement => {
+  const plot = html("div", "curve-plot");
+  const tip = html("div", "curve-tip");
+  tip.hidden = true;
+  plot.append(tip);
+  let drawn = 0;
+  new ResizeObserver(() => {
+    const width = Math.round(plot.clientWidth);
+    if (width === 0 || width === drawn) return;
+    drawn = width;
+    tip.hidden = true;
+    plot.querySelector("svg")?.remove();
+    plot.prepend(draw(width, tip));
+  }).observe(plot);
+  return plot;
+};
+
+/** This function gives a table of the values at some steps, for a reader who does not read the chart. A quiet table shows its last column in the quiet ink. */
+const valueTable = (heads: readonly string[], count: number, cells: (index: number) => readonly [string, ...string[]], quiet = false): HTMLElement => {
   const details = html("details", "curve-table");
   details.append(html("summary", "", "The values as a table"));
   const table = html("table", "constants");
   const head = html("tr");
-  head.append(html("th", "", curve.variable.id), html("th", "", "value"), html("th", "", `${Math.round(curve.level * 100)} % interval`));
+  head.append(...heads.map((each) => html("th", "", each)));
   table.append(head);
-  const count = Math.min(9, curve.points.length);
-  for (let index = 0; index < count; index++) {
-    const point = curve.points[Math.round((index * (curve.points.length - 1)) / Math.max(1, count - 1))]!;
-    const row = html("tr");
-    row.append(
-      html("td", "", amountText(point.x, curve.variable.unit)),
-      html("td", "", amountText(point.value, curve.unit)),
-      html("td", "quiet", `${amountText(point.low, curve.unit)} to ${amountText(point.high, curve.unit)}`),
-    );
-    table.append(row);
+  const rows = Math.min(TABLE_ROWS, count);
+  for (let row = 0; row < rows; row++) {
+    const [first, ...rest] = cells(Math.round((row * (count - 1)) / Math.max(1, rows - 1)));
+    const line = html("tr");
+    line.append(html("td", "", first), ...rest.map((each, column) => html("td", quiet && column === rest.length - 1 ? "quiet" : "", each)));
+    table.append(line);
   }
   details.append(table);
   return details;
+};
+
+/** This function makes the chart of a curve, its sentence of the knee and a table of its values. */
+export const curveChart = (curve: Curve, title: string): HTMLElement => {
+  const { points, variable, unit } = curve;
+  const xs = points.map((each) => each.x);
+  const log = variable.scale === "log" && variable.min > 0;
+  const box = html("figure", "curve");
+  const plot = plotBox((width, tip) => {
+    const frame = frameOf(width, {
+      xs,
+      log,
+      unit,
+      top: Math.max(...points.map((each) => each.high)),
+      bottom: Math.min(...points.map((each) => each.low)),
+      xTitle: `${variable.id}, ${unitWords(variable.unit)}${log ? " (log scale)" : ""}`,
+      label: `${title}. ${amountText(points[0]!.value, unit)} at ${amountText(xs[0]!, variable.unit)}, ${amountText(points.at(-1)!.value, unit)} at ${amountText(xs.at(-1)!, variable.unit)}. ${kneeSentence(curve)}`,
+    });
+    const { chart, xOf } = frame;
+    const knee = curve.knee;
+    if (knee?.value != null) {
+      const from = xOf(Math.max(xs[0]!, knee.low ?? xs[0]!));
+      const to = xOf(Math.min(xs.at(-1)!, knee.high ?? xs.at(-1)!));
+      chart.append(svg("rect", { x: from, y: MARGIN.top, width: Math.max(1, to - from), height: frame.plotHeight, class: "curve-knee-band" }));
+      const x = xOf(knee.value);
+      chart.append(svg("line", { x1: x, x2: x, y1: MARGIN.top - 4, y2: HEIGHT - MARGIN.bottom, class: "curve-knee" }));
+      const text = `knee ${amountText(knee.value, variable.unit)}`;
+      // A label of 12 px is about 7 px for each character. A label that does not fit right of its line goes left of it.
+      const anchor = x + text.length * 7 > width - MARGIN.right ? "end" : "start";
+      const label = svg("text", { x, y: MARGIN.top - 8, class: "curve-label curve-knee-label", "text-anchor": anchor });
+      label.textContent = text;
+      chart.append(label);
+    }
+    chart.append(svg("path", { d: areaPath(frame, xs, (index) => points[index]!.high, (index) => points[index]!.low), class: "curve-band" }));
+    chart.append(svg("path", { d: linePath(frame, xs, (index) => points[index]!.value), class: "curve-line" }));
+    addHover(frame, tip, {
+      xs,
+      dots: [{ className: "", value: (index) => points[index]!.value }],
+      rows: (index) => {
+        const point = points[index]!;
+        return [
+          html("strong", "", amountText(point.value, unit)),
+          html("span", "", `${amountText(point.low, unit)} to ${amountText(point.high, unit)}`),
+          html("span", "", `at ${amountText(point.x, variable.unit)}`),
+        ];
+      },
+    });
+    return chart;
+  });
+  const level = `${Math.round(curve.level * 100)} % interval`;
+  box.append(
+    plot,
+    html("figcaption", "curve-caption", kneeSentence(curve)),
+    valueTable([variable.id, "value", level], points.length, (index) => {
+      const point = points[index]!;
+      return [amountText(point.x, variable.unit), amountText(point.value, unit), `${amountText(point.low, unit)} to ${amountText(point.high, unit)}`];
+    }, true),
+  );
+  return box;
+};
+
+/** This function makes the chart of a stack: the base layer and the part that the composition adds, with a legend and a table. */
+export const stackChart = (stack: Stack, title: string): HTMLElement => {
+  const { points, unit, range } = stack;
+  const xs = points.map((each) => each.x);
+  const log = range.scale === "log" && range.min > 0;
+  const box = html("figure", "curve stack");
+  const legend = html("ul", "curve-legend");
+  for (const [key, name] of [["base", STACK_NAMES.base], ["added", STACK_NAMES.added]] as const) {
+    const item = html("li");
+    item.append(html("span", `curve-swatch ${key}`), name);
+    legend.append(item);
+  }
+  const plot = plotBox((width, tip) => {
+    const frame = frameOf(width, {
+      xs,
+      log,
+      unit,
+      top: Math.max(...points.map((each) => Math.max(each.total.high, each.base.high))),
+      bottom: Math.min(...points.map((each) => Math.min(each.base.low, each.total.low))),
+      xTitle: `rate, requests/s${log ? " (log scale)" : ""}`,
+      label: `${title}. ${stackSentence(stack, points.at(-1)!)}`,
+    });
+    const { chart } = frame;
+    const base = (index: number): number => points[index]!.base.value;
+    const total = (index: number): number => points[index]!.total.value;
+    chart.append(svg("path", { d: areaPath(frame, xs, base, () => 0), class: "stack-area base" }));
+    chart.append(svg("path", { d: areaPath(frame, xs, total, base), class: "stack-area added" }));
+    chart.append(svg("path", { d: areaPath(frame, xs, (index) => points[index]!.base.high, (index) => points[index]!.base.low), class: "stack-band base" }));
+    chart.append(svg("path", { d: areaPath(frame, xs, (index) => points[index]!.total.high, (index) => points[index]!.total.low), class: "stack-band added" }));
+    chart.append(svg("path", { d: linePath(frame, xs, base), class: "stack-line base" }));
+    chart.append(svg("path", { d: linePath(frame, xs, total), class: "stack-line added" }));
+    addHover(frame, tip, {
+      xs,
+      dots: [
+        { className: "base", value: base },
+        { className: "added", value: total },
+      ],
+      rows: (index) => {
+        const point = points[index]!;
+        return [
+          html("strong", "", `${STACK_NAMES.total}: ${amountText(point.total.value, unit)}`),
+          html("span", "", `${STACK_NAMES.base}: ${bandText(point.base, unit)}`),
+          html("span", "", `${STACK_NAMES.added}: ${bandText(point.added, unit)}`),
+          html("span", "", `at ${amountText(point.x, RATE_UNIT)}`),
+        ];
+      },
+    });
+    return chart;
+  });
+  const level = `${Math.round(stack.level * 100)} % intervals`;
+  box.append(
+    legend,
+    plot,
+    html("figcaption", "curve-caption", `${stackSentence(stack, points[0]!)} ${stackSentence(stack, points.at(-1)!)} The bands are the ${level}.`),
+    valueTable(["rate", STACK_NAMES.base, STACK_NAMES.added, STACK_NAMES.total], points.length, (index) => {
+      const point = points[index]!;
+      return [amountText(point.x, RATE_UNIT), bandText(point.base, unit), bandText(point.added, unit), bandText(point.total, unit)];
+    }),
+  );
+  return box;
 };
