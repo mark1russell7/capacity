@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { compositionValue, limitUse, scaleDemand, scaleRule, type Composition, type Law } from "@mark1russell7/capacity";
 import { describe, expect, it } from "vitest";
 import { COMPOSITIONS, LAWS } from "./data.ts";
-import { DEFAULT_SETTING, RATES, RATE_LOAD, SLIDER_OPTIONS, countText, loadOf, pointSentences, positionOf, scaleModelOf, scaleSubjects, sliderOf, stepsOfSlider, valueAt, type InstanceSetting, type Slider, type SliderPoint } from "./scale.ts";
+import { DEFAULT_SETTING, RATES, RATE_LOAD, SLIDER_OPTIONS, countText, loadOf, pointSentences, positionOf, scaleModelOf, scaleSubjects, sliderLoadOf, sliderOf, stepsOfSlider, valueAt, type InstanceSetting, type Slider, type SliderPoint } from "./scale.ts";
 
 const lawFile = (path: string): Law => JSON.parse(readFileSync(new URL(path, import.meta.url), "utf8")) as Law;
 const CATALOG = { laws: LAWS.map((each) => lawFile(each.path)), compositions: COMPOSITIONS };
@@ -64,6 +64,8 @@ describe("the slider on the real compositions", () => {
     expect(sliderOf(alerts.compositions, DEFAULT_SETTING, CATALOG)).toBe(
       "At the lowest load of the slider, 1 event/s, the subject needs more than 256 instances of this size. Choose a larger instance.",
     );
+    // The page shows the ends of this load with the text: events each second, not requests each second.
+    expect(sliderLoadOf(alerts.compositions, DEFAULT_SETTING, CATALOG)).toMatchObject({ id: "event", unit: "{event}/s", min: 1, max: 1000 });
   }, 120_000);
 
   it("gives no subject on a CPU model with no laws, and the laws of each composition of a subject", () => {

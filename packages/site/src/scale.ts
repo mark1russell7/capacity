@@ -142,16 +142,32 @@ const lawsOf = (compositions: readonly Composition[], catalog: Catalog): readonl
   return catalog.laws.filter((law) => ids.has(law.id));
 };
 
+/** This function gives the model, the laws and the load of the slider of some compositions on an instance, or a text. */
+const basisOf = (compositions: readonly Composition[], setting: InstanceSetting, catalog: Catalog) => {
+  const model = scaleModelOf(compositions, setting, catalog);
+  if (model.limits.length === 0) return "The subject has no composition of a resource of an instance.";
+  const laws = lawsOf(model.compositions, catalog);
+  const load = loadOf(laws);
+  return typeof load === "string" ? load : { model, laws, load };
+};
+
+/**
+ * This function gives the load of the slider of some compositions on an instance. It is the load of `sliderOf`. The page
+ * reads it also when `sliderOf` gives a text, thus the ends of the slider show the unit of the subject.
+ */
+export const sliderLoadOf = (compositions: readonly Composition[], setting: InstanceSetting, catalog: Catalog): Load | string => {
+  const basis = basisOf(compositions, setting, catalog);
+  return typeof basis === "string" ? basis : basis.load;
+};
+
 /**
  * This function gives the slider of the compositions of one subject on an instance. It searches one time. A problem
  * of the model or of the search gives a text.
  */
 export const sliderOf = (compositions: readonly Composition[], setting: InstanceSetting, catalog: Catalog): Slider | string => {
-  const model = scaleModelOf(compositions, setting, catalog);
-  if (model.limits.length === 0) return "The subject has no composition of a resource of an instance.";
-  const laws = lawsOf(model.compositions, catalog);
-  const load = loadOf(laws);
-  if (typeof load === "string") return load;
+  const basis = basisOf(compositions, setting, catalog);
+  if (typeof basis === "string") return basis;
+  const { model, laws, load } = basis;
   const measured = rateRangeOf(laws, load.id);
   if (typeof measured === "string") return measured;
   const base = baseOf(load);

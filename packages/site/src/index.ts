@@ -13,6 +13,7 @@ import {
   pointSentences,
   positionOf,
   scaleSubjects,
+  sliderLoadOf,
   sliderOf,
   stepsOfSlider,
   valueAt,
@@ -320,7 +321,8 @@ const settingOf = (): InstanceSetting => ({
 });
 
 // A ladder takes most of a second to build. The page keeps each one, thus a setting that comes back is at once ready.
-const sliders = new Map<string, Slider | string>();
+// Each one keeps its load, thus a text keeps the unit of its subject at the ends of the slider.
+const sliders = new Map<string, { readonly slider: Slider | string; readonly load: Load | undefined }>();
 let shown: { readonly slider: Slider; readonly unlimited: readonly string[]; readonly chart: StepChart; readonly result: HTMLElement } | undefined;
 
 /** This function shows the scale rule at the load of the slider: the count, the fill of each limit and the sentences. */
@@ -393,24 +395,28 @@ const showScale = async (cpu: string): Promise<void> => {
   const subject = subjects.find((each) => each.subject === scaleSubject.value)!;
   const setting = settingOf();
   const key = JSON.stringify([cpu, subject.subject, setting]);
-  let slider = sliders.get(key);
-  if (slider === undefined) {
+  let entry = sliders.get(key);
+  if (entry === undefined) {
     const laws = await loadLaws(subject.laws);
     scaleBox.setAttribute("aria-busy", "true");
     // The page paints its old state before the search, thus the controls do not freeze with no sign.
     await new Promise((resolve) => setTimeout(resolve, 0));
-    slider = sliderOf(subject.compositions, setting, { laws, compositions: COMPOSITIONS });
-    sliders.set(key, slider);
+    const catalog = { laws, compositions: COMPOSITIONS };
+    const load = sliderLoadOf(subject.compositions, setting, catalog);
+    entry = { slider: sliderOf(subject.compositions, setting, catalog), load: typeof load === "string" ? undefined : load };
+    sliders.set(key, entry);
     scaleBox.removeAttribute("aria-busy");
   }
   if (key !== JSON.stringify([select.value, scaleSubject.value, settingOf()])) return;
+  const { slider, load } = entry;
+  if (load !== undefined && load.id !== sliderLoad.id) startSlider(load);
   if (typeof slider === "string") {
     shown = undefined;
     scaleBox.replaceChildren(make("p", "quiet", slider));
+    showPoint();
     return;
   }
   const title = `${SUBJECT_NAMES[subject.subject] ?? subject.subject}, ${SETTING_TEXT.cores(setting.cores)} and ${SETTING_TEXT.memory(setting.memory)} for each instance`;
-  if (slider.load.id !== sliderLoad.id) startSlider(slider.load);
   const chart = stepChart(stepsOfSlider(slider), slider.load, slider.measured, slider.ladder.most, title);
   const result = make("div", "scale-result");
   result.setAttribute("aria-live", "polite");
