@@ -14,6 +14,7 @@ import {
   ballastsOf,
   childLimitOf,
   measureStart,
+  metricsOf,
   observationReads,
   samplesOf,
   seedPointOf,
@@ -610,7 +611,7 @@ describe("the machine model of measureStart", () => {
   });
 });
 
-describe("seedPointOf, ballastsOf and samplesOf", () => {
+describe("seedPointOf, ballastsOf, samplesOf and metricsOf", () => {
   it("give the seed point of a point, through each point after another", () => {
     const points = [{ id: "a", at: {} }, { id: "b", at: {}, after: "a" }, { id: "c", at: {}, after: "b" }];
     expect(points.map((point) => seedPointOf(points, point.id))).toEqual(["a", "a", "a"]);
@@ -629,6 +630,13 @@ describe("seedPointOf, ballastsOf and samplesOf", () => {
       { ms: 1000, readBytes: 5, writeBytes: null, majorFaults: null, rss: null, cgroup: { memory: null, swap: null, readBytes: null, writeBytes: null, reads: 2, writes: null } },
     ]);
     expect([ballastsOf({}), samplesOf({ extra: { samples: "x" } })]).toEqual([[], []]);
+  });
+
+  it("metricsOf keeps each collection with a time and each reading, and gives undefined with no list", () => {
+    const reading = { series: "rows", at: "2026-11-24T12:00:00.000Z", value: 7 };
+    const fields = { extra: { readings: [{ ms: 5, readings: [reading, { series: "rows" }] }, { readings: [reading] }, 3] } };
+    expect(metricsOf(fields)).toEqual([{ ms: 5, readings: [reading] }]);
+    expect([metricsOf({}), metricsOf({ extra: { readings: null } })]).toEqual([undefined, undefined]);
   });
 });
 

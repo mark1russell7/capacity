@@ -53,6 +53,27 @@ const LINE_CHARS = 1_000_000;
 /** These fields of a line `write` are the times of the write, in milliseconds. */
 export const WRITE_FIELDS = ["longestMs", "writeMs", "rowsMs", "wallMs", "cpuMs"] as const;
 
+/** One reading of a series in a line `readings`: the id of the series, the UTC time of the app and the value. */
+export interface LineReading {
+  readonly series: string;
+  readonly at: string;
+  readonly value: number;
+}
+
+/** One line `readings` of a run: the time of the line in milliseconds, and its readings. */
+export interface LineCollection {
+  readonly ms: number;
+  readonly readings: readonly LineReading[];
+}
+
+/** This function gives the readings of the field `readings` of a line. It leaves out each item that is not a reading. */
+export const lineReadings = (value: unknown): readonly LineReading[] =>
+  (Array.isArray(value) ? (value as readonly unknown[]) : []).flatMap((item) => {
+    if (typeof item !== "object" || item === null) return [];
+    const { series, at, value: amount } = item as Readonly<Record<string, unknown>>;
+    return typeof series === "string" && typeof at === "string" && typeof amount === "number" && Number.isFinite(amount) ? [{ series, at, value: amount }] : [];
+  });
+
 /** A line of a run that the recorder keeps: its kind, the time of its write in milliseconds, and its fields. */
 export interface RecordedLine {
   readonly kind: string;
@@ -107,16 +128,21 @@ export const lineRecorder = (kinds: readonly { readonly kind: string; readonly e
 };
 
 /**
- * This function gives the fields `passes` and `writes` of the line of a child from the recorded lines of a run. `passes` is the
- * count of the lines `pass` from `readyAt` to `endAt`, and `writes` is each line `write` up to `endAt`, with its times. A run
- * whose contract names no line of a kind gives null for that field.
+ * This function gives the fields `passes`, `writes` and `readings` of the line of a child from the recorded lines of a run.
+ * `passes` is the count of the lines `pass` from `readyAt` to `endAt`. `writes` is each line `write` up to `endAt`, with its
+ * times. `readings` is each line `readings` up to `endAt`, with its readings. A run whose contract names no line of a kind
+ * gives null for that field.
  */
 export const runLineFields = (
   kinds: readonly { readonly kind: string }[],
   lines: readonly RecordedLine[],
   readyAt: number,
   endAt: number,
-): { readonly passes: number | null; readonly writes: readonly Readonly<Record<string, number>>[] | null } => {
+): {
+  readonly passes: number | null;
+  readonly writes: readonly Readonly<Record<string, number>>[] | null;
+  readonly readings: readonly LineCollection[] | null;
+} => {
   const named = new Set(kinds.map((each) => each.kind));
   const passes = named.has("pass") ? lines.filter((line) => line.kind === "pass" && line.ms >= readyAt && line.ms <= endAt).length : null;
   const writes = named.has("write")
@@ -131,5 +157,8 @@ export const runLineFields = (
           return times;
         })
     : null;
-  return { passes, writes };
+  const readings = named.has("readings")
+    ? lines.filter((line) => line.kind === "readings" && line.ms <= endAt).map((line) => ({ ms: line.ms, readings: lineReadings(line.fields["readings"]) }))
+    : null;
+  return { passes, writes, readings };
 };

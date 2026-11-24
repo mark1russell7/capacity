@@ -6,7 +6,8 @@
  * - `exit`: the app ends with the code 3 before the end of the watch.
  * - `fail`: the app fails at its import.
  * - `lines`: the app writes a line `fixture-write` before its ready line, and one more in two chunks after it. Then it
- *   writes a line `fixture-pass` each 10 milliseconds. It also writes a line that is not JSON and a line of another event.
+ *   writes a line `fixture-pass` each 10 milliseconds. It also writes a line that is not JSON, a line of another event and
+ *   one line `fixture-readings` with one reading and one item that is not a reading.
  * - With no mode, the app writes its ready line, and it has no listener of `SIGTERM`.
  */
 import { readdirSync } from "node:fs";
@@ -33,6 +34,7 @@ if (mode === "server") {
   process.stdout.write('ite","longestMs":7,"other":"x"}\n');
   console.log("not a JSON line");
   console.log(JSON.stringify({ ev: "fixture-other" }));
+  console.log(JSON.stringify({ ev: "fixture-readings", readings: [{ series: "requests", at: "2026-11-24T12:00:00.000Z", value: 3 }, { series: "bad" }] }));
   setInterval(() => console.log(JSON.stringify({ ev: "fixture-pass" })), 10);
 } else {
   console.log(`fixture ready with ${files} files`);

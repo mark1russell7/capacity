@@ -28,6 +28,7 @@ import { escapeMarkdown } from "@mark1russell7/text";
 import { cpuSetsOf } from "./cell.ts";
 import type { CheckProblem } from "./check.ts";
 import type { Host, Measures } from "./record.ts";
+import { lineReadings, type LineCollection } from "./subject/ready.ts";
 import {
   CHILD_MARGIN,
   DISK_UNITS,
@@ -225,6 +226,11 @@ export interface StartReading {
   readonly ballasts: readonly HeldBallast[];
   /** These samples are the samples of the child, for a case with the field `samples`. */
   readonly samples: readonly StartSample[];
+  /**
+   * These collections are the live metrics of the app in the start and the watch, one for each line `readings` of the run.
+   * A reading has no field `metrics` when the contract of the app names no line `readings`.
+   */
+  readonly metrics?: readonly LineCollection[];
 }
 
 /**
@@ -620,6 +626,19 @@ export const ballastsOf = (fields: ChildFields): readonly HeldBallast[] => {
   });
 };
 
+/**
+ * This function gives the collections of the live metrics of the fields of a child. It gives undefined when the field
+ * `readings` is not a list. A collection with no time is not in the list, and each item that is not a reading is left out.
+ */
+export const metricsOf = (fields: ChildFields): readonly LineCollection[] | undefined => {
+  const list = fields.extra?.["readings"];
+  if (!Array.isArray(list)) return undefined;
+  return list.flatMap((each: unknown) => {
+    const ms = numberIn(each, "ms");
+    return ms === null || !isRecord(each) ? [] : [{ ms, readings: lineReadings(each["readings"]) }];
+  });
+};
+
 /** This function gives a number or null from a field of a record. A field with no number is null. */
 const orNull = (value: unknown, key: string): number | null => numberIn(value, key);
 
@@ -901,6 +920,7 @@ export const measureStart = async (value: StartCase, options: StartMeasureOption
 
   const readings: StartReading[] = (fresh.children ?? []).map((each) => {
     const fields = each.fields ?? {};
+    const metrics = metricsOf(fields);
     return {
       arm: each.arm,
       point: each.case,
@@ -911,6 +931,7 @@ export const measureStart = async (value: StartCase, options: StartMeasureOption
       stalled: fields.extra?.["stalled"] === true,
       ballasts: ballastsOf(fields),
       samples: samplesOf(fields),
+      ...(metrics === undefined ? {} : { metrics }),
     };
   });
   const ended = now();

@@ -514,6 +514,7 @@ The field `lines` of `start.run` names the JSON lines of the output of the run t
 | --- | --- |
 | `pass` | The end of one pass of the loop of the app. The lab counts the passes in the watch after ready. |
 | `write` | One write of the snapshot. The fields `longestMs`, `writeMs`, `rowsMs`, `wallMs` and `cpuMs` give its times in milliseconds. |
+| `readings` | One collection of the live metrics. The field `readings` is a list of `SeriesReading`: `{ series, at, value }`. `collectReadings` of `@mark1russell7/otel-ts/pull` gives this list. |
 
 `APP_LINE_KINDS` is the closed set of the kinds. A run with no line of a kind gives no reading of that kind.
 
