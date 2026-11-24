@@ -19,9 +19,10 @@
  *   when the gate does not pass or when a case has no record. The summary names each case whose value the head changes.
  * - The file `--changes` gives the changes of value that the head makes on purpose. The default is `packages/lab/bench-changes.json`.
  *   The gate does not time such a case against the base. A change of value that the file does not name gives the exit code 1.
- * - With `--again-out`, a gate with no read of some cases does not decide. It writes these cases as the matrix `again`
- *   into the file of the outputs of the job, and a fresh job measures them again. A case beyond the limit is not measured again.
- * - With `--again`, the records of that folder replace the records of their cases. This gate decides.
+ * - With `--again-out`, a gate with no read of some cases does not decide. It writes the matrix `again` into the file
+ *   of the outputs of the job: `BENCH_AGAIN_TRIES` fresh jobs for each of these cases. A case beyond the limit is not measured again.
+ * - With `--again`, the gate adds the records of that folder as more tries of their cases. The read of a case pools its tries.
+ *   This gate decides.
  * - The noise cap of the gate comes from `packages/lab/bench-limits.json`. The option `--noise-cap` replaces it.
  * - `limits` reads the records of each subfolder of `--runs`. Each subfolder holds the records of one CI run, from
  *   `gh run download <run> -p "bench-*"`. The command writes the limits of 5 or more runs into the file `--out`.
@@ -38,17 +39,18 @@ import {
   AA_ARM,
   BASE_ARM,
   BENCH_FORMAT,
+  BENCH_AGAIN_TRIES,
   BENCH_CHANGES,
   BENCH_LIMIT,
   BENCH_LIMITS,
   BENCH_RECORD,
   HEAD_ARM,
   benchCases,
+  benchAgainJobs,
   benchAgainOf,
   benchGate,
   benchLimitsOf,
   benchNotesOf,
-  benchRecordsAgain,
   benchSummaryOf,
   readBenchChanges,
   readBenchLimits,
@@ -145,24 +147,23 @@ const gate = (args: readonly string[]): void => {
   const limit = positive(values.limit, "--limit") ?? BENCH_LIMIT;
   const noiseCap = positive(values["noise-cap"], "--noise-cap") ?? readBenchLimits(join(ROOT, "packages", "lab", BENCH_LIMITS))?.noiseCap.limit;
   const first = readBenchRecords(values.records);
-  const records = values.again === undefined ? first : benchRecordsAgain(first, readBenchRecords(values.again));
+  const records = values.again === undefined ? first : [...first, ...readBenchRecords(values.again)];
   const ids = benchCases(catalogOf()).map((each) => each.id);
   const changes = readBenchChanges(values.changes ?? join(ROOT, "packages", "lab", BENCH_CHANGES));
   const result = benchGate(records, ids, { limit, changes, ...(noiseCap === undefined ? {} : { noiseCap }) });
   const againOut = values["again-out"];
   const again = againOut === undefined ? [] : benchAgainOf(result);
-  const againNote = again.length === 0 ? [] : [`The gate has no read of ${again.length} cases, so a fresh job measures them again: ${again.join(", ")}.`, ""];
+  const againNote = again.length === 0 ? [] : [`The gate has no read of ${again.length} cases, so ${BENCH_AGAIN_TRIES} fresh jobs measure each of them again: ${again.join(", ")}.`, ""];
   const text = [benchSummaryOf(result.read, result.commits), benchNotesOf(result), ...againNote].join("\n");
   process.stdout.write(text);
   const summary = process.env["GITHUB_STEP_SUMMARY"];
   if (summary) appendFileSync(summary, text);
   if (againOut !== undefined) {
-    const matrix = ids.map((id, index) => ({ case: id, index })).filter((each) => again.includes(each.case));
-    appendFileSync(againOut, `again=${JSON.stringify(matrix)}\n`);
+    appendFileSync(againOut, `again=${JSON.stringify(benchAgainJobs(ids, again))}\n`);
   }
   // The second try decides, so the first try writes no gate line and does not fail.
   if (again.length > 0) return;
-  const line = gateLine(result.read.verdict.cases, {
+  const line = gateLine(result.read.cases, {
     title: "The bench of the scale query",
     enforced: true,
     models: jobModels(records.map((each) => ({ cpu: each.env.cpu }))),
