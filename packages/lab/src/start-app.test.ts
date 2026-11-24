@@ -281,6 +281,7 @@ describe("appRunOf", () => {
       env: { FIXTURE_STORE: RUN_SLOTS.store },
       ready: { kind: "line", text: "fixture ready" },
       lines: [],
+      units: {},
       slots: { store: RUN_SLOTS.store },
     });
   });

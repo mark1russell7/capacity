@@ -187,7 +187,7 @@ const placeholderProblems = (app: AppContract, command: AppCommand, path: string
         continue;
       }
       if (head === "variable" && place === "seed" && id !== "") {
-        if (!app.variables.some((each) => each.id === id && each.kind !== "request")) {
+        if (!app.variables.some((each) => each.id === id && (each.kind === "store" || each.kind === "level"))) {
           problems.push(appProblem("placeholder", at, `The placeholder "{${name}}" names "${id}", and the app has no store or level variable with that id.`));
         }
         continue;
@@ -257,6 +257,10 @@ const startProblems = (app: AppContract): readonly AppProblem[] => {
   const listens = run.ready.kind === "http" || app.classes.some((entry) => entry.entry.kind === "http");
   if (listens && !holds(run, "port")) problems.push(appProblem("command", "start.run", `The run does not get its port: it does not hold "{port}".`));
 
+  const measured = app.variables.filter((variable) => variable.kind === "run");
+  if (measured.length > 0 && !(run.lines ?? []).some((line) => line.kind === "amounts")) {
+    problems.push(appProblem("command", "start.run.lines", `The app has the run variable "${measured[0]?.id}", and the run has no line of the kind "amounts" that gives it.`));
+  }
   const stores = app.variables.filter((variable) => variable.kind === "store");
   if (stores.length > 0 && !holds(run, "store")) {
     problems.push(appProblem("command", "start.run", `The app has a store, and the run does not get its folder: the run does not hold "{store}".`));

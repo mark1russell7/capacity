@@ -549,6 +549,7 @@ The lines of the run in the contract give the passes and the writes of the snaps
 - `passes` is the count of the lines `pass` from ready to the end of the watch.
 - `writes` is each line `write` to the end of the watch, with its times. The measures `writes` to `writeCpu` read them.
 - `readings` is each line `readings` to the end of the watch, with its time and its readings. Each reading of the record keeps them in `metrics`.
+- `amounts` comes from the last line `amounts` to the end of the watch. Each reading of the record keeps the run variables in `amounts`, with their units.
 - A run with no line of a kind gives null for its field. The recorder keeps at most 100,000 lines of each kind.
 
 The lab examines the contract of each tree before the seed, with `appCaseProblems`:
@@ -677,7 +678,7 @@ The plans `alerts-start-feeds`, `alerts-start-persons` and `alerts-start-inciden
 
 - The target is the target of the plan `alerts-start-app`.
 - A start law set refuses a case with points that move a second variable. Otherwise a law of one variable also holds the effect of another variable.
-- The routes of alerts are the persons times the incidents and the system incidents. The ladders move one level at a time. Thus their laws do not give the interaction of the two levels (CAP-67).
+- The routes of alerts are the persons times the incidents and the system incidents. The ladders move one level at a time. Thus their laws do not give the interaction of the two levels. The grid of the routes gives it (CAP-67).
 - The plans have no trigger: a person starts them. The time limit of each plan is 151 minutes.
 - The contract accepts a log from 2,000,000 B to 400,000,000 B. Thus the log ladder stops at 400,000,000 B, and not at 512 MiB as the old plan `alerts-start`.
 - The jobs of one run can land on more than one CPU model. A law needs 5 jobs on one CPU model. Thus a ladder can need a second run of the same plan.
@@ -722,6 +723,20 @@ The limits file has the format `capacity-start-limits/1`. `readStartLimits` read
 | `points[].derivations` | The result of `runLimit` for each measure: `limit`, `worst`, `spread`, the `values` of the runs, and the `unit` |
 
 A gate reads `points[].limits` with `readLimits` of `@mark1russell7/capacity`. A start passes when each measure is at its ceiling or below it.
+
+#### The grid of the routes
+
+The plan `alerts-start-routes` starts alerts on a grid of the persons and the open incidents (CAP-67). Its start law set reads the routes from the line `amounts` of the run, with `from: "run"`.
+
+| Part | The value | Why |
+| --- | --- | --- |
+| The grid | `persons`: 1, 10, 100 and 1000. `incidents`: 0, 10, 100 and 1000. The point with 1000 persons and 1000 incidents is not in the grid. | A route is one person and one open incident or the system incident. Thus the routes are `persons × (incidents + 1)`, from 1 to 101,000. |
+| The paths | 4 points give approximately 1000 routes, and 3 points give approximately 100 or 10,000 routes. | Points with the same routes and different levels tell if the routes alone give the cost of a start. |
+| The upper limit | 110,000 routes | A start of alerts with 100,100 routes has a peak memory of 868 MB. The target has 1011 MB. |
+| The other parts | The base point, the arm, the limit, the measures and the target of the ladders | The grid and the ladders meet at the base point. |
+
+- A start law set from the run accepts points that move more than one variable. No point sets the routes.
+- The job of the plan has a time limit of 224 minutes.
 
 ### The machine model
 
@@ -879,7 +894,8 @@ The field `startLaws` of a plan tells the laws that its start records give. `sta
 
 | Field | What it is |
 | --- | --- |
-| `variable` | A variable of the subject, for example `log` in MiB. The size of its file in the seeded store of a point is the value of the variable. |
+| `variable` | A variable of the subject, for example `log` in MiB. |
+| `from` | The source of the value of the variable at each point. With `seed` (the default), the seed of the store gives it. With `run`, the line `amounts` of the run gives it. |
 | `measures` | The measures of the readings that get a law, each with its law slug, its title, its residual, its forms and its knee rule. |
 | `conditions` | The facts that the records do not hold. A name of `START_CONDITIONS` comes from the records. |
 
@@ -889,6 +905,7 @@ The field `startLaws` of a plan tells the laws that its start records give. `sta
 - The A/A pairs of the base on the CPU model and the kind of start give the noise floor of each measure.
 - A start that passed a limit of the target has no reading. The result tells it in `skipped`.
 - A plan has a law set or a start law set, not the two. A plan with a start law set has only start cases.
+- A variable from the run is a `run` variable of the contract, for example the routes of alerts. No point sets it. The other variables of the points make it move.
 
 The command `fit` of `laws.main.ts` fits the start laws of each plan with a start law set.
 

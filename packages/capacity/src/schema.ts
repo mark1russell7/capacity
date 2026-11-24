@@ -210,7 +210,7 @@ export const appSchema: z.ZodType<AppContract> = z.strictObject({
   id: z.string(),
   title: z.string(),
   repository: z.string(),
-  variables: z.array(z.strictObject({ id: z.string(), title: z.string(), kind: z.enum(["request", "level", "store"]), ...rangeFields })),
+  variables: z.array(z.strictObject({ id: z.string(), title: z.string(), kind: z.enum(["request", "level", "store", "run"]), ...rangeFields })),
   classes: z.array(
     z.strictObject({
       id: z.string(),

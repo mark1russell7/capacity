@@ -33,7 +33,8 @@
 //   exit code of the app after the close.
 // - `passes` is the count of the lines `pass` of the run in the watch, and `writes` is each line `write` of the run, with its
 //   times and `ms` from the start of the process. `readings` is each line `readings` of the run, with its readings and
-//   `ms`. The lines of the run in the contract name them. With no such line, each is null.
+//   `ms`. `amounts` is the last line `amounts` of the run in the watch: each run variable of the contract, as an amount in
+//   its unit. The lines of the run in the contract name them. With no such line, each is null.
 // - `ballasts` is each ballast, and `samples` is each sample of the worker, with `ms` from the start of the process.
 // - `open` names the resources at the line. `endMs` is the time from the start of the process to the line.
 //
@@ -208,7 +209,7 @@ const cpuOfWatch = process.cpuUsage(cpuOfReady);
 const watchCpu = (cpuOfWatch.user + cpuOfWatch.system) / 1000;
 const watchEnd = performance.now();
 const watchedMs = watchEnd - watchStarted;
-const recorded = runLineFields(kinds, recorders.flatMap((each) => each.lines()), at, watchEnd);
+const recorded = runLineFields(kinds, recorders.flatMap((each) => each.lines()), at, watchEnd, run.units);
 const watched = watch.peak();
 watch.stop();
 const watchedHeap = heapOfWatch.stop();
@@ -244,6 +245,7 @@ const line = {
   samples,
   writes: recorded.writes,
   readings: recorded.readings,
+  amounts: recorded.amounts,
 };
 
 /** This function writes the line of the child, and it removes the copy of --seeded. It does only synchronous work, for the event `exit`. */
