@@ -8,6 +8,8 @@ The laws have three layers: bare Node, the service runner on Node, and each app.
 
 **State:** the [roadmap](docs/ROADMAP.md) has the plan, the path of a law and the status of each item.
 
+**Method:** [the method](docs/METHOD.md) tells how to read a law, how a law gets its numbers, and where it is valid. It also tells how to add a subject and an app.
+
 ## Packages
 
 | Package | What it has |

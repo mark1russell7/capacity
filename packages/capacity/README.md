@@ -500,11 +500,26 @@ The contract of an app is one record that each app gives to the lab and to the m
 | --- | --- |
 | `variables` | Each load variable: its kind, its unit and its range. A `request` variable comes with each request, a `level` stays in the app, and a `store` is in the store at the start. |
 | `classes` | Each kind of request: the range of its rate, its request variables and its entry. The entry is a request of HTTP with a path template, or an outside service. |
-| `start` | The commands `install`, `check` and `seed`, and the process `run` with its ready signal. A command is a program and its arguments, with no shell. |
+| `start` | The commands `install`, `check` and `seed`, and the process `run` with its ready signal and its lines. A command is a program and its arguments, with no shell. |
 | `services` | Each outside service that the app calls, and the fake that the lab starts in its place. |
 | `metrics` | Each live series of the app: a counter or a gauge, its unit and what it measures. |
 
 The lab puts a value into each placeholder of a command before the start: `{port}`, `{store}`, `{workload}`, `{service.<id>}` and `{variable.<id>}`. `fillPlaceholders(text, values)` does this, and `requestPath(entry, amounts)` gives the path of a request of HTTP.
+
+### The lines of a run
+
+The field `lines` of `start.run` names the JSON lines of the output of the run that the lab records. Each line has a `kind`, an `ev` and a `title`. The lab keeps each line of the output that is a JSON object with that `ev`.
+
+| Kind | What the lab reads |
+| --- | --- |
+| `pass` | The end of one pass of the loop of the app. The lab counts the passes in the watch after ready. |
+| `write` | One write of the snapshot. The fields `longestMs`, `writeMs`, `rowsMs`, `wallMs` and `cpuMs` give its times in milliseconds. |
+
+`APP_LINE_KINDS` is the closed set of the kinds. A run with no line of a kind gives no reading of that kind.
+
+```json
+"lines": [{ "kind": "pass", "ev": "lab-pass", "title": "The end of a pass of the loop" }]
+```
 
 ### The check of a contract
 
@@ -518,6 +533,7 @@ The lab puts a value into each placeholder of a command before the start: `{port
 - The run gets its port, the store and the URL of each service. The seed gets the store and sets each store variable. Each fake gets its port.
 - The seed can get the amount of a store or a level variable. It writes the state of the app at the point, and the run opens it.
 - Each series has the kind and the unit of what it measures. Two series do not measure the same thing.
+- Each line of the run has an `ev` that is not empty. Two lines do not have the same kind or the same `ev`.
 
 ### The live metrics of an app
 

@@ -1,12 +1,13 @@
 {
   "format": "capacity-plan/1",
   "id": "gate-rate",
-  "title": "The gate of the laws of the request rate: the bare request again at 4 rates of the plan rate, in 12 jobs",
+  "title": "The gate of the laws of the request rate: the bare request again at 4 rates of the plan rate, in 13 jobs",
   "check": "gate",
   "triggers": [
+    "pull_request",
     "schedule"
   ],
-  "jobs": 12,
+  "jobs": 13,
   "gate": {
     "laws": "rate"
   },

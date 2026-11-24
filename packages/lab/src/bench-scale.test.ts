@@ -15,12 +15,13 @@ import {
   BENCH_RECORD,
   HEAD_ARM,
   benchCases,
+  benchAgainJobs,
   benchAgainOf,
   benchGate,
   benchLimitsOf,
   benchNotesOf,
-  benchRecordsAgain,
   benchRead,
+  benchReadOfTries,
   benchSummaryOf,
   pairedTimes,
   readBenchChanges,
@@ -163,15 +164,57 @@ describe("benchAgainOf", () => {
     expect(benchAgainOf(benchGate([recordOf("x", 0.5), recordOf("y", 3)], ["x", "y", "z"]))).toEqual([]);
   });
 
-  it("replaces the record of a case with the record of the second try", () => {
-    const again = recordOf("y", 2);
-    const records = benchRecordsAgain([recordOf("x", 0.5), recordOf("y", 0.5)], [again]);
-    expect(records).toHaveLength(2);
-    expect(records.find((each) => each.case === "y")).toBe(again);
+});
+
+describe("benchAgainJobs", () => {
+  it("gives each case of the second try its fresh jobs, in the order of the cases, each with its own index", () => {
+    expect(benchAgainJobs(["x", "y", "z"], ["z", "x"], 2)).toEqual([
+      { case: "x", index: 0, try: 2 },
+      { case: "x", index: 1, try: 3 },
+      { case: "z", index: 2, try: 2 },
+      { case: "z", index: 3, try: 3 },
+    ]);
+    expect(benchAgainJobs(["x"], [], 2)).toEqual([]);
+    expect(() => benchAgainJobs(["x"], ["x"], 0)).toThrow(RangeError);
+  });
+});
+
+describe("benchReadOfTries", () => {
+  it("pools the rounds of the tries of a case, and gives one try the verdict of its own rounds", () => {
+    const one = processesOf("x", 0.5);
+    const read = benchReadOfTries([one, processesOf("x", 0.5), processesOf("y", 0.5)], { limit: 1.1 });
+    expect(read.cases.map((each) => [each.case, each.tries, each.outcome])).toEqual([
+      ["x", 2, "within"],
+      ["y", 1, "within"],
+    ]);
+    // One try alone gives the read of benchRead.
+    expect(benchReadOfTries([one], { limit: 1.1 })).toEqual(benchRead(one.processes, one.aa, { limit: 1.1 }));
+    expect(benchSummaryOf(read, { base: "a".repeat(40), head: "b".repeat(40) })).toContain("| Outcome | Tries |");
+  });
+
+  it("cannot decide a case when one try is beyond the limit and the pool of the tries is within", () => {
+    const read = benchReadOfTries([processesOf("x", 0.5), processesOf("x", 0.5), processesOf("x", 0.5), processesOf("x", 3)], { limit: 1.1 });
+    const [x] = read.cases;
+    expect(x?.ratio).toBeLessThan(1);
+    expect(x?.opposed).toEqual(["try 4"]);
+    expect(x?.outcome).toBe("cannot decide");
+    expect(read.gate.outcome).toBe("no read");
   });
 });
 
 describe("benchGate", () => {
+  it("pools the records of the tries of a case, and a case is the same only when each try gives the same value", () => {
+    const result = benchGate([recordOf("x", 0.5), recordOf("y", 0.5), recordOf("x", 0.5)], ["x", "y"]);
+    expect(result.read.cases.map((each) => [each.case, each.tries])).toEqual([
+      ["x", 2],
+      ["y", 1],
+    ]);
+    expect(result.read.gate.outcome).toBe("pass");
+    const changed = benchGate([recordOf("x", 0.5), recordOf("x", 0.5, false)], ["x"]);
+    expect(changed.changed).toEqual(["x"]);
+    expect(changed.read.cases[0]?.same).toBe(false);
+  });
+
   it("reads the records of all the cases, and names the cases with no record and the changed cases", () => {
     const result = benchGate([recordOf("x", 0.5), recordOf("y", 0.6, false)], ["x", "y", "z"]);
     expect(result.read.cases.map((each) => each.case)).toEqual(["x", "y"]);

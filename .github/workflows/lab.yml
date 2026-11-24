@@ -3,8 +3,11 @@
 # runner, and the check of their records.
 #
 # - Each night, the schedule starts each plan with the trigger "schedule".
-# - A pull request that changes the lab, the model, the lockfile or this file starts each plan with the trigger
+# - A pull request that changes the lab, the model, the laws, the lockfile or this file starts each plan with the trigger
 #   "pull_request". A push of such a change to main does the same.
+# - The gate plan gate-rate has the trigger "pull_request" too (CAP-60). A pull request starts it only when it changes a
+#   file of the gate: the subject, the harness (its version is in the lockfile), the laws or the gate. The step gate of
+#   the job changes gives that answer.
 # - A person starts plans by hand. For example, 5 runs of the plan control, each on its own runner, 3 at once:
 #     gh workflow run lab.yml -R mark1russell7/capacity --ref <branch> -f plans=control -f runs='[1,2,3,4,5]'
 #
@@ -15,7 +18,8 @@
 #
 # The job gate starts when the run has a gate plan (the field gate). It reads the records of each job of the run and
 # compares them with the laws of the plan of the laws (gate.main.ts). A gate that does not give the outcome that its plan
-# expects fails the job. A gate with no read fails the job too: no read is not a pass.
+# expects fails the job. A gate with no read fails the job too: no read is not a pass. A gate plan has 13 jobs: a runner
+# gets its CPU model at random, and 13 jobs give 2 jobs on the CPU model with laws 99 times in 100 (gateJobsFor).
 #
 # The bench of the scale query times the head against its base commit, one job for each case (bench-scale.main.ts). A pull
 # request always starts it. In a pull request, the head is the merge commit of the checkout, and its base is the first parent
@@ -61,6 +65,7 @@ on:
       - ".github/workflows/lab.yml"
       - "packages/lab/**"
       - "packages/capacity/src/**"
+      - "packages/capacity/laws/**"
       - "pnpm-lock.yaml"
 
 permissions:
@@ -81,6 +86,7 @@ jobs:
       pull-requests: read
     outputs:
       match: ${{ steps.changes.outputs.match }}
+      gate: ${{ steps.gate.outputs.match }}
     steps:
       - id: changes
         uses: mark1russell7/template/.github/actions/changes@b00e6c77be906feac2a505888bab26be99d5c4c5 # main
@@ -89,7 +95,26 @@ jobs:
             .github/workflows/lab.yml
             packages/lab/**
             packages/capacity/src/**
+            packages/capacity/laws/**
             pnpm-lock.yaml
+      # The files of the gate plans: the subject and the cell (packages/lab/src), the harness (its version is in the
+      # lockfile and in the package file of the lab), the laws and their plans, and the gate of the model. Each path is
+      # also a path of the step changes. A schedule, a push and a dispatch give a match.
+      - id: gate
+        uses: mark1russell7/template/.github/actions/changes@b00e6c77be906feac2a505888bab26be99d5c4c5 # main
+        with:
+          paths: |
+            .github/workflows/lab.yml
+            pnpm-lock.yaml
+            packages/lab/package.json
+            packages/lab/src/**
+            !packages/lab/src/**/*.test.ts
+            packages/lab/plans/floor.json
+            packages/lab/plans/rate.json
+            packages/lab/plans/gate-*.json
+            packages/capacity/laws/**
+            packages/capacity/src/**
+            !packages/capacity/src/**/*.test.ts
 
   plan:
     needs: changes
@@ -113,6 +138,7 @@ jobs:
       - run: pnpm install --frozen-lockfile
       # A plan file with a problem, an unknown id and a selection with no plan stop the run here.
       # A pull request always gets the plans and the bench. A dispatch with bench "only" gets no plan.
+      # A pull request that changes no file of the gate gets no gate plan (GATES is false).
       - id: plan
         name: The plans of the run
         env:
@@ -120,13 +146,14 @@ jobs:
           PLANS: ${{ inputs.plans }}
           RUNS: ${{ inputs.runs }}
           BENCH: ${{ inputs.bench }}
+          GATES: ${{ needs.changes.outputs.gate }}
         run: |
           if [ "$EVENT" = "workflow_dispatch" ] && [ "$BENCH" = "only" ]; then
             matrix='[]'
             gates='[]'
           else
-            matrix=$(node packages/lab/src/timed.main.ts plan --event "$EVENT" --plans "$PLANS" --runs "$RUNS")
-            gates=$(node packages/lab/src/timed.main.ts gates --event "$EVENT" --plans "$PLANS")
+            matrix=$(node packages/lab/src/timed.main.ts plan --event "$EVENT" --plans "$PLANS" --runs "$RUNS" --gates "$GATES")
+            gates=$(node packages/lab/src/timed.main.ts gates --event "$EVENT" --plans "$PLANS" --gates "$GATES")
           fi
           if [ "$EVENT" = "pull_request" ] || { [ "$EVENT" = "workflow_dispatch" ] && [ "$BENCH" != "none" ]; }; then
             bench=$(node packages/lab/src/bench-scale.main.ts cases)
@@ -300,9 +327,9 @@ jobs:
           RECORDS: ${{ runner.temp }}/bench-records
         run: node packages/lab/src/bench-scale.main.ts gate --records "$RECORDS" --again-out "$GITHUB_OUTPUT"
 
-  # The second try of the cases with no read (CAP-82). A fresh runner measures each case again, because the noise of a
-  # runner belongs to its job, and 18 rounds narrow the interval of the noise. Each case still has the verdict of one
-  # job, so a noisy job cannot pass.
+  # The second try of the cases with no read (CAP-82, CAP-84). Two fresh runners measure each case again, because the noise
+  # of a runner belongs to its job, and 18 rounds narrow the interval of the noise. The gate pools the rounds of all the
+  # tries of a case. A try with the opposite outcome makes the case cannot decide, so a noisy job cannot pass.
   bench-again:
     needs: [plan, bench-gate]
     if: ${{ !cancelled() && needs.bench-gate.result == 'success' && needs.bench-gate.outputs.again != '' && needs.bench-gate.outputs.again != '[]' }}
@@ -340,7 +367,7 @@ jobs:
           path: ${{ runner.temp }}/bench-records
           if-no-files-found: warn
 
-  # The gate after the second try: the records of the second try replace the records of their cases. This gate decides.
+  # The gate after the second try: the read of each case pools the records of all its tries. This gate decides.
   bench-final:
     needs: [plan, bench-gate, bench-again]
     if: ${{ !cancelled() && needs.bench-gate.result == 'success' && needs.bench-gate.outputs.again != '' && needs.bench-gate.outputs.again != '[]' }}

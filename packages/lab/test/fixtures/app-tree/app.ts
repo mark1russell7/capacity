@@ -5,6 +5,8 @@
  * - `server`: the app serves the port, and it closes the server at `SIGTERM`.
  * - `exit`: the app ends with the code 3 before the end of the watch.
  * - `fail`: the app fails at its import.
+ * - `lines`: the app writes a line `fixture-write` before its ready line, and one more in two chunks after it. Then it
+ *   writes a line `fixture-pass` each 10 milliseconds. It also writes a line that is not JSON and a line of another event.
  * - With no mode, the app writes its ready line, and it has no listener of `SIGTERM`.
  */
 import { readdirSync } from "node:fs";
@@ -24,6 +26,14 @@ if (mode === "server") {
   });
   server.listen(Number(values.port), "127.0.0.1");
   process.once("SIGTERM", () => server.close());
+} else if (mode === "lines") {
+  console.log(JSON.stringify({ ev: "fixture-write", longestMs: 3, writeMs: 2, rowsMs: 1, wallMs: 4, cpuMs: 2 }));
+  console.log(`fixture ready with ${files} files`);
+  process.stdout.write('{"ev":"fixture-wr');
+  process.stdout.write('ite","longestMs":7,"other":"x"}\n');
+  console.log("not a JSON line");
+  console.log(JSON.stringify({ ev: "fixture-other" }));
+  setInterval(() => console.log(JSON.stringify({ ev: "fixture-pass" })), 10);
 } else {
   console.log(`fixture ready with ${files} files`);
   if (mode === "exit") setTimeout(() => process.exit(3), 10);

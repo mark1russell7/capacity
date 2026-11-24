@@ -315,7 +315,7 @@ A timed run is one job of the workflow `lab.yml`: it measures one plan on one ru
 | Event | The plans |
 | --- | --- |
 | The schedule, each night at 06:22 UTC | Each plan with the trigger `schedule` |
-| A pull request that changes the lab, the model, the lockfile or the workflow | Each plan with the trigger `pull_request` |
+| A pull request that changes the lab, the model, the laws, the lockfile or the workflow | Each plan with the trigger `pull_request`. A gate plan starts only for a change of a file of the gate. |
 | A push of such a change to `main` | Each plan with the trigger `pull_request` |
 | A dispatch by hand, with the input `plans` | The plans of the input. With no input, each plan with the trigger `pull_request`. |
 
@@ -443,16 +443,42 @@ gh workflow run laws.yml -R mark1russell7/capacity -f runs='<run of the plan rat
 
 A gate plan measures the subject again at some points of the laws of another plan. The gate compares each value with the run range of its law (`planGate`). Thus a change of Node, of the runner or of the subject cannot move a law with no signal.
 
-- **The plan.** A gate plan has the check `gate`, the field `gate` and 2 jobs or more. Its id starts with `gate-`.
+- **The plan.** A gate plan has the check `gate`, the field `gate` and 13 jobs or more (`GATE_PLAN_JOBS`). Its id starts with `gate-`.
 - **The cases.** A gate plan has each A/A pair of the plan `floor`, for the noise floor of its job. Its other cases are cases of the plan of the laws, with the same ids. `gatePlanProblems` examines them.
 - **The noise.** A job with a noise floor over its limit (`FLOOR_LIMITS`) gives no read of the laws of that measure.
 - **The laws.** A job reads each law of its CPU model. A job on a CPU model with no law gives no read. The laws of the plan `rate` are on the Intel Xeon 6975P-C only.
+- **The harness.** Each law has the version of `@mark1russell7/harness` as a condition. A record of a different version gives no read. Thus a new version of the harness needs new laws.
 - **The outcome.** `lawGate` of `@mark1russell7/capacity` counts the reads above and below the run range in each job. A side needs 2 jobs or more, and Holm corrects the family. A gate with too few reads gives "no read". No read is not a pass.
 - **The proof.** A case can add a CPU time to each request (`cost`, in us). A plan with a cost expects a block (`expectedOf`). Each other gate plan expects a pass.
 
-The plans `gate-rate` and `gate-rate-cost` measure 4 rates of the plan `rate` from 300 to 3000 requests each second, in 12 jobs each night. The second plan adds 100 us to each request, thus its gate must block. Thus each night shows that the gate can block, and that the subject agrees with its laws.
+The plans `gate-rate` and `gate-rate-cost` measure 4 rates of the plan `rate` from 300 to 3000 requests each second, in 13 jobs each night. The second plan adds 100 us to each request, thus its gate must block. Thus each night shows that the gate can block, and that the subject agrees with its laws.
 
-The count of jobs comes from the share of the CPU model of the laws. In the first run of the two plans, 5 of 12 jobs had the Intel Xeon 6975P-C. With 6 jobs, a night at that share gives no read of a plan 1 time in 5. With 12 jobs, the chance is less than 2 in 100. The item CAP-60 calculates the count of jobs from the share of each CPU model in the runs.
+The plan `gate-rate` also starts on a pull request that changes a file of the gate (CAP-60). The step `gate` of the job `changes` finds these files:
+
+| Part | The files |
+| --- | --- |
+| The subject and the cell | `packages/lab/src/**`, other than the tests |
+| The harness | `pnpm-lock.yaml` and `packages/lab/package.json`: they have the version of `@mark1russell7/harness` |
+| The laws | `packages/capacity/laws/**`, and the plans `floor`, `rate` and `gate-*` |
+| The gate | `packages/capacity/src/**`, other than the tests, and the workflow `lab.yml` |
+
+A pull request that changes no such file starts no gate plan. The plan `gate-rate-cost` starts only each night.
+
+### The count of jobs of a gate plan
+
+A runner gets its CPU model at random, and a side of a law needs 2 jobs on the CPU model with laws. Thus the count of jobs comes from the share of that CPU model.
+
+- **The share.** In the Lab run 45016177414 of CAP-26, 5 of 12 jobs had the Intel Xeon 6975P-C (`LAW_CPU_SHARE`). The others had the AMD EPYC 7763 (4), the Intel Xeon Platinum 8573C (2), the Intel Xeon Platinum 8370C (1) and the AMD EPYC 9V74 (1).
+- **The target.** A plan gets fewer than 2 such jobs less than 1 time in 100 (`GATE_MISS`).
+- **The count.** `gateJobsFor` gives the least count n with P(X ≤ 1) below the target, for X ~ Binomial(n, 5/12). The chance comes from `binomialTest` of `@mark1russell7/rigor-statistics`.
+
+| Jobs | The chance of fewer than 2 jobs on the CPU model with laws |
+| ---: | ---: |
+| 6 | 0.21 |
+| 12 | 0.015 |
+| 13 | 0.009 |
+
+Thus a gate plan has 13 jobs. `planProblems` refuses a gate plan with fewer. A noise floor over its limit also gives no read of a job, and the target does not include it.
 
 The job `gate` of the workflow `lab.yml` starts after the jobs of the plans. It downloads the artifacts `lab-gate-*`, then it starts the command:
 
@@ -507,7 +533,13 @@ An app case has the field `app`: the HTTPS URL of the repository of an app with 
 - The app is ready at its ready signal: a line of its output, or the status 200 of a path on a free port.
 - After the watch, `app-start` sends SIGTERM to its process and measures the close. An app with no listener of SIGTERM has no close time.
 
-An app has no pass of the lab. Thus `limit` is the longest start to the ready signal, and a reading of an app has no first pass.
+The lab does not time the first pass of an app. Thus `limit` is the longest start to the ready signal, and a reading of an app has no first pass.
+
+The lines of the run in the contract give the passes and the writes of the snapshot. `app-start` reads each write of the app to stdout and to stderr.
+
+- `passes` is the count of the lines `pass` from ready to the end of the watch.
+- `writes` is each line `write` to the end of the watch, with its times. The measures `writes` to `writeCpu` read them.
+- A run with no line of a kind gives null for its field. The recorder keeps at most 100,000 lines of each kind.
 
 The lab examines the contract of each tree before the seed, with `appCaseProblems`:
 
@@ -560,7 +592,30 @@ The first run of the plan is [Lab run 45247869988](https://github.com/mark1russe
 - The cores increase linearly with the rate. One event costs approximately 7 ms of CPU time.
 - The live heap and the GC time increase with the rate. At 100 events each second, each of the 10 starts reached the heap limit of V8 (556 MB).
 - Thus the heap limit is the first resource that binds, at a rate from 30 to 100 events each second.
-- The jobs are on 3 CPU models. A law needs 5 jobs and 40 points on one CPU model, thus this run gives no law. CAP-36 adds runs and fits the laws.
+- The jobs are on 3 CPU models. A law needs 5 jobs and 40 points on one CPU model, thus this run gives no law.
+
+The second run is the Lab run [45351701555](https://github.com/mark1russell7/capacity/actions/runs/45351701555), with 15 jobs. The run [45382785749](https://github.com/mark1russell7/capacity/actions/runs/45382785749) of `laws.yml` fits the laws over the two runs (CAP-36).
+
+- The 15 jobs on the Intel Xeon 6975P-C give 4 laws, with 75 points from 0 to 30 events each second. The other CPU models have too few jobs.
+- Each law is of the arm `main` at the first start. The intervals are 95 % intervals over whole jobs.
+
+| The measure | The law | The limit that it reaches |
+| --- | --- | --- |
+| `watchCores` | A line: 0.0130 [0.0090, 0.0162] cores, and 5.46 ms [4.62, 6.61] of CPU time for each event | 1 core at 181 [150, 213] events each second |
+| `watchHeapPeak` | A hinge: 207.1 MB, and 20.4 MB for each event each second to the bend at 6.2 [0.5, 7.4] events each second. After the bend, 4.9 MB. | The heap limit of V8 at 52 [42, 59] events each second |
+| `watchPeak` | A line: 412.0 MB [407.6, 416.5], and 12.41 MB [12.06, 12.81] for each event each second | The memory limit of the target at 48 [47, 50] events each second |
+| `ready` | A constant: 5.15 s [4.98, 5.34] | None. The rate of events does not change the time to ready. |
+
+- The memory binds first, not the CPU. At 48 events each second, the law of the cores gives 0.28 cores of the 2 CPUs of the target.
+- The two limits of the memory are at 48 and 52 events each second, and their intervals overlap. Thus the lab cannot tell which limit comes first.
+- The two reaches are outside the range of the fit. The failures at 100 events each second agree with them: each child reached the heap limit of V8.
+- CAP-86 adds rungs from 30 to 100 events each second. Then the first limit is inside the range of a fit.
+- At 30 events each second, two jobs give 0.31 and 0.33 cores, two times the median of 0.155. The line still has the smallest error on the held-out jobs.
+- The rule `floor` with the share 1 gives the knees in events each second:
+  - `watchCores` at 2.4 [1.4, 3.5]
+  - `watchHeapPeak` at 23.0 [19.2, 25.4]
+  - `watchPeak` at 33.2 [32.0, 34.3].
+- The CPU time of one event is less than the 7 ms of the first run. That value was a median over 3 CPU models.
 
 #### The load ladder of updates
 
@@ -728,7 +783,7 @@ The plan `alerts-start-app` starts alerts from its contract, on the commit of th
 
 - The case `alerts-start-app/contract` starts alerts from `capacity-app.json`. It seeds with the seed `al124` and the cache sizes of one live copy.
 - The two arms are the same build. The arm `deploy` adds the ballast of the deploy process at ready.
-- The contract gives the passes and the writes of the snapshot after CAP-65. Then a change removes the start subject `alerts` and its programs.
+- The contract can give the passes and the writes of the snapshot (CAP-65). The contract of alerts names them after alerts writes a line for each write. Then a change removes the start subject `alerts` and its programs.
 
 #### The results of the plans of the start of alerts
 

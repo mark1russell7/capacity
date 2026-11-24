@@ -8,17 +8,21 @@
 
 APP_FILE: build/instance.chunk.d.ts#APP_FILE
 APP_FORMAT: build/instance.chunk.d.ts#APP_FORMAT
+APP_LINE_KINDS: build/instance.chunk.d.ts#APP_LINE_KINDS
 type AmountCeiling: build/instance.chunk.d.ts#AmountCeiling
 type Amounts: build/instance.chunk.d.ts#Amounts
 type AppClass: build/instance.chunk.d.ts#AppClass
 type AppCommand: build/instance.chunk.d.ts#AppCommand
 type AppContract: build/instance.chunk.d.ts#AppContract
 type AppEntry: build/instance.chunk.d.ts#AppEntry
+type AppLine: build/instance.chunk.d.ts#AppLine
+type AppLineKind: build/instance.chunk.d.ts#AppLineKind
 type AppProblem: build/instance.chunk.d.ts#AppProblem
 type AppProblemCode: build/instance.chunk.d.ts#AppProblemCode
 type AppProcess: build/instance.chunk.d.ts#AppProcess
 type AppRange: build/instance.chunk.d.ts#AppRange
 type AppReady: build/instance.chunk.d.ts#AppReady
+type AppRun: build/instance.chunk.d.ts#AppRun
 type AppSeries: build/instance.chunk.d.ts#AppSeries
 type AppService: build/instance.chunk.d.ts#AppService
 type AppStart: build/instance.chunk.d.ts#AppStart
@@ -736,6 +740,9 @@ declare const APP_FILE = "capacity-app.json";
 ### build/instance.chunk.d.ts#APP_FORMAT
 declare const APP_FORMAT = "capacity-app/1";
 
+### build/instance.chunk.d.ts#APP_LINE_KINDS
+declare const APP_LINE_KINDS: readonly ["pass", "write"];
+
 ### build/instance.chunk.d.ts#AmountCeiling
 interface AmountCeiling {
   readonly kind: "amount";
@@ -777,6 +784,16 @@ interface AppContract {
 ### build/instance.chunk.d.ts#AppEntry
 type AppEntry = HttpEntry | ServiceEntry;
 
+### build/instance.chunk.d.ts#AppLine
+interface AppLine {
+  readonly kind: AppLineKind;
+  readonly ev: string;
+  readonly title: string;
+}
+
+### build/instance.chunk.d.ts#AppLineKind
+type AppLineKind = (typeof APP_LINE_KINDS)[number];
+
 ### build/instance.chunk.d.ts#AppProblem
 type AppProblem = Problem<AppProblemCode>;
 
@@ -805,6 +822,11 @@ type AppReady = {
   readonly path: string;
 };
 
+### build/instance.chunk.d.ts#AppRun
+interface AppRun extends AppProcess {
+  readonly lines?: readonly AppLine[] | undefined;
+}
+
 ### build/instance.chunk.d.ts#AppSeries
 interface AppSeries {
   readonly id: string;
@@ -825,7 +847,7 @@ interface AppStart {
   readonly install?: AppCommand | undefined;
   readonly check?: AppCommand | undefined;
   readonly seed?: AppCommand | undefined;
-  readonly run: AppProcess;
+  readonly run: AppRun;
 }
 
 ### build/instance.chunk.d.ts#AppVariable
