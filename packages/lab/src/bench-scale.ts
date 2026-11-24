@@ -150,7 +150,10 @@ export const pairedTimes = (processes: readonly ArmProcess[], base: string = BAS
   );
 };
 
-/** The read of one case: the median time of each arm, the ratio of the head with its interval and its outcome. It also tells if the results are equal. */
+/**
+ * The read of one case: the median time of each arm, the ratio of the head with its interval, its bound and its outcome. It
+ * also tells if the results are equal.
+ */
 export interface BenchCaseRead {
   readonly case: string;
   readonly baseMs: number;
@@ -158,6 +161,10 @@ export interface BenchCaseRead {
   readonly ratio: number;
   readonly low: number;
   readonly high: number;
+  /** This number is the noise of the A/A rounds of the case, on a log scale. */
+  readonly noise: number;
+  /** This number is the high end of the interval, widened by the A/A noise. The case is `within` when it is at most the limit. */
+  readonly bound: number;
   readonly outcome: LimitVerdict["outcome"];
   /** This flag tells that the base and the head give the same value. It is undefined when the bench did not compare them. */
   readonly same: boolean | undefined;
@@ -202,6 +209,8 @@ export const benchRead = (processes: readonly ArmProcess[], aa: readonly PairedT
     ratio: each.ratio,
     low: each.low,
     high: each.high,
+    noise: each.noise,
+    bound: each.bound,
     outcome: each.outcome,
     same: options.same?.get(each.case),
   }));
@@ -214,15 +223,15 @@ const fixed = (value: number, digits: number): string => (Number.isFinite(value)
 export const benchSummaryOf = (read: BenchRead, commits: { readonly base: string; readonly head: string }): string => {
   const rows = read.cases.map((each) => {
     const same = each.same === undefined ? "not compared" : each.same ? "yes" : "**no**";
-    return `| ${escapeMarkdown(each.case)} | ${fixed(each.baseMs, 1)} | ${fixed(each.headMs, 1)} | ${fixed(each.ratio, 3)} | ${fixed(each.low, 3)} to ${fixed(each.high, 3)} | ${each.outcome} | ${same} |`;
+    return `| ${escapeMarkdown(each.case)} | ${fixed(each.baseMs, 1)} | ${fixed(each.headMs, 1)} | ${fixed(each.ratio, 3)} | ${fixed(each.low, 3)} to ${fixed(each.high, 3)} | ${fixed(each.noise, 3)} | ${fixed(each.bound, 3)} | ${each.outcome} | ${same} |`;
   });
   return [
     `## The bench of the scale query`,
     ``,
-    `The base is \`${commits.base.slice(0, 12)}\` and the head is \`${commits.head.slice(0, 12)}\`. The limit of each case is ${read.verdict.limit} times the time of the base.`,
+    `The base is \`${commits.base.slice(0, 12)}\` and the head is \`${commits.head.slice(0, 12)}\`. The limit of each case is ${read.verdict.limit} times the time of the base. The bound is the high end of the interval times the A/A noise of the case, as a ratio. A case is within the limit only when its bound is at most the limit.`,
     ``,
-    `| Case | Base (ms) | Head (ms) | Head / base | Interval | Outcome | Same result |`,
-    `| --- | --- | --- | --- | --- | --- | --- |`,
+    `| Case | Base (ms) | Head (ms) | Head / base | Interval | A/A noise | Bound | Outcome | Same result |`,
+    `| --- | --- | --- | --- | --- | --- | --- | --- | --- |`,
     ...rows,
     ``,
     `The gate gives **${read.gate.outcome}**: ${read.gate.reason}`,

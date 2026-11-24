@@ -129,6 +129,10 @@ describe("benchRead", () => {
     expect(read.gate.outcome).toBe("pass");
     expect(read.cases[0]?.ratio).toBeCloseTo(0.5, 2);
     expect(read.cases[0]?.headMs).toBeLessThan(read.cases[0]?.baseMs ?? 0);
+    // The bound is the high end of the interval, widened by the A/A noise of the case.
+    const one = read.cases[0];
+    expect(one?.bound).toBeCloseTo((one?.high ?? 0) * Math.exp(one?.noise ?? 0), 9);
+    expect(benchSummaryOf(read, { base: "a".repeat(40), head: "b".repeat(40) })).toContain("| A/A noise | Bound |");
   });
 
   it("blocks a head that takes twice the time of the base", () => {
