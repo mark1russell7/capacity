@@ -1,7 +1,7 @@
 import { mean, median, noiseFloor } from "@mark1russell7/rigor-statistics";
 import type { Check, CheckProblem } from "./check.ts";
 import { caseValue, countProblems, lagProblems, measured, worstLag } from "./reads.ts";
-import type { CaseRecord, LoopMeasure } from "./record.ts";
+import type { CaseRecord } from "./record.ts";
 
 /**
  * This count is the A/A pairs of the plan `floor`. It is the fewest values that give a noise floor:
@@ -12,7 +12,10 @@ export const FLOOR_PAIRS = 5;
 /** This number is the count of standard deviations of a noise floor. */
 export const FLOOR_K = 2;
 
-/** A floor measure is the name of a measure that gets a noise floor: a measure of the laws. */
+/**
+ * A floor measure is the name of a measure that gets a noise floor: a measure of the laws. The last
+ * three are the event loop of the subject (`LOOP_MEASURES`). A lab before CAP-68 does not give them.
+ */
 export type FloorMeasure =
   | "cpu.request"
   | "memory"
@@ -21,7 +24,10 @@ export type FloorMeasure =
   | "network.tx.request"
   | "latency.p50"
   | "latency.p90"
-  | "latency.p99";
+  | "latency.p99"
+  | "loop.lag.mean"
+  | "loop.lag.max"
+  | "loop.busy";
 
 /** These measures are the measures that get a noise floor, in the order of the summary. */
 export const FLOOR_MEASURES: readonly FloorMeasure[] = [
@@ -33,15 +39,20 @@ export const FLOOR_MEASURES: readonly FloorMeasure[] = [
   "latency.p50",
   "latency.p90",
   "latency.p99",
+  "loop.lag.mean",
+  "loop.lag.max",
+  "loop.busy",
 ];
 
 /**
  * These limits are the highest noise floor of each measure that the check accepts. A higher floor
  * tells that the runners became noisier. Then a law cannot see a change of that size.
  *
- * The limits come from the 5 runs of the plan `floor` in the Lab run 44467543161, on four CPU models
- * (AMD EPYC 9V45 and 9V74, Intel Xeon 6975P-C and Xeon Platinum 8573C). Each limit is the worst
- * floor plus the spread of the floors (the highest less the lowest), rounded outward.
+ * The first eight limits come from the 5 runs of the plan `floor` in the Lab run 44467543161. These runs used
+ * four CPU models: AMD EPYC 9V45 and 9V74, Intel Xeon 6975P-C and Xeon Platinum 8573C. The limits of the loop measures
+ * come from the 5 runs of the plan `floor` in the Lab run 45467258929 at 581de05. These runs used three CPU models:
+ * AMD EPYC 9V74 and 7763, and Intel Xeon 6975P-C in three runs. Each limit is the worst floor plus the spread of the
+ * floors (the highest less the lowest), rounded outward.
  */
 export const FLOOR_LIMITS: Readonly<Record<FloorMeasure, number>> = {
   // the floors 0.011546 to 0.079390 ms, spread 0.067844: 0.147233
@@ -60,13 +71,13 @@ export const FLOOR_LIMITS: Readonly<Record<FloorMeasure, number>> = {
   "latency.p90": 0.705,
   // the floors 0.116415 to 1.709008 ms, spread 1.592593: 3.301601
   "latency.p99": 3.302,
+  // the floors 0.054121 to 0.226360 ms, spread 0.172239: 0.398599
+  "loop.lag.mean": 0.399,
+  // the floors 0.463467 to 1.782471 ms, spread 1.319003: 3.101474
+  "loop.lag.max": 3.102,
+  // the floors 0.120191 to 0.460423 %, spread 0.340232: 0.800655
+  "loop.busy": 0.801,
 };
-
-/**
- * These measures get a floor, a level and a bias, but no limit: the event loop of the subject (`LOOP_MEASURES`). The part 2
- * of CAP-68 gives the limit of each from 5 runs of the plan `floor`, and then it moves them to `FLOOR_MEASURES`.
- */
-export const LOOP_FLOOR_MEASURES: readonly LoopMeasure[] = ["loop.lag.mean", "loop.lag.max", "loop.busy"];
 
 /** The ids of the two cases of one A/A pair. */
 export interface FloorPair {
@@ -92,8 +103,8 @@ export const FLOOR_IDS: readonly string[] = Array.from({ length: FLOOR_PAIRS }, 
  * - `lag.max.worst` is the largest lag of the driver in a run.
  *
  * Each measure of `FLOOR_MEASURES` gets these values. A record that is not there, and a run with no
- * read of a measure, are problems. A measure with no read in a pair gets no value. Each measure of
- * `LOOP_FLOOR_MEASURES` gets the same values, with no limit.
+ * read of a measure, are problems. A measure with no read in a pair gets no value. A record of a lab
+ * before CAP-68 has no loop measures, thus they get no value and give no problem.
  */
 export const floorCheck: Check = (records) => {
   const find = (id: string): CaseRecord | undefined => records.find((record) => record.case.id === id);
@@ -111,7 +122,7 @@ export const floorCheck: Check = (records) => {
   const cases = pairs.flatMap(({ a, b }) => [a, b]);
   problems.push(...cases.flatMap((record) => [...countProblems(record), ...lagProblems(record)]));
   const values: Record<string, number> = {};
-  for (const name of [...FLOOR_MEASURES, ...LOOP_FLOOR_MEASURES]) {
+  for (const name of FLOOR_MEASURES) {
     const differences: number[] = [];
     const levels: number[] = [];
     for (const { a, b } of pairs) {
