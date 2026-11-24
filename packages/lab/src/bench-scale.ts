@@ -358,8 +358,8 @@ export const benchGate = (records: readonly BenchRecord[], cases: readonly strin
     changed: changed.map((each) => each.case),
     intended: intended.map((each) => {
       const times = armTimes(each.processes);
-      const median = (arm: string): number => times.find((time) => time.arm === arm)?.median ?? Number.NaN;
-      return { case: each.case, baseMs: median(BASE_ARM), headMs: median(HEAD_ARM), reason: (changeOf(each) as BenchChange).reason };
+      const timeOfArm = (arm: string): number => times.find((time) => time.arm === arm)?.median ?? Number.NaN;
+      return { case: each.case, baseMs: timeOfArm(BASE_ARM), headMs: timeOfArm(HEAD_ARM), reason: (changeOf(each) as BenchChange).reason };
     }),
     unexplained: changed.filter((each) => changeOf(each) === undefined).map((each) => each.case),
     unused: changes.filter((each) => !used.has(each)).map((each) => each.case),
