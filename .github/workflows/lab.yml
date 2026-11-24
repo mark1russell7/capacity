@@ -298,9 +298,9 @@ jobs:
           RECORDS: ${{ runner.temp }}/bench-records
         run: node packages/lab/src/bench-scale.main.ts gate --records "$RECORDS" --again-out "$GITHUB_OUTPUT"
 
-  # The second try of the cases with no read (CAP-82). A fresh runner measures each case again, because the noise of a
-  # runner belongs to its job, and 18 rounds narrow the interval of the noise. Each case still has the verdict of one
-  # job, so a noisy job cannot pass.
+  # The second try of the cases with no read (CAP-82, CAP-84). Two fresh runners measure each case again, because the noise
+  # of a runner belongs to its job, and 18 rounds narrow the interval of the noise. The gate pools the rounds of all the
+  # tries of a case. A try with the opposite outcome makes the case cannot decide, so a noisy job cannot pass.
   bench-again:
     needs: [plan, bench-gate]
     if: ${{ !cancelled() && needs.bench-gate.result == 'success' && needs.bench-gate.outputs.again != '' && needs.bench-gate.outputs.again != '[]' }}
@@ -338,7 +338,7 @@ jobs:
           path: ${{ runner.temp }}/bench-records
           if-no-files-found: warn
 
-  # The gate after the second try: the records of the second try replace the records of their cases. This gate decides.
+  # The gate after the second try: the read of each case pools the records of all its tries. This gate decides.
   bench-final:
     needs: [plan, bench-gate, bench-again]
     if: ${{ !cancelled() && needs.bench-gate.result == 'success' && needs.bench-gate.outputs.again != '' && needs.bench-gate.outputs.again != '[]' }}
