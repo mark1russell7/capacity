@@ -112,6 +112,24 @@ describe("the scale rule of alerts", () => {
     expect(factorOf(reach.factor)).toBeGreaterThan(factorOf(reachOf(alertsOn("small-cloud-1gb")).factor));
   }, 2 * QUERY_TIME);
 
+  it("gives fewer events at the log of the live store, 197,156,864 B, than at the base log of 16 MiB", () => {
+    // The memory of the watch grows with the log: 371 MB at 16 MiB, and approximately 455 MB at 188 MiB.
+    const live = { persons: { value: 2, unit: "{person}" }, feeds: { value: 5, unit: "{feed}" } };
+    const reach = reachOf(alertsOn("small-cloud-1gb"), ONE_EVENT, { ...live, log: { value: 197_156_864, unit: "B" } });
+    expect(reach.binding).toBe("memory");
+    expect(factorOf(reach.factor)).toBeCloseTo(3.82, 1);
+    expect(reach.factor.interval.low).toBeGreaterThan(3.1);
+    expect(reach.factor.interval.high).toBeLessThan(4.7);
+    expect(factorOf(reach.factor)).toBeLessThan(factorOf(reachOf(alertsOn("small-cloud-1gb"), ONE_EVENT, live).factor) / 2);
+  }, 2 * QUERY_TIME);
+
+  it("holds each log of the contract with no events on the small cloud machine", () => {
+    // The log law ends at 382 MiB, the largest log of the contract. The reach is past it, thus each log of the range fits.
+    const reach = reachOf(alertsOn("small-cloud-1gb"), { classes: [], levels: { log: { value: 1, unit: "MiB" } } }, { event: { value: 0, unit: "{event}/s" }, persons: { value: 2, unit: "{person}" }, feeds: { value: 5, unit: "{feed}" } });
+    expect(reach.binding).toBe("memory");
+    expect(reach.factor.interval.low).toBeGreaterThan(382.1875);
+  }, QUERY_TIME);
+
   it("gives the CPU as the first limit of the persons on the small cloud machine, at 469 persons with no events", () => {
     // The CPU of the watch grows as a power of the persons: 0.57 core at 3000 persons. 0.25 core, less 30 % of headroom, is 0.175 core.
     const reach = reachOf(alertsOn("small-cloud-1gb"), { classes: [], levels: { persons: { value: 1, unit: "{person}" } } }, { event: { value: 0, unit: "{event}/s" } }, 100_000);

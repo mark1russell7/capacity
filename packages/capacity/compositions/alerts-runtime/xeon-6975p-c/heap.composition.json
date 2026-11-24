@@ -1,7 +1,7 @@
 {
   "format": "capacity-composition/1",
   "id": "alerts-runtime/xeon-6975p-c/heap",
-  "title": "The highest used heap of the alerts process under the load of the events, the persons and the feeds on the Intel Xeon 6975P-C",
+  "title": "The highest used heap of the alerts process under the load of the events, the persons, the feeds and the log on the Intel Xeon 6975P-C",
   "subject": "alerts-runtime",
   "measure": {
     "id": "heap",
@@ -29,6 +29,16 @@
         "feeds": {
           "value": 10,
           "unit": "{feed}"
+        }
+      }
+    },
+    {
+      "law": "alerts-runtime/alerts-start-log/xeon-6975p-c/main/first/watch-heap-peak",
+      "over": "instance",
+      "base": {
+        "log": {
+          "value": 16,
+          "unit": "MiB"
         }
       }
     }
