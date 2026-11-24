@@ -15,10 +15,10 @@
       "arms": [
         {
           "id": "main",
-          "commit": "4dc4ccda183fa11616c97c8a6bf2170a263fcf93"
+          "commit": "10e3d8208bca47b4b8398c32985693e7f0a2330d"
         }
       ],
-      "seeder": "4dc4ccda183fa11616c97c8a6bf2170a263fcf93",
+      "seeder": "10e3d8208bca47b4b8398c32985693e7f0a2330d",
       "seed": "al126",
       "rounds": 1,
       "watch": {

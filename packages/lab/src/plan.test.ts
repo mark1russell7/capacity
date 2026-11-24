@@ -164,8 +164,8 @@ describe("the plan files of the lab", () => {
     // CAP-62 also moved the log ladder to the contract of alerts, in the plan alerts-start-log.
     const plans = [
       ["alerts-start-log", ["alerts-start-log/ladder"], ["main"]],
-      ["alerts-start-bytes-mean", ["alerts-start/bytes-mean"], ["cloud", "main"]],
-      ["alerts-start-bytes-peak", ["alerts-start/bytes-peak"], ["cloud", "main"]],
+      ["alerts-start-bytes-mean", ["alerts-start/bytes-mean"], ["main"]],
+      ["alerts-start-bytes-peak", ["alerts-start/bytes-peak"], ["main"]],
     ] as const;
     for (const [id, cases, arms] of plans) {
       const start = readPlans(PLANS).plans.find((each) => each.id === id);
@@ -194,21 +194,23 @@ describe("the plan files of the lab", () => {
     expect(planMinutes(plan!)).toBeLessThanOrEqual(MAX_JOB_MINUTES);
   });
 
-  it("bracket the knee of the cloud log with one ready fact and one late fact of the cloud arm", () => {
+  it("start alerts from its contract at the knee of the cloud log, with the commit that names the pass and write lines", () => {
     // The two plans of the bytes of the disk keep the points of the knee, and the start after the start of file-1844.
+    // CAP-65 moved them to the contract of alerts at caf260b, the first commit whose contract names the lines pass and write.
+    // The arm cloud (350cff5) has no contract, thus its two facts of the machine stay in the README of the lab, with the run 45001158462.
     for (const id of ["alerts-start-bytes-mean", "alerts-start-bytes-peak"]) {
       const [knee] = readPlans(PLANS).plans.find((each) => each.id === id)?.cases ?? [];
       if (!isStartCase(knee)) throw new Error(`The plan ${id} has no start case.`);
+      expect([knee.app, knee.subject, knee.seeder]).toEqual(["https://github.com/metrograph-labs/alerts.git", "alerts-runtime", "caf260b702ceb1cd8b47ba2880ff6515d568c702"]);
+      expect(knee.arms.map((arm) => arm.commit)).toEqual([knee.seeder]);
+      expect(knee.target.cache).toBe("cold");
       // The cut point is the file of 18:44Z times the share of the body characters up to the last good start.
       expect(knee.points.map((point) => [point.id, point.at["log"]?.value, point.after])).toEqual([
         ["cut-1030", Math.round((197156864 * 154047519) / 158938576), undefined],
         ["file-1844", 197156864, undefined],
         ["file-1844-again", 197156864, "file-1844"],
       ]);
-      expect(knee.observed.map((each) => [each.point, each.arm, each.ready])).toEqual([
-        ["cut-1030", "cloud", true],
-        ["file-1844", "cloud", false],
-      ]);
+      expect(knee.observed).toEqual([]);
     }
   });
 });

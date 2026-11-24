@@ -90,11 +90,29 @@ export const CPUSET_MEASURES = {
   "others.cpuset.steal": "{core}",
 } as const;
 
+/**
+ * These measures are the lag and the busy part of the event loop of the subject in one run, with the unit of each. They
+ * come from the lines `loop` of the subject (`subject/loop.ts`), one line for each span of 100 ms.
+ *
+ * - The lag of a sample is its delay less the resolution of the histogram of the watch.
+ * - `loop.lag.mean` is the mean lag of the samples of the spans. Each span adds its mean times its count, thus the mean has no error.
+ * - `loop.lag.max` is the largest lag of a span. `loop.busy` is the busy time of the loop over the time of the spans.
+ * - Only the spans inside the window of `elapsed` count. A run with no such span gives null.
+ */
+export const LOOP_MEASURES = {
+  "loop.lag.mean": "ms",
+  "loop.lag.max": "ms",
+  "loop.busy": "%",
+} as const;
+
 /** A run measure is the name of a measure of the container. */
 export type RunMeasure = keyof typeof RUN_MEASURES;
 
 /** A load measure is the name of a measure of the driver. */
 export type LoadMeasure = keyof typeof LOAD_MEASURES;
+
+/** A loop measure is the name of a measure of the event loop of the subject. */
+export type LoopMeasure = keyof typeof LOOP_MEASURES;
 
 /** A quantile measure is the name of a quantile measure of the driver. */
 export type QuantileMeasure = "latency.p50" | "latency.p90" | "latency.p99";
@@ -137,13 +155,13 @@ export interface Host {
 }
 
 /**
- * The record of one run: the measures of the container, of the driver and of the CPUs of the CPU sets. A record of
- * an older lab has no cpuset measures.
+ * The record of one run: the measures of the container, of the driver and of the CPUs of the CPU sets. It also has the
+ * measures of the event loop of the subject. A record of an older lab has no cpuset measures and no loop measures.
  */
 export interface RunRecord {
   readonly environment: number;
   readonly index: number;
-  readonly measures: Measures<RunMeasure | LoadMeasure | CpusetMeasure>;
+  readonly measures: Measures<RunMeasure | LoadMeasure | CpusetMeasure | LoopMeasure>;
   /** These measures are the measures of the driver for each class, by the id of the class. */
   readonly classes: Readonly<Record<string, Measures<LoadMeasure>>>;
   /** These names are the counters that went back between the two readings. Their measures are null. */
@@ -247,7 +265,69 @@ const setMeasures = (prefix: "cpuset" | "others.cpuset", shares: CpuShares | und
 export const cpusetMeasures = (cpus: RunCpus | undefined): Measures<CpusetMeasure> =>
   Object.fromEntries([...setMeasures("cpuset", cpus?.target), ...setMeasures("others.cpuset", cpus?.client)]) as Record<CpusetMeasure, Quantity | null>;
 
-/** This function gives the record of one run: the load of each stream from its lines, and the readings of the container. */
+/** The fields of a line `loop` of a subject that a record reads. A delay or a time that the span did not read is null. */
+interface LoopLine {
+  readonly t: number;
+  readonly ms: number;
+  readonly resolution: number;
+  readonly count: number;
+  readonly mean: number | null;
+  readonly max: number | null;
+  readonly active: number | null;
+  readonly idle: number | null;
+}
+
+const isNumber = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value);
+
+/** This function gives the fields of a line `loop`, or undefined for another line or a line with no length or resolution. */
+const loopLineOf = (line: Readonly<Record<string, unknown>>): LoopLine | undefined => {
+  const { ev, t, ms, resolution } = line;
+  if (ev !== "loop" || !isNumber(t) || !isNumber(ms) || !isNumber(resolution)) return undefined;
+  const read = (value: unknown): number | null => (isNumber(value) ? value : null);
+  return { t, ms, resolution, count: read(line["count"]) ?? 0, mean: read(line["mean"]), max: read(line["max"]), active: read(line["active"]), idle: read(line["idle"]) };
+};
+
+/**
+ * This function gives the loop measures of one run from the lines of its subject (`Run.server`) and the readings of its
+ * container. A span counts when it starts after the first reading and ends before the last reading, on CLOCK_MONOTONIC in ns.
+ * A run with no lines, no readings or no span in the window gives null for each measure.
+ */
+export const loopMeasures = (lines: Run["server"], readings: RunResources | undefined): Measures<LoopMeasure> => {
+  if (lines === undefined || readings === undefined) return none(LOOP_MEASURES);
+  const from = readings.start.t1;
+  const to = readings.end.t0;
+  const spans = lines.flatMap((line) => {
+    const span = loopLineOf(line);
+    return span !== undefined && span.t - span.ms * 1e6 >= from && span.t <= to ? [span] : [];
+  });
+  let samples = 0;
+  let lagSum = 0;
+  let most: number | null = null;
+  let active = 0;
+  let total = 0;
+  for (const span of spans) {
+    if (span.mean !== null && span.count > 0) {
+      samples += span.count;
+      lagSum += span.count * (span.mean - span.resolution);
+    }
+    if (span.max !== null) most = Math.max(most ?? 0, span.max - span.resolution);
+    if (span.active !== null && span.idle !== null) {
+      active += span.active;
+      total += span.active + span.idle;
+    }
+  }
+  // a delay below the resolution is a timer that fired early: its lag is 0
+  return {
+    "loop.lag.mean": samples === 0 ? null : quantity(Math.max(0, lagSum / samples), "ms"),
+    "loop.lag.max": most === null ? null : quantity(Math.max(0, most), "ms"),
+    "loop.busy": total > 0 ? quantity((100 * active) / total, "%") : null,
+  };
+};
+
+/**
+ * This function gives the record of one run. It has the load of each stream from its lines and the readings of the container.
+ * It also has the event loop of the subject from the lines of the subject.
+ */
 export const runRecordOf = (run: Run): RunRecord => {
   const loads = run.streams === undefined ? null : streamsLoadOf(run.events, run.streams);
   const pool = loadMeasures(loads?.pool ?? null);
@@ -256,7 +336,7 @@ export const runRecordOf = (run: Run): RunRecord => {
   return {
     environment: run.environment,
     index: run.index,
-    measures: { ...runMeasures(run.resources, change, answered), ...pool, ...cpusetMeasures(run.resources?.cpus) },
+    measures: { ...runMeasures(run.resources, change, answered), ...pool, ...cpusetMeasures(run.resources?.cpus), ...loopMeasures(run.server, run.resources) },
     classes: Object.fromEntries(Object.entries(loads?.streams ?? {}).map(([key, load]) => [key, loadMeasures(load)])),
     resets: change?.resets ?? [],
     missing: run.missing ?? null,

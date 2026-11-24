@@ -741,7 +741,7 @@ declare const APP_FILE = "capacity-app.json";
 declare const APP_FORMAT = "capacity-app/1";
 
 ### build/instance.chunk.d.ts#APP_LINE_KINDS
-declare const APP_LINE_KINDS: readonly ["pass", "write"];
+declare const APP_LINE_KINDS: readonly ["pass", "write", "readings"];
 
 ### build/instance.chunk.d.ts#AmountCeiling
 interface AmountCeiling {

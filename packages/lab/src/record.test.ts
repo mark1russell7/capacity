@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { CASE_FORMAT, type Case } from "./case.ts";
 import { cellOf, streamsOf } from "./cell.ts";
 import { measureCase } from "./measure.ts";
-import { CPUSET_MEASURES, LOAD_MEASURES, RECORD_FORMAT, RUN_MEASURES, cpusetMeasures, loadMeasures, recordOf, runRecordOf } from "./record.ts";
+import { CPUSET_MEASURES, LOAD_MEASURES, LOOP_MEASURES, RECORD_FORMAT, RUN_MEASURES, cpusetMeasures, loadMeasures, loopMeasures, recordOf, runRecordOf } from "./record.ts";
 
 const MIB = 1024 * 1024;
 
@@ -142,9 +142,50 @@ describe("the record of one run", () => {
       { value: 1_024, unit: "B/{request}" },
     ]);
     expect(value(measures["lag.max"])).toBeCloseTo(0.2, 6);
-    expect(Object.keys(measures).sort()).toEqual([...Object.keys(RUN_MEASURES), ...Object.keys(LOAD_MEASURES), ...Object.keys(CPUSET_MEASURES)].sort());
+    expect(Object.keys(measures).sort()).toEqual(
+      [...Object.keys(RUN_MEASURES), ...Object.keys(LOAD_MEASURES), ...Object.keys(CPUSET_MEASURES), ...Object.keys(LOOP_MEASURES)].sort(),
+    );
     expect(record.resets).toEqual([]);
     expect(record.missing).toBeNull();
+  });
+
+  it("gives the lag of the event loop from the spans of the subject inside the window of the readings", () => {
+    // a span of 100 ms that ends at the time `end` (ms after the start of the schedule), on the clock of the readings
+    const span = (end: number, fields: Readonly<Record<string, number | null>>): ProbeEvent => ({ ev: "loop", t: at(end), ms: 100, resolution: 10, ...fields });
+    const server: readonly ProbeEvent[] = [
+      { ev: "listening", t: 3e9 },
+      // before the first reading (4.001 s): it does not count
+      span(-1_000, { count: 10, mean: 500, max: 900, active: 100, idle: 0 }),
+      // 10 samples with a mean lag of 1 ms, and 30 samples with a mean lag of 3 ms: the mean is 2.5 ms
+      span(100, { count: 10, mean: 11, max: 15, active: 20, idle: 80 }),
+      span(200, { count: 30, mean: 13, max: 40, active: 60, idle: 40 }),
+      // a span with no sample: no lag, but its busy time counts
+      span(300, { count: 0, mean: null, max: null, active: 20, idle: 80 }),
+      // after the last reading (7 s): it does not count
+      span(2_100, { count: 10, mean: 500, max: 900, active: 100, idle: 0 }),
+      { ev: "loop", t: at(400), ms: 100 },
+    ];
+    const measures = loopMeasures(server, run(0).resources);
+    expect(value(measures["loop.lag.mean"])).toBeCloseTo(2.5, 12);
+    expect(measures["loop.lag.max"]).toEqual({ value: 30, unit: "ms" });
+    expect(measures["loop.busy"]).toEqual({ value: 100 / 3, unit: "%" });
+    expect(runRecordOf(run(0, { server })).measures["loop.lag.max"]).toEqual({ value: 30, unit: "ms" });
+
+    // a timer that fires early has a delay below the resolution: its lag is 0, never less
+    const early = loopMeasures([span(100, { count: 5, mean: 9.5, max: 9.9, active: 1, idle: 99 })], run(0).resources);
+    expect([early["loop.lag.mean"], early["loop.lag.max"]]).toEqual([
+      { value: 0, unit: "ms" },
+      { value: 0, unit: "ms" },
+    ]);
+  });
+
+  it("gives null for each loop measure of a run with no lines, no readings or no span in the window", () => {
+    const empty = (measures: Readonly<Record<string, unknown>>): boolean => Object.values(measures).every((amount) => amount === null);
+    expect(empty(loopMeasures(undefined, run(0).resources))).toBe(true);
+    expect(empty(loopMeasures([{ ev: "loop", t: at(100), ms: 100, resolution: 10, count: 1, mean: 11, max: 11, active: 1, idle: 1 }], undefined))).toBe(true);
+    expect(empty(loopMeasures([{ ev: "listening", t: at(0) }], run(0).resources))).toBe(true);
+    // a record of a subject before CAP-68 has no lines `loop`
+    for (const name of Object.keys(LOOP_MEASURES)) expect(runRecordOf(run(0)).measures[name as keyof typeof LOOP_MEASURES]).toBeNull();
   });
 
   it("gives the use of the CPUs of each CPU set in cores, with the parts of the busy time", () => {

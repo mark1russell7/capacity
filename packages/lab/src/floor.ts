@@ -1,7 +1,7 @@
 import { mean, median, noiseFloor } from "@mark1russell7/rigor-statistics";
 import type { Check, CheckProblem } from "./check.ts";
-import { caseValue, countProblems, lagProblems, worstLag } from "./reads.ts";
-import type { CaseRecord } from "./record.ts";
+import { caseValue, countProblems, lagProblems, measured, worstLag } from "./reads.ts";
+import type { CaseRecord, LoopMeasure } from "./record.ts";
 
 /**
  * This count is the A/A pairs of the plan `floor`. It is the fewest values that give a noise floor:
@@ -62,6 +62,12 @@ export const FLOOR_LIMITS: Readonly<Record<FloorMeasure, number>> = {
   "latency.p99": 3.302,
 };
 
+/**
+ * These measures get a floor, a level and a bias, but no limit: the event loop of the subject (`LOOP_MEASURES`). The part 2
+ * of CAP-68 gives the limit of each from 5 runs of the plan `floor`, and then it moves them to `FLOOR_MEASURES`.
+ */
+export const LOOP_FLOOR_MEASURES: readonly LoopMeasure[] = ["loop.lag.mean", "loop.lag.max", "loop.busy"];
+
 /** The ids of the two cases of one A/A pair. */
 export interface FloorPair {
   readonly a: string;
@@ -86,7 +92,8 @@ export const FLOOR_IDS: readonly string[] = Array.from({ length: FLOOR_PAIRS }, 
  * - `lag.max.worst` is the largest lag of the driver in a run.
  *
  * Each measure of `FLOOR_MEASURES` gets these values. A record that is not there, and a run with no
- * read of a measure, are problems. A measure with no read in a pair gets no value.
+ * read of a measure, are problems. A measure with no read in a pair gets no value. Each measure of
+ * `LOOP_FLOOR_MEASURES` gets the same values, with no limit.
  */
 export const floorCheck: Check = (records) => {
   const find = (id: string): CaseRecord | undefined => records.find((record) => record.case.id === id);
@@ -104,10 +111,11 @@ export const floorCheck: Check = (records) => {
   const cases = pairs.flatMap(({ a, b }) => [a, b]);
   problems.push(...cases.flatMap((record) => [...countProblems(record), ...lagProblems(record)]));
   const values: Record<string, number> = {};
-  for (const name of FLOOR_MEASURES) {
+  for (const name of [...FLOOR_MEASURES, ...LOOP_FLOOR_MEASURES]) {
     const differences: number[] = [];
     const levels: number[] = [];
     for (const { a, b } of pairs) {
+      if (!measured(a, name) || !measured(b, name)) continue;
       const low = caseValue(a, name);
       const high = caseValue(b, name);
       if (typeof low !== "number") problems.push(low);
@@ -122,8 +130,8 @@ export const floorCheck: Check = (records) => {
     values[`${name}.floor`] = floor;
     values[`${name}.level`] = median(levels);
     values[`${name}.bias`] = mean(differences);
-    const limit = FLOOR_LIMITS[name];
-    if (!(floor <= limit)) problems.push({ code: "limit", path: `${name}.floor`, message: `The noise floor of ${name} is ${floor}. Its limit is ${limit}.` });
+    const limit = (FLOOR_LIMITS as Readonly<Record<string, number | undefined>>)[name];
+    if (limit !== undefined && !(floor <= limit)) problems.push({ code: "limit", path: `${name}.floor`, message: `The noise floor of ${name} is ${floor}. Its limit is ${limit}.` });
   }
   const lag = worstLag(cases);
   if (lag !== undefined) values["lag.max.worst"] = lag;

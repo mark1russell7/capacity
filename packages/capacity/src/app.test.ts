@@ -103,9 +103,10 @@ describe("the contract of an app", () => {
   it("reads the lines of a run, and refuses an empty ev, two lines of one kind and two lines of one ev", () => {
     const pass = { kind: "pass", ev: "lab-pass", title: "The end of a pass" } as const;
     const write = { kind: "write", ev: "lab-write", title: "A write of the snapshot" } as const;
-    const withLines = { ...sampleApp(), start: { ...sampleApp().start, run: { ...sampleApp().start.run, lines: [pass, write] } } };
+    const readings = { kind: "readings", ev: "lab-readings", title: "A collection of the live metrics" } as const;
+    const withLines = { ...sampleApp(), start: { ...sampleApp().start, run: { ...sampleApp().start.run, lines: [pass, write, readings] } } };
     expect(readApp(JSON.parse(JSON.stringify(withLines)))).toEqual({ tag: "ok", value: withLines });
-    expect(readApp({ ...withLines, start: { ...withLines.start, run: { ...withLines.start.run, lines: [{ ...pass, kind: "readings" }] } } })).toMatchObject({ tag: "err", error: [{ code: "shape" }] });
+    expect(readApp({ ...withLines, start: { ...withLines.start, run: { ...withLines.start.run, lines: [{ ...pass, kind: "other" }] } } })).toMatchObject({ tag: "err", error: [{ code: "shape" }] });
     expect(problemsOf((app) => void ((app.start.run as { lines?: unknown }).lines = [{ ...pass, ev: " " }]))).toEqual(["command start.run.lines[0].ev"]);
     expect(problemsOf((app) => void ((app.start.run as { lines?: unknown }).lines = [pass, { ...write, kind: "pass" }]))).toEqual(["command start.run.lines[1].kind"]);
     expect(problemsOf((app) => void ((app.start.run as { lines?: unknown }).lines = [pass, { ...write, ev: "lab-pass" }]))).toEqual(["command start.run.lines[1].ev"]);

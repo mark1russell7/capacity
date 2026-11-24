@@ -4,18 +4,22 @@ import { verdictOf } from "./check.ts";
 import { OVERHEAD_MEASURES, OVERHEAD_SIDES, overheadCheck } from "./overhead.ts";
 import { planProblems, type Plan } from "./plan.ts";
 import { caseValue } from "./reads.ts";
-import { CPUSET_MEASURES, type CaseRecord, type RunRecord } from "./record.ts";
+import { CPUSET_MEASURES, LOOP_MEASURES, type CaseRecord, type RunRecord } from "./record.ts";
 import { NODE_HTTP, NODE_HTTP_SERVICE } from "./subjects.ts";
 
 /** The record of the case control/base of the Lab run 44453927945 on main. Its lab had no cpuset measures. */
 const OLDER = JSON.parse(readFileSync(new URL("../test/fixtures/control-base.record.json", import.meta.url), "utf8")) as CaseRecord;
 
-/** The record `OLDER` with cpuset measures, as in the tests of the check rate. Each case of these tests has its runs. */
+/** The record `OLDER` with cpuset and loop measures, as in the tests of the check rate. Each case of these tests has its runs. */
 const BASE: CaseRecord = {
   ...OLDER,
   runs: OLDER.runs.map((run, i) => ({
     ...run,
-    measures: { ...run.measures, ...Object.fromEntries(Object.keys(CPUSET_MEASURES).map((name, j) => [name, { value: (j + 1) / 10 + i / 100, unit: "{core}" }])) },
+    measures: {
+      ...run.measures,
+      ...Object.fromEntries(Object.keys(CPUSET_MEASURES).map((name, j) => [name, { value: (j + 1) / 10 + i / 100, unit: "{core}" }])),
+      ...Object.fromEntries(Object.entries(LOOP_MEASURES).map(([name, unit], j) => [name, { value: j + 1 + i / 10, unit }])),
+    },
   })),
 };
 

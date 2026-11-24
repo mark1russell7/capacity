@@ -106,7 +106,7 @@ export interface AppProcess extends AppCommand {
 }
 
 /** The kinds of the lines of a run that the lab records. The lab knows the fields of each kind. */
-export const APP_LINE_KINDS = ["pass", "write"] as const;
+export const APP_LINE_KINDS = ["pass", "write", "readings"] as const;
 
 /**
  * The kind of a line of a run.
@@ -114,6 +114,8 @@ export const APP_LINE_KINDS = ["pass", "write"] as const;
  * - `pass`: the end of one pass of the loop of the app. The lab counts the passes in the watch after ready.
  * - `write`: one write of the snapshot of the start. The fields `longestMs`, `writeMs`, `rowsMs`, `wallMs` and `cpuMs`
  *   give its times in milliseconds. The lab keeps the longest value of each time.
+ * - `readings`: one collection of the live metrics of the app. The field `readings` is a list of `SeriesReading`. The
+ *   lab keeps each collection with its time, so the record of a start has the series of the metrics of the app.
  */
 export type AppLineKind = (typeof APP_LINE_KINDS)[number];
 
