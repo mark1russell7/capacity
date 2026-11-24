@@ -235,6 +235,32 @@ The Lab run 44964347304 gives the use of the CPUs at each rate. Four of its five
 - **The work outside the subject.** Approximately a third of CPU 0 is work outside the control group of the subject (`cpuset.busy` less `cores`). Its softirq is approximately 0.1 cores.
 - **The driver is not the limit.** Its CPUs are 2.37 busy of 3 at 36000. Its user time stays at approximately 1.6 cores from 20000 requests each second. Thus its CPU time for each request falls under load.
 
+### The request size
+
+The plans `size-body` and `size-reply` give the laws of the request size (CAP-21). Each plan moves one size at a light rate, and each other field of the request stays at 0.
+
+- `size-body` moves the body of the request. Its law set has the variable `body`.
+- `size-reply` moves the body of the reply. Its law set has the variable `reply`.
+
+| Part | The value | Why |
+| --- | --- | --- |
+| The sizes | 16 B, 64 B, 256 B, 1 KiB, 4 KiB, 8 KiB, 16 KiB, 32 KiB, 64 KiB, 128 KiB, 256 KiB, 1 MiB and 4 MiB | The buffers of Node and of the socket are from 16 KiB to 64 KiB. Thus the sizes near them have small steps, and the knees are between two sizes. |
+| The rate | 100 requests each second | At 4 MiB, the subject moves 400 MB each second. The rate keeps the core of the subject below its limit. Thus the cost of a byte is not a cost of a queue. |
+| The connections, the arrivals and the runs | A pool of 64, Poisson arrivals, 3 runs after one warm-up run | These values are the values of the plan `rate`. Each plan has its own seed. |
+| The duration | 4 s | A run has 400 requests. Thus the median of a run is stable at a light rate. |
+
+The two law sets have these measures:
+
+| Measure | The law |
+| --- | --- |
+| `cpu.request` | The CPU time of one request over the size. Its knee is the first size where the CPU time is two times its floor. |
+| `memory.high` | The highest memory of the subject over the size. |
+| `network.rx.request` or `network.tx.request` | The bytes on the wire for one request over the size. The slope is the bytes on the wire for each byte of the body. |
+| `latency.p50` | The median latency over the size. Its knee is the first size where the latency is two times its floor. |
+
+- The check `rate` judges the records. Each request must have an answer, and the lag of the driver must be `RATE_LAG_LIMIT` or less.
+- The plans have no trigger: a person starts each one with 5 runs. The time limit of each job is 53 minutes.
+
 ### The overhead of the runner
 
 The plan `overhead` measures the cost of the service runner (CAP-29). Each pair of the plan sends one load to the bare subject and to the service subject, on one runner. Thus the difference of a pair is the cost of the runner at that load. Refer to [The service subject](#the-service-subject).
@@ -349,7 +375,7 @@ The manifest has the plan, the CI run and its `attempt`. It also has the machine
 
 ## The laws
 
-A plan with the field `laws` gives laws from its records. The law set tells the class of its cases, the load variable and each measure of a law. The plan `rate` has a law set.
+A plan with the field `laws` gives laws from its records. The law set tells the class of its cases, the load variable and each measure of a law. The plans `rate`, `overhead`, `size-body` and `size-reply` have a law set. The variable of a law set is the rate, a field of the request or a level.
 
 ```json
 "laws": {
