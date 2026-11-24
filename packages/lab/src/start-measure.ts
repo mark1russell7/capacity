@@ -23,7 +23,7 @@ import {
   type StartChild,
 } from "@mark1russell7/rigor-bench/fresh";
 import { isRecord } from "@mark1russell7/optional/read";
-import { BYTES_1024, DURATION_MS, convertible, formatOnScale, quantity, valueIn, type Quantity } from "@mark1russell7/quantity";
+import { BYTES_1024, DURATION_MS, convertible, formatOnScale, isQuantity, quantity, valueIn, type Quantity } from "@mark1russell7/quantity";
 import { escapeMarkdown } from "@mark1russell7/text";
 import { cpuSetsOf } from "./cell.ts";
 import type { CheckProblem } from "./check.ts";
@@ -224,6 +224,11 @@ export interface StartReading {
    * A reading has no field `metrics` when the contract of the app names no line `readings`.
    */
   readonly metrics?: readonly LineCollection[];
+  /**
+   * These amounts are the run variables of the app at the end of the watch, by their ids. They come from the last line `amounts` of the run.
+   * A reading has no field `amounts` when the contract of the app names no line `amounts`.
+   */
+  readonly amounts?: Readonly<Record<string, Quantity>>;
 }
 
 /**
@@ -598,6 +603,16 @@ export const metricsOf = (fields: ChildFields): readonly LineCollection[] | unde
   });
 };
 
+/**
+ * This function gives the amounts of the run variables of the fields of a child. It gives undefined when the field `amounts`
+ * is not a record. An entry that is not an amount is left out.
+ */
+export const amountsOf = (fields: ChildFields): Readonly<Record<string, Quantity>> | undefined => {
+  const given = fields.extra?.["amounts"];
+  if (!isRecord(given)) return undefined;
+  return Object.fromEntries(Object.entries(given).filter((entry): entry is [string, Quantity] => isQuantity(entry[1])));
+};
+
 /** This function gives a number or null from a field of a record. A field with no number is null. */
 const orNull = (value: unknown, key: string): number | null => numberIn(value, key);
 
@@ -859,6 +874,7 @@ export const measureStart = async (value: StartCase, options: StartMeasureOption
   const readings: StartReading[] = (fresh.children ?? []).map((each) => {
     const fields = each.fields ?? {};
     const metrics = metricsOf(fields);
+    const amounts = amountsOf(fields);
     return {
       arm: each.arm,
       point: each.case,
@@ -870,6 +886,7 @@ export const measureStart = async (value: StartCase, options: StartMeasureOption
       ballasts: ballastsOf(fields),
       samples: samplesOf(fields),
       ...(metrics === undefined ? {} : { metrics }),
+      ...(amounts === undefined ? {} : { amounts }),
     };
   });
   const ended = now();

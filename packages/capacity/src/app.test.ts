@@ -112,6 +112,25 @@ describe("the contract of an app", () => {
     expect(problemsOf((app) => void ((app.start.run as { lines?: unknown }).lines = [pass, { ...write, ev: "lab-pass" }]))).toEqual(["command start.run.lines[1].ev"]);
   });
 
+  it("reads a run variable, needs a line amounts for it, and refuses it to the seed", () => {
+    const routes = { id: "routes", title: "The routes that the configuration makes", kind: "run", unit: "{route}", min: 1, max: 1e7, scale: "log" } as const;
+    const amounts = { kind: "amounts", ev: "lab-amounts", title: "The amounts of the run variables" } as const;
+    const measured = (app: Mutable<AppContract>): void => {
+      (app as { variables: unknown[] }).variables.push(routes);
+      (app.start.run as { lines?: unknown }).lines = [amounts];
+    };
+    expect(problemsOf(measured)).toEqual([]);
+    const withRoutes = { ...sampleApp(), variables: [...sampleApp().variables, routes], start: { ...sampleApp().start, run: { ...sampleApp().start.run, lines: [amounts] } } };
+    expect(readApp(JSON.parse(JSON.stringify(withRoutes)))).toEqual({ tag: "ok", value: withRoutes });
+    expect(problemsOf((app) => void (app as { variables: unknown[] }).variables.push(routes))).toEqual(["command start.run.lines"]);
+    expect(
+      problemsOf((app) => {
+        measured(app);
+        app.start.seed!.argv.push("--routes={variable.routes}");
+      }),
+    ).toEqual(["placeholder start.seed.argv[" + String(sampleApp().start.seed!.argv.length) + "]"]);
+  });
+
   it("gives the amount of a store or a level variable to the seed, and refuses it to the run and a request variable to the seed", () => {
     expect(problemsOf((app) => void app.start.seed!.argv.push("--connections={variable.connections}"))).toEqual([]);
     expect(problemsOf((app) => void app.start.run.argv.push("--catalog={variable.catalog}"))).toEqual(["placeholder start.run.argv[6]"]);

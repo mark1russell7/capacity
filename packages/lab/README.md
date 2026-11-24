@@ -549,6 +549,7 @@ The lines of the run in the contract give the passes and the writes of the snaps
 - `passes` is the count of the lines `pass` from ready to the end of the watch.
 - `writes` is each line `write` to the end of the watch, with its times. The measures `writes` to `writeCpu` read them.
 - `readings` is each line `readings` to the end of the watch, with its time and its readings. Each reading of the record keeps them in `metrics`.
+- `amounts` comes from the last line `amounts` to the end of the watch. Each reading of the record keeps the run variables in `amounts`, with their units.
 - A run with no line of a kind gives null for its field. The recorder keeps at most 100,000 lines of each kind.
 
 The lab examines the contract of each tree before the seed, with `appCaseProblems`:
@@ -879,7 +880,8 @@ The field `startLaws` of a plan tells the laws that its start records give. `sta
 
 | Field | What it is |
 | --- | --- |
-| `variable` | A variable of the subject, for example `log` in MiB. The size of its file in the seeded store of a point is the value of the variable. |
+| `variable` | A variable of the subject, for example `log` in MiB. |
+| `from` | The source of the value of the variable at each point. With `seed` (the default), the seed of the store gives it. With `run`, the line `amounts` of the run gives it. |
 | `measures` | The measures of the readings that get a law, each with its law slug, its title, its residual, its forms and its knee rule. |
 | `conditions` | The facts that the records do not hold. A name of `START_CONDITIONS` comes from the records. |
 
@@ -889,6 +891,7 @@ The field `startLaws` of a plan tells the laws that its start records give. `sta
 - The A/A pairs of the base on the CPU model and the kind of start give the noise floor of each measure.
 - A start that passed a limit of the target has no reading. The result tells it in `skipped`.
 - A plan has a law set or a start law set, not the two. A plan with a start law set has only start cases.
+- A variable from the run is a `run` variable of the contract, for example the routes of alerts. No point sets it. The other variables of the points make it move.
 
 The command `fit` of `laws.main.ts` fits the start laws of each plan with a start law set.
 

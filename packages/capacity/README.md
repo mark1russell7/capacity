@@ -498,7 +498,7 @@ The contract of an app is one record that each app gives to the lab and to the m
 
 | Part | What it tells |
 | --- | --- |
-| `variables` | Each load variable: its kind, its unit and its range. A `request` variable comes with each request, a `level` stays in the app, and a `store` is in the store at the start. |
+| `variables` | Each load variable: its kind, its unit and its range. A `request` variable comes with each request, a `level` stays in the app, and a `store` is in the store at the start. The run gives a `run` variable in its line `amounts`, and no workload sets it. |
 | `classes` | Each kind of request: the range of its rate, its request variables and its entry. The entry is a request of HTTP with a path template, or an outside service. |
 | `start` | The commands `install`, `check` and `seed`, and the process `run` with its ready signal and its lines. A command is a program and its arguments, with no shell. |
 | `services` | Each outside service that the app calls, and the fake that the lab starts in its place. |
@@ -515,8 +515,11 @@ The field `lines` of `start.run` names the JSON lines of the output of the run t
 | `pass` | The end of one pass of the loop of the app. The lab counts the passes in the watch after ready. |
 | `write` | One write of the snapshot. The fields `longestMs`, `writeMs`, `rowsMs`, `wallMs` and `cpuMs` give its times in milliseconds. |
 | `readings` | One collection of the live metrics. The field `readings` is a list of `SeriesReading`: `{ series, at, value }`. `collectReadings` of `@mark1russell7/otel-ts/pull` gives this list. |
+| `amounts` | The amounts of the run variables. The field `amounts` gives each run variable by its id, in its unit. The lab keeps the last line of the watch. |
 
 `APP_LINE_KINDS` is the closed set of the kinds. A run with no line of a kind gives no reading of that kind.
+
+A contract with a `run` variable has a line `amounts`. Only a store or a level variable goes into the seed as `{variable.<id>}`.
 
 ```json
 "lines": [{ "kind": "pass", "ev": "lab-pass", "title": "The end of a pass of the loop" }]

@@ -150,6 +150,42 @@ describe("the problems of a start law set", () => {
   });
 });
 
+describe("a start law of a variable from the run", () => {
+  // The run of each arm gives 1001 routes for each MiB of the log: the routes move with the log of the points.
+  const RUN_SET: StartLawSet = { ...SET, variable: { id: "routes", unit: "{route}", scale: "log" }, from: "run" };
+  const RUN_PLAN = { id: PLAN.id, startLaws: RUN_SET };
+  const mibOf = (id: string): number => (CASE.points.find((point) => point.id === id)?.at["log"]?.value ?? 0) / 2 ** 20;
+  const routed = (record: StartRecord): StartRecord => ({
+    ...record,
+    readings: record.readings.map((reading) => ({ ...reading, amounts: { routes: { value: 1001 * mibOf(reading.point), unit: "{route}" } } })),
+  });
+
+  it("reads the amount that the run gave in each reading as the variable of the law", () => {
+    const result = startLawsOf(RUN_PLAN, jobsOf(5, EPYC, routed), OPTIONS);
+    expect(result.problems).toEqual([]);
+    expect(result.laws).toHaveLength(2);
+    for (const { law } of result.laws) {
+      expect(law.form.id).toBe("linear");
+      expect(law.variables[0]).toMatchObject({ id: "routes", unit: "{route}" });
+      expect(law.points?.every((point) => point.load["routes"] !== undefined && point.load["log"] === undefined)).toBe(true);
+    }
+  });
+
+  it("gives a problem for a reading with no amount of the variable, and does not read the seeded store", () => {
+    const result = startLawsOf(RUN_PLAN, jobsOf(5), OPTIONS);
+    expect(result.laws).toEqual([]);
+    expect(result.problems.length).toBeGreaterThan(0);
+    expect(result.problems.every((each) => each.code === "read" && each.message.includes('gave no amount of the variable "routes"'))).toBe(true);
+  });
+
+  it("refuses a point that sets the variable and a source that is not known, and lets the points move the other variables", () => {
+    expect(startLawSetProblems(RUN_SET, [CASE])).toEqual([]);
+    const set = CASE.points.map((each, index) => (index === 0 ? { ...each, at: { ...each.at, routes: { value: 5, unit: "{route}" } } } : each));
+    expect(startLawSetProblems(RUN_SET, [{ ...CASE, points: set }]).map((each) => each.path)).toEqual(["cases[0].points[0].at"]);
+    expect(startLawSetProblems({ ...RUN_SET, from: "store" }, [CASE]).map((each) => each.path)).toEqual(["startLaws.from"]);
+  });
+});
+
 describe("the plans of the levels of alerts", () => {
   const plans = readPlans(PLANS);
   // Each ladder and the id of its base point. The log ladder of CAP-62 has the base point of the level ladders of CAP-35.
