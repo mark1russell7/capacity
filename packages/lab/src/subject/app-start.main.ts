@@ -20,7 +20,7 @@
 // The last line of the program is one JSON line, as a child line of `@mark1russell7/rigor-bench/fresh`:
 // - `ms` is the time from the import of the app to the ready signal.
 // - `readiness` is the time from the start of the process to the ready signal, less the copy and the ballasts of the
-//   moment `start`. `firstPass` and `passes` are null, because an app has no pass of the lab.
+//   moment `start`. `firstPass` is null, because the lab does not time the first pass of an app.
 // - `startHeap` and `watchHeap` are the heap peaks of the start and of the watch.
 // - `watchCpu` is the CPU time of the process over the watch, in milliseconds, and `watchMs` is the time of the watch. The
 //   CPU time has the load of the fakes on the app, and the small work of the watch of the memory.
@@ -31,6 +31,8 @@
 // - `closeMs` is the time from SIGTERM to the exit. It is null when the app has no listener of SIGTERM, because then
 //   the signal ends the process at once. It is also null when the app does not end in 10 seconds. `closeCode` is the
 //   exit code of the app after the close.
+// - `passes` is the count of the lines `pass` of the run in the watch, and `writes` is each line `write` of the run, with its
+//   times and `ms` from the start of the process. The lines of the run in the contract name them. With no such line, each is null.
 // - `ballasts` is each ballast, and `samples` is each sample of the worker, with `ms` from the start of the process.
 // - `open` names the resources at the line. `endMs` is the time from the start of the process to the line.
 //
@@ -47,7 +49,7 @@ import { getHeapStatistics } from "node:v8";
 import { heapAfterGc, processIo, processMemory, startBallast, watchHeap, watchIo, watchMemory, type Ballast, type IoWatch } from "@mark1russell7/rigor-bench/fresh";
 import { errorMessage } from "@mark1russell7/text";
 import type { AppRunFile } from "../start-app.ts";
-import { READY_POLL_MS, httpProbe, textWatch } from "./ready.ts";
+import { READY_POLL_MS, httpProbe, lineRecorder, runLineFields, textWatch, type LineRecorder } from "./ready.ts";
 /** This time is the longest close, in milliseconds. It is in the margin of the time limit of a child. */
 const CLOSE_GRACE_MS = 10_000;
 
@@ -147,13 +149,19 @@ const mark = (): void => {
   signal();
 };
 const { ready } = run;
-if (ready.kind === "line") {
-  // Each write of the app to stdout or to stderr goes through this check, until the ready signal.
+const kinds = run.lines;
+const recorders: LineRecorder[] = [];
+if (ready.kind === "line" || kinds.length > 0) {
+  // Each write of the app to stdout or to stderr goes through the check of the ready signal and the recorder of the lines.
   for (const stream of [process.stdout, process.stderr]) {
     const write = stream.write.bind(stream) as (...args: unknown[]) => boolean;
-    const seen = textWatch(ready.text);
+    const seen = ready.kind === "line" ? textWatch(ready.text) : undefined;
+    const recorder = kinds.length > 0 ? lineRecorder(kinds) : undefined;
+    if (recorder !== undefined) recorders.push(recorder);
     stream.write = ((chunk: unknown, ...rest: unknown[]): boolean => {
-      if (readyAt === undefined && seen(typeof chunk === "string" ? chunk : Buffer.from(chunk as Uint8Array).toString("utf8"))) mark();
+      const text = typeof chunk === "string" ? chunk : Buffer.from(chunk as Uint8Array).toString("utf8");
+      if (seen !== undefined && readyAt === undefined && seen(text)) mark();
+      recorder?.write(text, performance.now());
       return write(chunk, ...rest);
     }) as typeof stream.write;
   }
@@ -197,7 +205,9 @@ const watchStarted = performance.now();
 await sleep(watchMs);
 const cpuOfWatch = process.cpuUsage(cpuOfReady);
 const watchCpu = (cpuOfWatch.user + cpuOfWatch.system) / 1000;
-const watchedMs = performance.now() - watchStarted;
+const watchEnd = performance.now();
+const watchedMs = watchEnd - watchStarted;
+const recorded = runLineFields(kinds, recorders.flatMap((each) => each.lines()), at, watchEnd);
 const watched = watch.peak();
 watch.stop();
 const watchedHeap = heapOfWatch.stop();
@@ -224,14 +234,14 @@ const line = {
   watchHeap: watchedHeap,
   watchCpu,
   watchMs: watchedMs,
-  passes: null,
+  passes: recorded.passes,
   stalled: false,
   limit: getHeapStatistics().heap_size_limit,
   copyMs,
   ballastMs,
   ballasts: held,
   samples,
-  writes: null,
+  writes: recorded.writes,
 };
 
 /** This function writes the line of the child, and it removes the copy of --seeded. It does only synchronous work, for the event `exit`. */

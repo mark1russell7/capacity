@@ -507,7 +507,13 @@ An app case has the field `app`: the HTTPS URL of the repository of an app with 
 - The app is ready at its ready signal: a line of its output, or the status 200 of a path on a free port.
 - After the watch, `app-start` sends SIGTERM to its process and measures the close. An app with no listener of SIGTERM has no close time.
 
-An app has no pass of the lab. Thus `limit` is the longest start to the ready signal, and a reading of an app has no first pass.
+The lab does not time the first pass of an app. Thus `limit` is the longest start to the ready signal, and a reading of an app has no first pass.
+
+The lines of the run in the contract give the passes and the writes of the snapshot. `app-start` reads each write of the app to stdout and to stderr.
+
+- `passes` is the count of the lines `pass` from ready to the end of the watch.
+- `writes` is each line `write` to the end of the watch, with its times. The measures `writes` to `writeCpu` read them.
+- A run with no line of a kind gives null for its field. The recorder keeps at most 100,000 lines of each kind.
 
 The lab examines the contract of each tree before the seed, with `appCaseProblems`:
 
@@ -687,7 +693,7 @@ The plan `alerts-start-app` starts alerts from its contract, on the commit of th
 
 - The case `alerts-start-app/contract` starts alerts from `capacity-app.json`. It seeds with the seed `al124` and the cache sizes of one live copy.
 - The two arms are the same build. The arm `deploy` adds the ballast of the deploy process at ready.
-- The contract gives the passes and the writes of the snapshot after CAP-65. Then a change removes the start subject `alerts` and its programs.
+- The contract can give the passes and the writes of the snapshot (CAP-65). The contract of alerts names them after alerts writes a line for each write. Then a change removes the start subject `alerts` and its programs.
 
 #### The results of the plans of the start of alerts
 

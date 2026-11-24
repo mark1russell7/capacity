@@ -79,11 +79,14 @@ export type {
   AppCommand,
   AppContract,
   AppEntry,
+  AppLine,
+  AppLineKind,
   AppProblem,
   AppProblemCode,
   AppProcess,
   AppRange,
   AppReady,
+  AppRun,
   AppSeries,
   AppService,
   AppStart,
@@ -94,7 +97,7 @@ export type {
   ServiceEntry,
   VariableKind,
 } from "./app.ts";
-export { APP_FILE, APP_FORMAT } from "./app.ts";
+export { APP_FILE, APP_FORMAT, APP_LINE_KINDS } from "./app.ts";
 export { appWorkloadProblems, checkApp, fillPlaceholders, isHttps, metricsGaps, placeholdersOf, requestPath } from "./app-check.ts";
 export type { MetricsWindow, SeriesReading } from "./app-metrics.ts";
 export { counterIncrease, observationOf } from "./app-metrics.ts";

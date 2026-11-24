@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { APP_FILE, WORKLOAD_FORMAT, fillPlaceholders, placeholdersOf, type AppCommand, type AppContract, type AppReady, type Workload } from "@mark1russell7/capacity";
+import { APP_FILE, WORKLOAD_FORMAT, fillPlaceholders, placeholdersOf, type AppCommand, type AppContract, type AppLine, type AppReady, type Workload } from "@mark1russell7/capacity";
 import { readApp } from "@mark1russell7/capacity/schema";
 import { isRecord } from "@mark1russell7/optional/read";
 import { convertible, isQuantity, quantity, valueIn, type Quantity } from "@mark1russell7/quantity";
@@ -47,6 +47,8 @@ export interface AppRunFile {
   readonly args: readonly string[];
   readonly env: Readonly<Record<string, string>>;
   readonly ready: AppReady;
+  /** These lines of the output of the run are the lines that the program `app-start` records. */
+  readonly lines: readonly AppLine[];
   readonly slots: { readonly store: string; readonly port?: string | undefined };
 }
 
@@ -111,7 +113,7 @@ export const appRunOf = (tree: TreeApp, dir: string): { readonly file: AppRunFil
   const port = run.ready.kind === "http" || commandPlaceholders(run).includes("port");
   const slots = { store: RUN_SLOTS.store, ...(port ? { port: RUN_SLOTS.port } : {}) };
   const filled = fillCommand({ argv: args, cwd: run.cwd, env: run.env }, { ...slots, ...serviceValues(tree.app) });
-  return { file: { app: tree.app.id, script: resolve(cwd, script), cwd, args: filled.argv, env: filled.env, ready: run.ready, slots }, options };
+  return { file: { app: tree.app.id, script: resolve(cwd, script), cwd, args: filled.argv, env: filled.env, ready: run.ready, lines: run.lines ?? [], slots }, options };
 };
 
 /**

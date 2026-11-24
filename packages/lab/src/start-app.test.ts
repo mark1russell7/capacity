@@ -1,7 +1,7 @@
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { appWorkloadProblems, checkApp, checkWorkload, type AppContract, type AppProcess, type AppReady } from "@mark1russell7/capacity";
+import { appWorkloadProblems, checkApp, checkWorkload, type AppContract, type AppProcess, type AppReady, type AppRun } from "@mark1russell7/capacity";
 import { afterAll, describe, expect, it } from "vitest";
 import { APP_CASE, FIXTURE } from "./app-fixtures.ts";
 import { startCaseProblems, type StartCase } from "./start.ts";
@@ -44,7 +44,7 @@ const tree = (): TreeApp => readTreeApp("base", FIXTURE);
 const changed = (more: Partial<AppContract>, engines: string | undefined = ">=24"): TreeApp => ({ tree: "base", app: { ...tree().app, ...more }, engines });
 
 /** This function gives the tree of the tests with another run. */
-const withRun = (run: Partial<AppProcess>): TreeApp => {
+const withRun = (run: Partial<AppRun>): TreeApp => {
   const { app } = tree();
   return changed({ start: { ...app.start, run: { ...app.start.run, ...run } } });
 };
@@ -280,6 +280,7 @@ describe("appRunOf", () => {
       args: ["--store", RUN_SLOTS.store],
       env: { FIXTURE_STORE: RUN_SLOTS.store },
       ready: { kind: "line", text: "fixture ready" },
+      lines: [],
       slots: { store: RUN_SLOTS.store },
     });
   });
@@ -288,5 +289,7 @@ describe("appRunOf", () => {
     expect(appRunOf(withRun({ argv: ["node", "app.ts", "--port", "{port}"] }), FIXTURE).file.args).toEqual(["--port", RUN_SLOTS.port]);
     expect(appRunOf(withRun({ ready: { kind: "http", path: "/ready" }, argv: ["node", "app.ts", "--port={port}"] }), FIXTURE).file.slots).toEqual(RUN_SLOTS);
     expect(() => appRunOf(withRun({ argv: ["node"] }), FIXTURE)).toThrow(RangeError);
+    const lines = [{ kind: "pass", ev: "lab-pass", title: "The end of a pass" }] as const;
+    expect(appRunOf(withRun({ lines }), FIXTURE).file.lines).toEqual(lines);
   });
 });

@@ -11,6 +11,7 @@ import {
   type MetricsGap,
   type AppRange,
   type AppReady,
+  type AppLine,
 } from "./app.ts";
 import { NAME, SLUG, finite } from "./names.ts";
 import { RATE, type Workload } from "./workload.ts";
@@ -203,6 +204,25 @@ const readyProblems = (ready: AppReady, path: string): readonly AppProblem[] => 
   return ready.path.startsWith("/") ? [] : [appProblem("command", `${path}.path`, `The ready path "${ready.path}" does not start with "/".`)];
 };
 
+/**
+ * This function gives the problems of the lines of a run. Each line has a text `ev` that is not empty, and no two lines
+ * have the same kind or the same `ev`.
+ */
+const lineProblems = (lines: readonly AppLine[], path: string): readonly AppProblem[] => {
+  const problems: AppProblem[] = [];
+  const kinds = new Set<string>();
+  const evs = new Set<string>();
+  lines.forEach((line, index) => {
+    const at = `${path}[${index}]`;
+    if (line.ev.trim() === "") problems.push(appProblem("command", `${at}.ev`, "The field ev of the line is empty."));
+    if (kinds.has(line.kind)) problems.push(appProblem("command", `${at}.kind`, `Two lines of the run have the kind "${line.kind}".`));
+    if (evs.has(line.ev)) problems.push(appProblem("command", `${at}.ev`, `Two lines of the run have the ev "${line.ev}".`));
+    kinds.add(line.kind);
+    evs.add(line.ev);
+  });
+  return problems;
+};
+
 /** This function gives the problems of a command: its program, its folder, the names of its variables and its placeholders. */
 const commandProblems = (app: AppContract, command: AppCommand, path: string, place: Place): readonly AppProblem[] => {
   const problems: AppProblem[] = [];
@@ -233,7 +253,7 @@ const startProblems = (app: AppContract): readonly AppProblem[] => {
   const { install, check, seed, run } = app.start;
   if (install !== undefined) problems.push(...commandProblems(app, install, "start.install", "install"));
   if (check !== undefined) problems.push(...commandProblems(app, check, "start.check", "check"));
-  problems.push(...commandProblems(app, run, "start.run", "run"), ...readyProblems(run.ready, "start.run.ready"));
+  problems.push(...commandProblems(app, run, "start.run", "run"), ...readyProblems(run.ready, "start.run.ready"), ...lineProblems(run.lines ?? [], "start.run.lines"));
   const listens = run.ready.kind === "http" || app.classes.some((entry) => entry.entry.kind === "http");
   if (listens && !holds(run, "port")) problems.push(appProblem("command", "start.run", `The run does not get its port: it does not hold "{port}".`));
 
