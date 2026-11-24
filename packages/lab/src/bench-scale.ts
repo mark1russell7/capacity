@@ -2,7 +2,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import type * as Capacity from "@mark1russell7/capacity";
 import type { Composition, Demand, KneeRule, Law, ScaleModel, ScaleOptions } from "@mark1russell7/capacity";
-import { gateOf, limitVerdict, type Gate, type LimitVerdict, type PairedTime } from "@mark1russell7/rigor-bench";
+import { aaLimits, aaStats, gateOf, limitVerdict, type Gate, type LimitVerdict, type PairedTime, type RunLimit } from "@mark1russell7/rigor-bench";
 import { armTimes, type ArmProcess, type BenchEnv } from "@mark1russell7/rigor-bench/fresh";
 import { canonicalJson, sha256Hex } from "@mark1russell7/rigor-generators";
 import { escapeMarkdown } from "@mark1russell7/text";
@@ -150,7 +150,10 @@ export const pairedTimes = (processes: readonly ArmProcess[], base: string = BAS
   );
 };
 
-/** The read of one case: the median time of each arm, the ratio of the head with its interval and its outcome. It also tells if the results are equal. */
+/**
+ * The read of one case: the median time of each arm, the ratio of the head with its interval, its bound and its outcome. It
+ * also tells if the results are equal.
+ */
 export interface BenchCaseRead {
   readonly case: string;
   readonly baseMs: number;
@@ -158,6 +161,10 @@ export interface BenchCaseRead {
   readonly ratio: number;
   readonly low: number;
   readonly high: number;
+  /** This number is the noise of the A/A rounds of the case, on a log scale. */
+  readonly noise: number;
+  /** This number is the high end of the interval, widened by the A/A noise. The case is `within` when it is at most the limit. */
+  readonly bound: number;
   readonly outcome: LimitVerdict["outcome"];
   /** This flag tells that the base and the head give the same value. It is undefined when the bench did not compare them. */
   readonly same: boolean | undefined;
@@ -202,6 +209,8 @@ export const benchRead = (processes: readonly ArmProcess[], aa: readonly PairedT
     ratio: each.ratio,
     low: each.low,
     high: each.high,
+    noise: each.noise,
+    bound: each.bound,
     outcome: each.outcome,
     same: options.same?.get(each.case),
   }));
@@ -214,15 +223,15 @@ const fixed = (value: number, digits: number): string => (Number.isFinite(value)
 export const benchSummaryOf = (read: BenchRead, commits: { readonly base: string; readonly head: string }): string => {
   const rows = read.cases.map((each) => {
     const same = each.same === undefined ? "not compared" : each.same ? "yes" : "**no**";
-    return `| ${escapeMarkdown(each.case)} | ${fixed(each.baseMs, 1)} | ${fixed(each.headMs, 1)} | ${fixed(each.ratio, 3)} | ${fixed(each.low, 3)} to ${fixed(each.high, 3)} | ${each.outcome} | ${same} |`;
+    return `| ${escapeMarkdown(each.case)} | ${fixed(each.baseMs, 1)} | ${fixed(each.headMs, 1)} | ${fixed(each.ratio, 3)} | ${fixed(each.low, 3)} to ${fixed(each.high, 3)} | ${fixed(each.noise, 3)} | ${fixed(each.bound, 3)} | ${each.outcome} | ${same} |`;
   });
   return [
     `## The bench of the scale query`,
     ``,
-    `The base is \`${commits.base.slice(0, 12)}\` and the head is \`${commits.head.slice(0, 12)}\`. The limit of each case is ${read.verdict.limit} times the time of the base.`,
+    `The base is \`${commits.base.slice(0, 12)}\` and the head is \`${commits.head.slice(0, 12)}\`. The limit of each case is ${read.verdict.limit} times the time of the base. The bound is the high end of the interval times the A/A noise of the case, as a ratio. A case is within the limit only when its bound is at most the limit.`,
     ``,
-    `| Case | Base (ms) | Head (ms) | Head / base | Interval | Outcome | Same result |`,
-    `| --- | --- | --- | --- | --- | --- | --- |`,
+    `| Case | Base (ms) | Head (ms) | Head / base | Interval | A/A noise | Bound | Outcome | Same result |`,
+    `| --- | --- | --- | --- | --- | --- | --- | --- | --- |`,
     ...rows,
     ``,
     `The gate gives **${read.gate.outcome}**: ${read.gate.reason}`,
@@ -406,4 +415,58 @@ export const benchNotesOf = (gate: BenchGate): string => {
   if (gate.unused.length > 0) lines.push(`These changes of \`${BENCH_CHANGES}\` name no changed case with their two hashes. Remove them: ${gate.unused.join(", ")}.`, "");
   if (gate.missing.length > 0) lines.push(`These cases have no record, so the gate has no read of them: ${gate.missing.join(", ")}.`, "");
   return lines.join("\n");
+};
+
+/** This text is the format of the file of the limits of the bench gate. */
+export const BENCH_LIMITS_FORMAT = "capacity-bench-limits/1";
+
+/** This name is the name of the file of the limits of the bench gate, in the folder of the package lab. */
+export const BENCH_LIMITS = "bench-limits.json";
+
+/** This number is the fewest CI runs that give the limits of the gate. */
+export const BENCH_LIMIT_RUNS = 5;
+
+/**
+ * The limits of the bench gate, from the A/A pairs of earlier CI runs. The noise cap is the worst A/A spread of a job
+ * plus the spread of those values, on a log scale. A job whose spread is an outlier goes out.
+ */
+export interface BenchLimits {
+  readonly format: typeof BENCH_LIMITS_FORMAT;
+  /** The ids of the CI runs of the records. */
+  readonly runs: readonly string[];
+  /** The count of the bench jobs of the runs. Each job is one case on one runner. */
+  readonly jobs: number;
+  readonly noiseCap: RunLimit;
+  /** The jobs that went out of the limits, each as `<run>/<case>`. */
+  readonly dropped: readonly string[];
+}
+
+/**
+ * This function gives the limits of the bench gate from the bench records of each CI run, with `aaLimits` of
+ * `@mark1russell7/rigor-bench`. It throws an `Error` for fewer than `BENCH_LIMIT_RUNS` runs.
+ */
+export const benchLimitsOf = (runs: ReadonlyMap<string, readonly BenchRecord[]>): BenchLimits => {
+  const ids = [...runs.keys()].filter((run) => (runs.get(run) ?? []).length > 0).sort();
+  if (ids.length < BENCH_LIMIT_RUNS) {
+    throw new Error(`The limits need the records of ${BENCH_LIMIT_RUNS} or more CI runs, and ${ids.length} runs have records.`);
+  }
+  const jobs = ids.flatMap((run) => (runs.get(run) ?? []).map((record) => ({ job: `${run}/${record.case}`, cases: aaStats(record.aa) })));
+  const limits = aaLimits(jobs);
+  return {
+    format: BENCH_LIMITS_FORMAT,
+    runs: ids,
+    jobs: jobs.length,
+    noiseCap: limits.fallback.noiseCap,
+    dropped: limits.fallback.dropped.map((each) => each.job),
+  };
+};
+
+/** This function gives the limits of a file, or undefined when the file does not exist. It throws an `Error` for a file of another format. */
+export const readBenchLimits = (file: string): BenchLimits | undefined => {
+  if (!existsSync(file)) return undefined;
+  const found = JSON.parse(readFileSync(file, "utf8")) as Partial<BenchLimits>;
+  if (found.format !== BENCH_LIMITS_FORMAT || typeof found.noiseCap?.limit !== "number") {
+    throw new Error(`The file ${file} is not a file of limits of the format "${BENCH_LIMITS_FORMAT}".`);
+  }
+  return found as BenchLimits;
 };
