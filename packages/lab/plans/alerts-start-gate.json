@@ -1,0 +1,106 @@
+{
+  "format": "capacity-plan/1",
+  "id": "alerts-start-gate",
+  "title": "The start gate of alerts: the start of the main build from its contract at the live log and at the knee, on the 1 GB target",
+  "check": null,
+  "triggers": [],
+  "jobs": 5,
+  "cases": [
+    {
+      "format": "capacity-start/1",
+      "id": "alerts-start-gate/main",
+      "title": "The start of alerts main from capacity-app.json at the log of the live store and at the knee of the log law",
+      "subject": "alerts-runtime",
+      "app": "https://github.com/metrograph-labs/alerts.git",
+      "arms": [
+        {
+          "id": "main",
+          "commit": "d23377dd00cca6b70fae23ef6dd6fd06f2d52b91"
+        }
+      ],
+      "seeder": "d23377dd00cca6b70fae23ef6dd6fd06f2d52b91",
+      "seed": "al124",
+      "rounds": 3,
+      "watch": {
+        "value": 60,
+        "unit": "s"
+      },
+      "probe": {
+        "value": 500,
+        "unit": "ms"
+      },
+      "target": {
+        "image": "node:24.21.0-bookworm-slim",
+        "node": "v24.21.0",
+        "memory": {
+          "value": 1011425280,
+          "unit": "B"
+        },
+        "swap": {
+          "value": 2147483648,
+          "unit": "B"
+        },
+        "cpus": 2,
+        "heapLimit": {
+          "value": 556269568,
+          "unit": "B"
+        }
+      },
+      "limit": {
+        "value": 240,
+        "unit": "s"
+      },
+      "windows": [
+        {
+          "value": 90,
+          "unit": "s"
+        }
+      ],
+      "observed": [],
+      "points": [
+        {
+          "id": "live-1844",
+          "at": {
+            "log": {
+              "value": 197156864,
+              "unit": "B"
+            },
+            "feeds": {
+              "value": 10,
+              "unit": "{feed}"
+            },
+            "persons": {
+              "value": 10,
+              "unit": "{person}"
+            },
+            "incidents": {
+              "value": 10,
+              "unit": "{incident}"
+            }
+          }
+        },
+        {
+          "id": "knee-192",
+          "at": {
+            "log": {
+              "value": 201326592,
+              "unit": "B"
+            },
+            "feeds": {
+              "value": 10,
+              "unit": "{feed}"
+            },
+            "persons": {
+              "value": 10,
+              "unit": "{person}"
+            },
+            "incidents": {
+              "value": 10,
+              "unit": "{incident}"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

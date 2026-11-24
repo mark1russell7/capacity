@@ -1,0 +1,296 @@
+{
+  "format": "capacity-start-limits/1",
+  "plan": "alerts-start-gate",
+  "case": "alerts-start-gate/main",
+  "subject": "alerts-runtime",
+  "app": "https://github.com/metrograph-labs/alerts.git",
+  "arm": "main",
+  "commit": "d23377dd00cca6b70fae23ef6dd6fd06f2d52b91",
+  "seeder": "d23377dd00cca6b70fae23ef6dd6fd06f2d52b91",
+  "target": {
+    "image": "node:24.21.0-bookworm-slim",
+    "node": "v24.21.0",
+    "memory": {
+      "value": 1011425280,
+      "unit": "B"
+    },
+    "swap": {
+      "value": 2147483648,
+      "unit": "B"
+    },
+    "cpus": 2,
+    "heapLimit": {
+      "value": 556269568,
+      "unit": "B"
+    }
+  },
+  "runs": [
+    {
+      "id": "45362248855/1/1",
+      "url": "https://github.com/mark1russell7/capacity/actions/runs/45362248855",
+      "job": "1",
+      "attempt": 1,
+      "cpu": "AMD EPYC 7763 64-Core Processor"
+    },
+    {
+      "id": "45362248855/2/1",
+      "url": "https://github.com/mark1russell7/capacity/actions/runs/45362248855",
+      "job": "2",
+      "attempt": 1,
+      "cpu": "Intel(R) Xeon(R) 6975P-C"
+    },
+    {
+      "id": "45362248855/3/1",
+      "url": "https://github.com/mark1russell7/capacity/actions/runs/45362248855",
+      "job": "3",
+      "attempt": 1,
+      "cpu": "AMD EPYC 9V74 80-Core Processor"
+    },
+    {
+      "id": "45362248855/4/1",
+      "url": "https://github.com/mark1russell7/capacity/actions/runs/45362248855",
+      "job": "4",
+      "attempt": 1,
+      "cpu": "Intel(R) Xeon(R) 6975P-C"
+    },
+    {
+      "id": "45362248855/5/1",
+      "url": "https://github.com/mark1russell7/capacity/actions/runs/45362248855",
+      "job": "5",
+      "attempt": 1,
+      "cpu": "AMD EPYC 9V74 80-Core Processor"
+    }
+  ],
+  "measures": [
+    {
+      "id": "start.live",
+      "reading": "live",
+      "unit": "B",
+      "title": "The used heap after a full GC at ready"
+    },
+    {
+      "id": "start.peak",
+      "reading": "peak",
+      "unit": "B",
+      "title": "The peak of the resident set at ready (VmHWM)"
+    },
+    {
+      "id": "start.readiness",
+      "reading": "readiness",
+      "unit": "ms",
+      "title": "The time from the start of the process to the ready signal"
+    }
+  ],
+  "points": [
+    {
+      "id": "live-1844",
+      "at": {
+        "log": {
+          "value": 197156864,
+          "unit": "B"
+        },
+        "feeds": {
+          "value": 10,
+          "unit": "{feed}"
+        },
+        "persons": {
+          "value": 10,
+          "unit": "{person}"
+        },
+        "incidents": {
+          "value": 10,
+          "unit": "{incident}"
+        }
+      },
+      "limits": {
+        "format": "capacity-limits/1",
+        "id": "alerts-start-gate/main/live-1844",
+        "title": "The start limits of alerts-runtime at the point live-1844 of alerts-start-gate/main",
+        "limits": [
+          {
+            "id": "start.live",
+            "measure": "start.live",
+            "ceiling": {
+              "kind": "amount",
+              "amount": {
+                "value": 178892224,
+                "unit": "B"
+              }
+            },
+            "headroom": 0
+          },
+          {
+            "id": "start.peak",
+            "measure": "start.peak",
+            "ceiling": {
+              "kind": "amount",
+              "amount": {
+                "value": 636489728,
+                "unit": "B"
+              }
+            },
+            "headroom": 0
+          },
+          {
+            "id": "start.readiness",
+            "measure": "start.readiness",
+            "ceiling": {
+              "kind": "amount",
+              "amount": {
+                "value": 18285,
+                "unit": "ms"
+              }
+            },
+            "headroom": 0
+          }
+        ]
+      },
+      "derivations": {
+        "start.live": {
+          "limit": 178892224,
+          "worst": 177476192,
+          "spread": 1416032,
+          "values": [
+            177376168,
+            177290712,
+            176060160,
+            177117416,
+            177476192
+          ],
+          "unit": "B"
+        },
+        "start.peak": {
+          "limit": 636489728,
+          "worst": 582225920,
+          "spread": 54263808,
+          "values": [
+            536932352,
+            527962112,
+            550502400,
+            577703936,
+            582225920
+          ],
+          "unit": "B"
+        },
+        "start.readiness": {
+          "limit": 18285,
+          "worst": 14342.272321,
+          "spread": 3942.596964999999,
+          "values": [
+            14342.272321,
+            10399.675356000002,
+            12464.981362,
+            10730.57701,
+            12371.428625999999
+          ],
+          "unit": "ms"
+        }
+      }
+    },
+    {
+      "id": "knee-192",
+      "at": {
+        "log": {
+          "value": 201326592,
+          "unit": "B"
+        },
+        "feeds": {
+          "value": 10,
+          "unit": "{feed}"
+        },
+        "persons": {
+          "value": 10,
+          "unit": "{person}"
+        },
+        "incidents": {
+          "value": 10,
+          "unit": "{incident}"
+        }
+      },
+      "limits": {
+        "format": "capacity-limits/1",
+        "id": "alerts-start-gate/main/knee-192",
+        "title": "The start limits of alerts-runtime at the point knee-192 of alerts-start-gate/main",
+        "limits": [
+          {
+            "id": "start.live",
+            "measure": "start.live",
+            "ceiling": {
+              "kind": "amount",
+              "amount": {
+                "value": 178352016,
+                "unit": "B"
+              }
+            },
+            "headroom": 0
+          },
+          {
+            "id": "start.peak",
+            "measure": "start.peak",
+            "ceiling": {
+              "kind": "amount",
+              "amount": {
+                "value": 641122304,
+                "unit": "B"
+              }
+            },
+            "headroom": 0
+          },
+          {
+            "id": "start.readiness",
+            "measure": "start.readiness",
+            "ceiling": {
+              "kind": "amount",
+              "amount": {
+                "value": 15590,
+                "unit": "ms"
+              }
+            },
+            "headroom": 0
+          }
+        ]
+      },
+      "derivations": {
+        "start.live": {
+          "limit": 178352016,
+          "worst": 177169456,
+          "spread": 1182560,
+          "values": [
+            175986896,
+            177169456,
+            176673096,
+            176843728,
+            177075584
+          ],
+          "unit": "B"
+        },
+        "start.peak": {
+          "limit": 641122304,
+          "worst": 583118848,
+          "spread": 58003456,
+          "values": [
+            525115392,
+            548483072,
+            546807808,
+            560148480,
+            583118848
+          ],
+          "unit": "B"
+        },
+        "start.readiness": {
+          "limit": 15590,
+          "worst": 13636.003485000001,
+          "spread": 1953.7595420000016,
+          "values": [
+            13636.003485000001,
+            11682.243943,
+            12933.575283999999,
+            11898.999413000001,
+            12639.630884
+          ],
+          "unit": "ms"
+        }
+      }
+    }
+  ]
+}
