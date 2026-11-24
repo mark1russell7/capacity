@@ -4,7 +4,23 @@ import { escapeMarkdown } from "@mark1russell7/text";
 import { caseCost } from "./case.ts";
 import type { Check } from "./check.ts";
 import { FLOOR_IDS, FLOOR_LIMITS, floorCheck } from "./floor.ts";
-import { CPU_IDS, jobName, jobProblem, lawDifferences, lawPointOf, type CutPoint, type LawJob, type LawMeasure, type LawSet } from "./laws.ts";
+import {
+  CPU_IDS,
+  OVERHEAD_SUFFIX,
+  conditionsOf,
+  differences,
+  jobName,
+  jobProblem,
+  lawDifferences,
+  lawPointOf,
+  sideOf,
+  type CutPoint,
+  type LawJob,
+  type LawMeasure,
+  type LawPoint,
+  type LawsProblem,
+  type LawSet,
+} from "./laws.ts";
 import type { Plan } from "./plan.ts";
 import { rateCheck } from "./rate.ts";
 import { worstLag } from "./reads.ts";
@@ -76,14 +92,46 @@ const rulesOf = (measure: LawMeasure, law: Law): LawMeasure => {
   return { id: measure.id, title: measure.title, residual: measure.residual, ...rules };
 };
 
+/** This function tells if a record is a record of the base side of the pairs of a set with a base. */
+const isBaseSide = (set: LawSet, record: CaseRecord): boolean => set.base !== undefined && sideOf(record.case.id).side === set.base;
+
+/** This function gives the measure of the law set of a law. The measure of an overhead law ends with `.overhead`. */
+const setMeasureOf = (set: LawSet, law: Law): string =>
+  set.base !== undefined && law.measure.id.endsWith(OVERHEAD_SUFFIX) ? law.measure.id.slice(0, -OVERHEAD_SUFFIX.length) : law.measure.id;
+
+/** This function gives the text of a point that is not a law point: a cut of a rule, or a problem of a read. */
+const missText = (found: CutPoint | LawsProblem, measure: LawMeasure): string => ("rule" in found ? cutText(found, measure) : `${found.path}: ${found.message}`);
+
+/**
+ * This function gives the point of an overhead law at a record of a side. The point is the side less the base side of
+ * its pair, in one job. The base record must have the subject `base` of the law, the conditions of the side and the
+ * same value of the variable. A rule that cuts either record cuts the point. Else the function gives the text of no read.
+ */
+const overheadPointOf = (set: LawSet, law: Law, rules: LawMeasure, record: CaseRecord, records: readonly CaseRecord[], job: string): LawPoint | string => {
+  const { pair } = sideOf(record.case.id);
+  const base = records.find((each) => isBaseSide(set, each) && sideOf(each.case.id).pair === pair);
+  if (base === undefined) return `${record.case.id}: the job has no record of its base side "${pair}/${String(set.base)}".`;
+  if (base.case.subject !== law.conditions["base"]) return `${base.case.id}: the base side has the subject ${base.case.subject}. The law is an overhead over ${String(law.conditions["base"])}.`;
+  const changed = differences({ subject: "", conditions: conditionsOf(base, set) }, { subject: "", conditions: conditionsOf(record, set) });
+  if (changed.length > 0) return `${base.case.id}: the base side differs from the case ${record.case.id} in ${changed.join(", ")}.`;
+  const side = lawPointOf(set, rules, record, job);
+  if (!("x" in side)) return missText(side, rules);
+  const under = lawPointOf(set, rules, base, job);
+  if (!("x" in under)) return missText(under, rules);
+  if (under.x !== side.x) return `${base.case.id}: the base side has the ${set.variable.id} ${short(under.x)}, and the case ${record.case.id} has ${short(side.x)}.`;
+  return { x: side.x, value: side.value - under.value };
+};
+
 /**
  * This function gives the job of one law: a read of each record in the conditions of the law, or the reason of no read.
- * A noise floor of the job over its limit (`FLOOR_LIMITS`), a job with no noise floor and an overhead law give no read.
+ * A noise floor of the job over its limit (`FLOOR_LIMITS`) and a job with no noise floor give no read.
+ *
+ * For an overhead law, each read is a pair of the job (`overheadPointOf`). The records of the base side give no read of their own.
  */
 const gateJobOf = (set: LawSet, law: Law, job: string, timed: Timed, records: readonly CaseRecord[]): GateJob => {
-  if (set.base !== undefined) return { job, reads: [], noRead: "The gate does not read an overhead law. The read of the two sides of each pair is CAP-33." };
-  const measure = set.measures.find((each) => each.id === law.measure.id);
-  if (measure === undefined) return { job, reads: [], noRead: `The law set of the plan has no measure "${law.measure.id}".` };
+  const id = setMeasureOf(set, law);
+  const measure = set.measures.find((each) => each.id === id);
+  if (measure === undefined) return { job, reads: [], noRead: `The law set of the plan has no measure "${id}".` };
   const floor = timed.verdict.values[`${measure.id}.floor`];
   const limit = FLOOR_LIMITS[measure.id];
   if (floor === undefined || !Number.isFinite(floor)) return { job, reads: [], noRead: `The job has no noise floor of ${measure.id}. A job with no read of its noise gives no read.` };
@@ -92,15 +140,16 @@ const gateJobOf = (set: LawSet, law: Law, job: string, timed: Timed, records: re
   const reads: GateRead[] = [];
   const unread: string[] = [];
   for (const record of records) {
+    if (isBaseSide(set, record)) continue;
     const changed = lawDifferences(law, record, set);
     if (changed.length > 0) {
       unread.push(`${record.case.id}: the case differs from the conditions of the law in ${changed.join(", ")}.`);
       continue;
     }
-    const found = lawPointOf(set, rules, record, job);
-    if ("rule" in found) unread.push(cutText(found, rules));
-    else if ("code" in found) unread.push(`${found.path}: ${found.message}`);
-    else reads.push({ point: { [set.variable.id]: found.x }, value: found.value });
+    const found = set.base === undefined ? lawPointOf(set, rules, record, job) : overheadPointOf(set, law, rules, record, records, job);
+    if (typeof found === "string") unread.push(found);
+    else if ("x" in found) reads.push({ point: { [set.variable.id]: found.x }, value: found.value });
+    else unread.push(missText(found, rules));
   }
   return { job, reads, unread };
 };
@@ -113,10 +162,12 @@ const gateJobOf = (set: LawSet, law: Law, job: string, timed: Timed, records: re
  * - **The jobs:** each job of the plan with no problem (`jobProblem`) gives the reads of its cases of load. The A/A pairs
  *   give only the noise of the job.
  * - **The laws:** a job reads each law of its CPU model, with the id `<subject>/<plan of the laws>/<cpu>/<measure>`.
+ *   For a plan of the laws with a base, the subject is the subject of each side other than the base side.
  *   A job on a CPU model with no law goes into `unread`. A law with no job is not a case of the gate.
  * - **The noise:** a job with a noise floor of a measure over its limit gives no read of the laws of that measure.
  * - **The reads:** a record must have the subject and the conditions of the law (`lawDifferences`). A point that the
  *   rules of the law leave out (`served`, `tail`) gives no read. Each such record goes into the list `unread` of its job.
+ * - **The overhead:** a read of an overhead law is a side less the base side of its pair, in one job.
  * - **No read:** a gate with no case, or with too few jobs for a case, is "no read". It does not pass (`lawGate`).
  *
  * The function throws a `RangeError` for a plan of the laws with no law set.
@@ -139,8 +190,8 @@ export const planGate = (plan: Plan, lawPlan: Plan, jobs: readonly LawJob[], law
     }
     const cpu = timed.machine.cpu;
     const model = cpuEntry(CPU_IDS, cpu).value;
-    const base = `${records[0]?.case.subject ?? ""}/${lawPlan.id}/${model ?? ""}/`;
-    const found = model === null ? [] : laws.filter((law) => law.id.startsWith(base));
+    const prefixes = [...new Set(records.filter((record) => !isBaseSide(set, record)).map((record) => `${record.case.subject}/${lawPlan.id}/${model ?? ""}/`))];
+    const found = model === null ? [] : laws.filter((law) => prefixes.some((prefix) => law.id.startsWith(prefix)));
     if (found.length === 0) {
       unread.push({ job, reason: `The plan "${lawPlan.id}" has no law on the CPU model "${cpu}".` });
       continue;
@@ -171,7 +222,7 @@ export const gateSummaryOf = (result: PlanGate): string => {
     `## The gate of the plan ${result.plan}`,
     "",
     `The plan measures the subject again at points of the laws of the plan ${result.laws}. ${
-      result.expected === "block" ? "It adds a cost to each request, thus the gate must block." : "It adds no cost, thus the gate must pass."
+      result.expected === "block" ? "It adds a cost to the requests of its cases, thus the gate must block." : "It adds no cost, thus the gate must pass."
     } The gate gives **${gate.outcome}**${good ? "." : `, not **${result.expected}**.`}`,
     "",
     `The run range has the level ${gate.level}. The family of tests has the level ${gate.alpha}. A side needs ${gate.need} jobs or more.`,

@@ -111,6 +111,7 @@ jobs:
             !packages/lab/src/**/*.test.ts
             packages/lab/plans/floor.json
             packages/lab/plans/rate.json
+            packages/lab/plans/overhead.json
             packages/lab/plans/gate-*.json
             packages/capacity/laws/**
             packages/capacity/src/**

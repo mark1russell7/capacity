@@ -3,7 +3,7 @@ import { escapeMarkdown } from "@mark1russell7/text";
 import { describe, expect, it } from "vitest";
 import type { Case } from "./case.ts";
 import { expectedOf, gateSummaryOf, planGate, SUMMARY_UNREAD } from "./gate.ts";
-import { CASES, EPYC, FAST_PLAN, FLOORS, OPTIONS, OTHER, jobsOf, recordOf, runOf, timedOf } from "./law-fixtures.ts";
+import { CASES, EPYC, FAST_PLAN, FLOORS, OPTIONS, OTHER, OVERHEAD, OVERHEAD_SET, jobsOf, overheadJobsOf, overheadRecordOf, recordOf, runOf, timedOf } from "./law-fixtures.ts";
 import { lawsOf, type LawJob } from "./laws.ts";
 import type { Plan } from "./plan.ts";
 import type { CaseRecord } from "./record.ts";
@@ -158,5 +158,65 @@ describe("the summary of the gate of a plan", () => {
     const left = 2 * 2 * (CASES.length - 1);
     expect(summary).toContain(`Reads that the laws left out: ${left}.`);
     expect(summary).toContain(`- and ${left - SUMMARY_UNREAD} more`);
+  });
+});
+
+describe("the gate of the overhead laws of the service runner", () => {
+  const PLAN_OVERHEAD = { id: "overhead", laws: OVERHEAD_SET };
+  const OVERHEAD_LAWS: readonly Law[] = lawsOf(PLAN_OVERHEAD, overheadJobsOf(EPYC), FLOORS, OPTIONS).laws.map((each) => each.law);
+  const LAW_PLAN_OVERHEAD = PLAN_OVERHEAD as unknown as Plan;
+  const OVERHEAD_CASES = OVERHEAD.cases as readonly Case[];
+  const ID = (measure: string): string => `node-http-service/overhead/epyc-7763/${measure}.overhead`;
+  const QUIET_ALL = { ...QUIET, "memory.high.floor": 1_200_000 };
+
+  /** This function gives the gate plan with each pair of the plan overhead. With `cost`, each case of the service side adds 100 µs to each request. */
+  const overheadPlanOf = (cost = false): Plan =>
+    ({ id: GATE, cases: OVERHEAD_CASES.map((value) => (cost && value.subject === "node-http-service" ? { ...value, cost: COST } : value)) }) as unknown as Plan;
+
+  /** This function gives a job of the gate plan with a record of each case of the plan overhead. The service side spends `slower` ms more on each request. */
+  const overheadJobAt = (job: number, slower = 0, edit: (records: readonly CaseRecord[]) => readonly CaseRecord[] = (records) => records): LawJob => ({
+    timed: timedOf(GATE, runOf(200 + job), EPYC, `2026-11-24T06:${String(job).padStart(2, "0")}:00Z`, { values: QUIET_ALL }),
+    records: edit(OVERHEAD_CASES.map((value, index) => {
+      const record = overheadRecordOf(value, index, job, EPYC);
+      return value.subject === "node-http-service" ? slowerOf(record, slower) : record;
+    })),
+  });
+
+  it("reads each pair of a job as the value of the service side less the value of the bare side, and passes the runner of the laws", () => {
+    const result = planGate(overheadPlanOf(), LAW_PLAN_OVERHEAD, [1, 2, 3].map((job) => overheadJobAt(job)), OVERHEAD_LAWS);
+    expect(result.expected).toBe("pass");
+    expect(result.unread).toEqual([]);
+    expect(outcomes(result)).toEqual([
+      [ID("cpu.request"), "within"],
+      [ID("memory.high"), "within"],
+      [ID("memory"), "within"],
+    ]);
+    expect(result.gate.cases.map((each) => each.jobs.map((job) => job.reads))).toEqual(Array(3).fill(Array(3).fill(OVERHEAD_CASES.length / 2)));
+    expect(result.gate.cases.every((each) => each.jobs.every((job) => job.unread.length === 0))).toBe(true);
+    expect(result.gate.outcome).toBe("pass");
+  });
+
+  it("blocks a runner with an added cost on the service side, and the plan expects the block", () => {
+    const result = planGate(overheadPlanOf(true), LAW_PLAN_OVERHEAD, [1, 2, 3].map((job) => overheadJobAt(job, 5)), OVERHEAD_LAWS);
+    expect(result.expected).toBe("block");
+    expect(result.gate.cases.find((each) => each.case === ID("cpu.request"))?.outcome).toBe("beyond");
+    expect(result.gate.outcome).toBe("block");
+  });
+
+  it("gives no read of a pair with no base side, with another base subject or with another load", () => {
+    const at = (id: string, records: readonly CaseRecord[]): CaseRecord => records.find((record) => record.case.id === id)!;
+    const edit = (records: readonly CaseRecord[]): readonly CaseRecord[] =>
+      records
+        .filter((record) => record.case.id !== "overhead/100/bare")
+        .map((record) => (record.case.id === "overhead/500/bare" ? { ...record, case: { ...record.case, subject: "other" } } : record))
+        .map((record) => (record.case.id === "overhead/1000/bare" ? { ...record, case: { ...at("overhead/1000/bare", records).case, duration: { value: 2, unit: "s" } } } : record));
+    const result = planGate(overheadPlanOf(), LAW_PLAN_OVERHEAD, [overheadJobAt(1, 0, edit), overheadJobAt(2)], OVERHEAD_LAWS);
+    const cpu = result.gate.cases.find((each) => each.case === ID("cpu.request"))!;
+    expect(cpu.jobs.map((each) => each.reads)).toEqual([OVERHEAD_CASES.length / 2 - 3, OVERHEAD_CASES.length / 2]);
+    expect(cpu.jobs[0]!.unread).toEqual([
+      'overhead/100/service: the job has no record of its base side "overhead/100/bare".',
+      "overhead/500/bare: the base side has the subject other. The law is an overhead over node-http.",
+      "overhead/1000/bare: the base side differs from the case overhead/1000/service in duration.",
+    ]);
   });
 });
