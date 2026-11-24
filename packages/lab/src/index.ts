@@ -80,7 +80,7 @@ export { measureCase, type MeasureOptions, type Measurement } from "./measure.ts
 export { START_MEASURES, type StartMeasure } from "./start-measure.ts";
 export { CHECKS, recordProblems, verdictOf, type Check, type CheckProblem, type CheckProblemCode, type Verdict } from "./check.ts";
 export { CONTROL_CASES, CONTROL_LIMITS, controlCheck, type ControlValue, type Limit } from "./control.ts";
-export { FLOOR_K, FLOOR_LIMITS, FLOOR_MEASURES, FLOOR_PAIRS, LOOP_FLOOR_MEASURES, floorCheck, floorPair, type FloorMeasure, type FloorPair } from "./floor.ts";
+export { FLOOR_K, FLOOR_LIMITS, FLOOR_MEASURES, FLOOR_PAIRS, floorCheck, floorPair, type FloorMeasure, type FloorPair } from "./floor.ts";
 export { RATE_LAG_LIMIT, RATE_MEASURES, coresOf, rateCheck, type RateMeasure } from "./rate.ts";
 export { OVERHEAD_MEASURES, OVERHEAD_SIDES, overheadCheck, type OverheadMeasure } from "./overhead.ts";
 export {

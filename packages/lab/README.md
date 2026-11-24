@@ -183,7 +183,7 @@ The plan `floor` has 5 A/A pairs. The two cases of a pair are equal: each one is
 
 - Each run must answer each planned request, with no failure and no unfinished request. The driver of each run must have a lag of `LAG_LIMIT` or less.
 - Each floor must be `FLOOR_LIMITS` or less. A larger floor tells that the runners became noisier.
-- The loop measures (`LOOP_FLOOR_MEASURES`) get a floor, a level and a bias, but no limit. The part 2 of CAP-68 gives their limits from 5 runs.
+- The loop measures of the subject (`loop.lag.mean`, `loop.lag.max` and `loop.busy`) get their limits from the 5 runs of the Lab run 45467258929. A record of a lab before CAP-68 has no loop measures, thus they get no floor.
 - The bias is information, not a limit.
 - A law keeps the floor of its measure in its field `noise`, with the CPU model and the runs. A difference below the floor is not a result.
 
