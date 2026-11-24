@@ -34,6 +34,7 @@ import { canonicalJson } from "@mark1russell7/rigor-generators";
 import { escapeMarkdown } from "@mark1russell7/text";
 import { isIdleCase, type Case } from "./case.ts";
 import { FLOOR_MEASURES, type FloorMeasure } from "./floor.ts";
+import { LOAD_UNITS } from "./grid.ts";
 import { caseValue, runValues } from "./reads.ts";
 import { CPUSET_MEASURES, LOAD_MEASURES, QUANTILE_MEASURES, RECORD_FORMAT, RUN_MEASURES, type CaseRecord, type QuantileMeasure } from "./record.ts";
 import type { StartRecord } from "./start-measure.ts";
@@ -103,7 +104,7 @@ export interface LawVariable {
  * model. The field `laws` of a plan holds it.
  *
  * Each case of the plan is a case of load with one class, the class `class`. The demand of each case
- * gives the value of the variable (`loadPointOf`). The records give the conditions of each law. The
+ * gives the value of the variable (`loadPointOf`). The pool of connections gives the variable `concurrency`. The records give the conditions of each law. The
  * field `conditions` adds the facts that the records do not hold.
  *
  * A set with the field `base` gives the laws of an overhead. Each case is a side of a pair, with the id `<pair>/<side>`.
@@ -167,6 +168,19 @@ const isRecordCondition = (name: string): boolean =>
 
 /** This function gives the part of a law that a load point reads, for the variable of a law set. */
 const pointLawOf = (id: string, variable: LawVariable): PointLaw => ({ id, variables: [{ id: variable.id, unit: variable.unit }] });
+
+/** This name is the variable of a law set that the size of the pool of connections of a case gives. */
+export const POOL_VARIABLE = "concurrency";
+
+/**
+ * This function gives the load point of a case for the variable of a law set. With the variable `POOL_VARIABLE`, the size of
+ * the pool of connections of the case is the amount. The demand of the case gives each other variable (`loadPointOf`).
+ */
+const casePointOf = (value: Case, set: LawSet, id: string): ReturnType<typeof loadPointOf> => {
+  const pool = set.variable.id === POOL_VARIABLE && value.connections?.mode === "pool" ? value.connections.size : undefined;
+  const given = pool === undefined ? {} : { [POOL_VARIABLE]: { value: pool, unit: LOAD_UNITS.concurrency } };
+  return loadPointOf(value.demand, set.class, pointLawOf(id, set.variable), given);
+};
 
 /** This function tells if a measure name is the name of a quantile measure of the driver. */
 const isQuantile = (id: string): id is QuantileMeasure => Object.hasOwn(QUANTILE_MEASURES, id);
@@ -301,7 +315,7 @@ export const lawSetProblems = (laws: unknown, cases: readonly (Case | StartCase)
     if (classes.length !== 1 || classes[0] !== set.class) {
       return void problems.push({ code: "laws", path: `${path}.demand.classes`, message: `The case "${value.id}" has the classes ${classes.join(", ")}. A case of a law set has one class, "${set.class}".` });
     }
-    const point = loadPointOf(value.demand, set.class, pointLawOf(value.id, set.variable));
+    const point = casePointOf(value, set, value.id);
     if (point.tag === "err") problems.push({ code: "laws", path: `${path}.demand`, message: point.error.message });
   });
   for (const [pair, found] of sides) {
@@ -436,7 +450,7 @@ export const jobProblem = (plan: string, timed: Timed, records: readonly JobReco
 /**
  * This function gives the conditions of a law from one record. They are the class, the CPU model, the
  * limit of each resource of the instance, and the time and the arrivals of each run. The connections
- * and the version of the harness are conditions too. Each amount of the request and each level of the demand, other than
+ * and the version of the harness are conditions too. The size of the pool is not a condition of a law of `POOL_VARIABLE`. Each amount of the request and each level of the demand, other than
  * the variable, is a condition too.
  */
 export const conditionsOf = (record: CaseRecord, set: LawSet): Readonly<Record<string, ConditionValue>> => {
@@ -447,7 +461,7 @@ export const conditionsOf = (record: CaseRecord, set: LawSet): Readonly<Record<s
   conditions["arrivals"] = value.arrivals.arrivals;
   const connections = value.connections ?? { mode: "pipeline" };
   conditions["connections"] = connections.mode;
-  if (connections.mode === "pool") conditions["connections.size"] = connections.size;
+  if (connections.mode === "pool" && set.variable.id !== POOL_VARIABLE) conditions["connections.size"] = connections.size;
   if (record.machine.harness !== null) conditions["harness"] = record.machine.harness;
   const request = value.demand.classes.find((entry) => entry.id === set.class)?.request ?? {};
   for (const [name, amount] of Object.entries(request)) if (name !== set.variable.id) conditions[`request.${name}`] = amount;
@@ -615,13 +629,13 @@ export interface LawPoint {
 
 /**
  * This function gives the point of a measure at one record, with the rules of the measure. The value of the variable comes from
- * the demand of the case (`loadPointOf`). The value of the measure is the median over the runs (`caseValue`), as in a fit of a law.
+ * the case (`casePointOf`). The value of the measure is the median over the runs (`caseValue`), as in a fit of a law.
  * A record that a rule of the measure leaves out (`served`, `tail`) gives its cut. A read that fails gives a problem.
  */
 export const lawPointOf = (set: LawSet, measure: LawMeasure, record: CaseRecord, job: string): LawPoint | CutPoint | LawsProblem => {
   const [first] = cutsOf(measure, record, job);
   if (first !== undefined) return "code" in first ? { code: "read", path: record.case.id, message: `${first.path}: ${first.message}` } : first;
-  const point = loadPointOf(record.case.demand, set.class, pointLawOf(record.case.id, set.variable));
+  const point = casePointOf(record.case, set, record.case.id);
   if (point.tag === "err") return { code: "case", path: record.case.id, message: point.error.message };
   const value = caseValue(record, measure.id);
   if (typeof value !== "number") return { code: "read", path: value.path, message: value.message };
@@ -641,7 +655,7 @@ const pointsOf = (set: LawSet, base: string, jobs: readonly LawJob[], side?: str
   const timeds: Timed[] = [];
   let first: { readonly facts: Facts; readonly id: string } | undefined;
   const xOf = (record: CaseRecord, timed: Timed): number | undefined => {
-    const point = loadPointOf(record.case.demand, set.class, pointLawOf(base, set.variable));
+    const point = casePointOf(record.case, set, base);
     if (point.tag === "ok") return point.value[set.variable.id]!;
     problems.push({ code: "case", path: base, message: `The case "${record.case.id}" of ${jobName(timed)}: ${point.error.message}` });
     return undefined;

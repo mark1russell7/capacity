@@ -1,0 +1,594 @@
+{
+ "format": "capacity-plan/1",
+ "id": "inflight",
+ "title": "The laws of the requests in flight: a wait of a request from 1 ms to 1024 ms at 100 requests each second on one core",
+ "check": "rate",
+ "triggers": [],
+ "laws": {
+  "class": "inflight",
+  "variable": {
+   "id": "wait",
+   "unit": "ms",
+   "scale": "log"
+  },
+  "measures": [
+   {
+    "id": "memory.high",
+    "title": "The highest memory of the subject in a run",
+    "residual": "relative",
+    "forms": [
+     "constant",
+     "linear",
+     "power",
+     "logarithm",
+     "hinge"
+    ]
+   },
+   {
+    "id": "cpu.request",
+    "title": "The CPU time of one request",
+    "residual": "relative",
+    "forms": [
+     "constant",
+     "linear",
+     "power",
+     "logarithm",
+     "hinge"
+    ]
+   },
+   {
+    "id": "latency.p50",
+    "title": "The median latency of a request",
+    "residual": "relative",
+    "forms": [
+     "constant",
+     "linear",
+     "power",
+     "logarithm",
+     "hinge"
+    ]
+   }
+  ]
+ },
+ "cases": [
+  {
+   "format": "capacity-case/1",
+   "id": "inflight/1",
+   "title": "The request with a wait of 1 ms, at 100 requests each second",
+   "subject": "node-http",
+   "instance": {
+    "resources": {
+     "cpu": {
+      "value": 1,
+      "unit": "{core}"
+     },
+     "memory": {
+      "value": 512,
+      "unit": "MiB"
+     }
+    }
+   },
+   "demand": {
+    "classes": [
+     {
+      "id": "inflight",
+      "rate": {
+       "value": 100,
+       "unit": "{request}/s"
+      },
+      "request": {
+       "wait": {
+        "value": 1,
+        "unit": "ms"
+       }
+      }
+     }
+    ],
+    "levels": {}
+   },
+   "duration": {
+    "value": 4,
+    "unit": "s"
+   },
+   "arrivals": {
+    "arrivals": "poisson",
+    "seed": "inflight"
+   },
+   "connections": {
+    "mode": "pool",
+    "size": 256
+   },
+   "runs": 3
+  },
+  {
+   "format": "capacity-case/1",
+   "id": "inflight/2",
+   "title": "The request with a wait of 2 ms, at 100 requests each second",
+   "subject": "node-http",
+   "instance": {
+    "resources": {
+     "cpu": {
+      "value": 1,
+      "unit": "{core}"
+     },
+     "memory": {
+      "value": 512,
+      "unit": "MiB"
+     }
+    }
+   },
+   "demand": {
+    "classes": [
+     {
+      "id": "inflight",
+      "rate": {
+       "value": 100,
+       "unit": "{request}/s"
+      },
+      "request": {
+       "wait": {
+        "value": 2,
+        "unit": "ms"
+       }
+      }
+     }
+    ],
+    "levels": {}
+   },
+   "duration": {
+    "value": 4,
+    "unit": "s"
+   },
+   "arrivals": {
+    "arrivals": "poisson",
+    "seed": "inflight"
+   },
+   "connections": {
+    "mode": "pool",
+    "size": 256
+   },
+   "runs": 3
+  },
+  {
+   "format": "capacity-case/1",
+   "id": "inflight/4",
+   "title": "The request with a wait of 4 ms, at 100 requests each second",
+   "subject": "node-http",
+   "instance": {
+    "resources": {
+     "cpu": {
+      "value": 1,
+      "unit": "{core}"
+     },
+     "memory": {
+      "value": 512,
+      "unit": "MiB"
+     }
+    }
+   },
+   "demand": {
+    "classes": [
+     {
+      "id": "inflight",
+      "rate": {
+       "value": 100,
+       "unit": "{request}/s"
+      },
+      "request": {
+       "wait": {
+        "value": 4,
+        "unit": "ms"
+       }
+      }
+     }
+    ],
+    "levels": {}
+   },
+   "duration": {
+    "value": 4,
+    "unit": "s"
+   },
+   "arrivals": {
+    "arrivals": "poisson",
+    "seed": "inflight"
+   },
+   "connections": {
+    "mode": "pool",
+    "size": 256
+   },
+   "runs": 3
+  },
+  {
+   "format": "capacity-case/1",
+   "id": "inflight/8",
+   "title": "The request with a wait of 8 ms, at 100 requests each second",
+   "subject": "node-http",
+   "instance": {
+    "resources": {
+     "cpu": {
+      "value": 1,
+      "unit": "{core}"
+     },
+     "memory": {
+      "value": 512,
+      "unit": "MiB"
+     }
+    }
+   },
+   "demand": {
+    "classes": [
+     {
+      "id": "inflight",
+      "rate": {
+       "value": 100,
+       "unit": "{request}/s"
+      },
+      "request": {
+       "wait": {
+        "value": 8,
+        "unit": "ms"
+       }
+      }
+     }
+    ],
+    "levels": {}
+   },
+   "duration": {
+    "value": 4,
+    "unit": "s"
+   },
+   "arrivals": {
+    "arrivals": "poisson",
+    "seed": "inflight"
+   },
+   "connections": {
+    "mode": "pool",
+    "size": 256
+   },
+   "runs": 3
+  },
+  {
+   "format": "capacity-case/1",
+   "id": "inflight/16",
+   "title": "The request with a wait of 16 ms, at 100 requests each second",
+   "subject": "node-http",
+   "instance": {
+    "resources": {
+     "cpu": {
+      "value": 1,
+      "unit": "{core}"
+     },
+     "memory": {
+      "value": 512,
+      "unit": "MiB"
+     }
+    }
+   },
+   "demand": {
+    "classes": [
+     {
+      "id": "inflight",
+      "rate": {
+       "value": 100,
+       "unit": "{request}/s"
+      },
+      "request": {
+       "wait": {
+        "value": 16,
+        "unit": "ms"
+       }
+      }
+     }
+    ],
+    "levels": {}
+   },
+   "duration": {
+    "value": 4,
+    "unit": "s"
+   },
+   "arrivals": {
+    "arrivals": "poisson",
+    "seed": "inflight"
+   },
+   "connections": {
+    "mode": "pool",
+    "size": 256
+   },
+   "runs": 3
+  },
+  {
+   "format": "capacity-case/1",
+   "id": "inflight/32",
+   "title": "The request with a wait of 32 ms, at 100 requests each second",
+   "subject": "node-http",
+   "instance": {
+    "resources": {
+     "cpu": {
+      "value": 1,
+      "unit": "{core}"
+     },
+     "memory": {
+      "value": 512,
+      "unit": "MiB"
+     }
+    }
+   },
+   "demand": {
+    "classes": [
+     {
+      "id": "inflight",
+      "rate": {
+       "value": 100,
+       "unit": "{request}/s"
+      },
+      "request": {
+       "wait": {
+        "value": 32,
+        "unit": "ms"
+       }
+      }
+     }
+    ],
+    "levels": {}
+   },
+   "duration": {
+    "value": 4,
+    "unit": "s"
+   },
+   "arrivals": {
+    "arrivals": "poisson",
+    "seed": "inflight"
+   },
+   "connections": {
+    "mode": "pool",
+    "size": 256
+   },
+   "runs": 3
+  },
+  {
+   "format": "capacity-case/1",
+   "id": "inflight/64",
+   "title": "The request with a wait of 64 ms, at 100 requests each second",
+   "subject": "node-http",
+   "instance": {
+    "resources": {
+     "cpu": {
+      "value": 1,
+      "unit": "{core}"
+     },
+     "memory": {
+      "value": 512,
+      "unit": "MiB"
+     }
+    }
+   },
+   "demand": {
+    "classes": [
+     {
+      "id": "inflight",
+      "rate": {
+       "value": 100,
+       "unit": "{request}/s"
+      },
+      "request": {
+       "wait": {
+        "value": 64,
+        "unit": "ms"
+       }
+      }
+     }
+    ],
+    "levels": {}
+   },
+   "duration": {
+    "value": 4,
+    "unit": "s"
+   },
+   "arrivals": {
+    "arrivals": "poisson",
+    "seed": "inflight"
+   },
+   "connections": {
+    "mode": "pool",
+    "size": 256
+   },
+   "runs": 3
+  },
+  {
+   "format": "capacity-case/1",
+   "id": "inflight/128",
+   "title": "The request with a wait of 128 ms, at 100 requests each second",
+   "subject": "node-http",
+   "instance": {
+    "resources": {
+     "cpu": {
+      "value": 1,
+      "unit": "{core}"
+     },
+     "memory": {
+      "value": 512,
+      "unit": "MiB"
+     }
+    }
+   },
+   "demand": {
+    "classes": [
+     {
+      "id": "inflight",
+      "rate": {
+       "value": 100,
+       "unit": "{request}/s"
+      },
+      "request": {
+       "wait": {
+        "value": 128,
+        "unit": "ms"
+       }
+      }
+     }
+    ],
+    "levels": {}
+   },
+   "duration": {
+    "value": 4,
+    "unit": "s"
+   },
+   "arrivals": {
+    "arrivals": "poisson",
+    "seed": "inflight"
+   },
+   "connections": {
+    "mode": "pool",
+    "size": 256
+   },
+   "runs": 3
+  },
+  {
+   "format": "capacity-case/1",
+   "id": "inflight/256",
+   "title": "The request with a wait of 256 ms, at 100 requests each second",
+   "subject": "node-http",
+   "instance": {
+    "resources": {
+     "cpu": {
+      "value": 1,
+      "unit": "{core}"
+     },
+     "memory": {
+      "value": 512,
+      "unit": "MiB"
+     }
+    }
+   },
+   "demand": {
+    "classes": [
+     {
+      "id": "inflight",
+      "rate": {
+       "value": 100,
+       "unit": "{request}/s"
+      },
+      "request": {
+       "wait": {
+        "value": 256,
+        "unit": "ms"
+       }
+      }
+     }
+    ],
+    "levels": {}
+   },
+   "duration": {
+    "value": 4,
+    "unit": "s"
+   },
+   "arrivals": {
+    "arrivals": "poisson",
+    "seed": "inflight"
+   },
+   "connections": {
+    "mode": "pool",
+    "size": 256
+   },
+   "runs": 3
+  },
+  {
+   "format": "capacity-case/1",
+   "id": "inflight/512",
+   "title": "The request with a wait of 512 ms, at 100 requests each second",
+   "subject": "node-http",
+   "instance": {
+    "resources": {
+     "cpu": {
+      "value": 1,
+      "unit": "{core}"
+     },
+     "memory": {
+      "value": 512,
+      "unit": "MiB"
+     }
+    }
+   },
+   "demand": {
+    "classes": [
+     {
+      "id": "inflight",
+      "rate": {
+       "value": 100,
+       "unit": "{request}/s"
+      },
+      "request": {
+       "wait": {
+        "value": 512,
+        "unit": "ms"
+       }
+      }
+     }
+    ],
+    "levels": {}
+   },
+   "duration": {
+    "value": 4,
+    "unit": "s"
+   },
+   "arrivals": {
+    "arrivals": "poisson",
+    "seed": "inflight"
+   },
+   "connections": {
+    "mode": "pool",
+    "size": 256
+   },
+   "runs": 3
+  },
+  {
+   "format": "capacity-case/1",
+   "id": "inflight/1024",
+   "title": "The request with a wait of 1024 ms, at 100 requests each second",
+   "subject": "node-http",
+   "instance": {
+    "resources": {
+     "cpu": {
+      "value": 1,
+      "unit": "{core}"
+     },
+     "memory": {
+      "value": 512,
+      "unit": "MiB"
+     }
+    }
+   },
+   "demand": {
+    "classes": [
+     {
+      "id": "inflight",
+      "rate": {
+       "value": 100,
+       "unit": "{request}/s"
+      },
+      "request": {
+       "wait": {
+        "value": 1024,
+        "unit": "ms"
+       }
+      }
+     }
+    ],
+    "levels": {}
+   },
+   "duration": {
+    "value": 4,
+    "unit": "s"
+   },
+   "arrivals": {
+    "arrivals": "poisson",
+    "seed": "inflight"
+   },
+   "connections": {
+    "mode": "pool",
+    "size": 256
+   },
+   "runs": 3
+  }
+ ]
+}
