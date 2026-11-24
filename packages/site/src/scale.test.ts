@@ -53,13 +53,13 @@ describe("the slider on the real compositions", () => {
   it("moves the events each second of alerts, from the measures to 10 times the power of 10 over them", () => {
     const alerts = SUBJECTS.find((each) => each.subject === "alerts-runtime")!;
     const slider = sliderFor(alerts.compositions, settingOf("alerts-runtime"));
-    expect(slider.load).toMatchObject({ id: "event", unit: "{event}/s", min: 1, max: 1000, start: 30 });
-    expect(slider.measured).toMatchObject({ min: 0, max: 30 });
+    expect(slider.load).toMatchObject({ id: "event", unit: "{event}/s", min: 1, max: 1000, start: 55 });
+    expect(slider.measured).toMatchObject({ min: 0, max: 55 });
     expect(slider.load.demandAt(4)).toEqual({ classes: [], levels: { event: { value: 4, unit: "{event}/s" } } });
   }, 120_000);
 
   it("tells that an instance of 512 MiB is too small for alerts, not a count past the search", () => {
-    // The memory law of alerts gives about 393 MiB with no load. 512 MiB less 30 % of headroom is 358 MiB.
+    // The memory law of alerts gives 382 MiB with no load. 512 MiB less 30 % of headroom is 358 MiB.
     const alerts = SUBJECTS.find((each) => each.subject === "alerts-runtime")!;
     expect(sliderOf(alerts.compositions, DEFAULT_SETTING, CATALOG)).toBe(
       "At the lowest load of the slider, 1 event/s, the subject needs more than 256 instances of this size. Choose a larger instance.",
