@@ -6,7 +6,6 @@ import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
 import { afterAll, describe, expect, it } from "vitest";
 import { APP_START_PROGRAM, FAKES_PROGRAM } from "./start-app.ts";
-import { ALERTS } from "./subject/alerts.ts";
 import { NODE_HTTP, NODE_HTTP_SERVICE, SUBJECT_FOLDER, packageFiles, subjectFiles, type LabSubject } from "./subjects.ts";
 
 type Line = { readonly ev: string; readonly t: number } & Readonly<Record<string, unknown>>;
@@ -51,13 +50,12 @@ describe("NODE_HTTP", () => {
   it("names each file of the folder of the subjects in one subject or as the start program of an app, and its program is one of them", () => {
     const folder = fileURLToPath(new URL("./subject/", import.meta.url));
     const programs = readdirSync(folder).filter((name) => name.endsWith(".ts") && !name.endsWith(".test.ts"));
-    // The folder holds three subjects and the programs of the app cases. The service subject has its program and its
-    // server, and the files of the bare subject that it uses. The subject of alerts has its declaration and its two
-    // programs. The app cases have the start program, the program of the sidecar of the fakes, and their ready checks.
+    // The folder holds two subjects and the programs of the app cases. The service subject has its program and its
+    // server, and the files of the bare subject that it uses. The app cases have the start program, the program of
+    // the sidecar of the fakes, and their ready checks.
     const service = NODE_HTTP_SERVICE.files.filter((name) => !NODE_HTTP.files.includes(name));
     expect(service).toEqual(["node-http-service.main.ts", "node-http-service.ts"]);
-    const alerts = ["alerts.ts", ALERTS.seed, ALERTS.start];
-    expect([...NODE_HTTP.files, ...service, ...alerts, APP_START_PROGRAM, FAKES_PROGRAM, "ready.ts"].sort()).toEqual(programs.sort());
+    expect([...NODE_HTTP.files, ...service, APP_START_PROGRAM, FAKES_PROGRAM, "ready.ts"].sort()).toEqual(programs.sort());
     expect(NODE_HTTP.files).toContain(NODE_HTTP.program);
     expect(NODE_HTTP.image).toMatch(/^node:\d+\.\d+\.\d+-alpine@sha256:[0-9a-f]{64}$/);
   });
