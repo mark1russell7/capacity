@@ -565,11 +565,11 @@ A contract can have outside services, for example a feed or a channel of message
 
 #### The load ladder of events
 
-The plan `alerts-start-event` starts alerts at 6 rungs of the rate of new events from the fake of its feeds (CAP-66). The watch after ready holds the load, and the law of `watchCores` gives the CPU time of one event.
+The plan `alerts-start-event` starts alerts at 11 rungs of the rate of new events from the fake of its feeds (CAP-66). The watch after ready holds the load, and the law of `watchCores` gives the CPU time of one event.
 
 | Part | The value | Why |
 | --- | --- | --- |
-| The rungs | `event`: 0, 1, 3, 10, 30 and 100 events each second. Each event has 2000 B. `update` is 0. | The rungs cover the range of the class `event` of the contract. The rung 0 gives the cores of an idle app. |
+| The rungs | `event`: 0, 1, 3, 10, 30, 40, 45, 50, 55, 60 and 70 events each second. Each event has 2000 B. `update` is 0. | The rungs cover the class `event` of the contract to the first limit. The rung 0 gives the cores of an idle app. |
 | The base point | 16 MiB of log, 10 feeds, 10 persons and 10 incidents | These are the base levels of the ladders of the levels. |
 | The watch | 180 s | Alerts polls its feeds. A long watch holds many polls, thus the CPU time over the watch is near its mean. |
 | The measures | `watchCores`, `watchPeak`, `watchHeapPeak` and `ready` | The slope of `watchCores` over the rate is the CPU seconds of one event. Its intercept is the cores of the idle app. |
@@ -609,7 +609,8 @@ The second run is the Lab run [45351701555](https://github.com/mark1russell7/cap
 - The memory binds first, not the CPU. At 48 events each second, the law of the cores gives 0.28 cores of the 2 CPUs of the target.
 - The two limits of the memory are at 48 and 52 events each second, and their intervals overlap. Thus the lab cannot tell which limit comes first.
 - The two reaches are outside the range of the fit. The failures at 100 events each second agree with them: each child reached the heap limit of V8.
-- CAP-86 adds rungs from 30 to 100 events each second. Then the first limit is inside the range of a fit.
+- CAP-86 replaces the rung 100 with the rungs 40, 45, 50, 55, 60 and 70. The rungs near 48 and 52 tell which limit comes first.
+- The plan then has 5 jobs of 263 minutes. The fit pools the new runs with the two runs above, because each record holds its own case.
 - At 30 events each second, two jobs give 0.31 and 0.33 cores, two times the median of 0.155. The line still has the smallest error on the held-out jobs.
 - The rule `floor` with the share 1 gives the knees in events each second:
   - `watchCores` at 2.4 [1.4, 3.5]
@@ -633,7 +634,7 @@ The plan `alerts-start-update` starts alerts at 6 rungs of the rate of updates f
 - The rate of events is constant, thus the law over the rate of updates holds no effect of the events.
 - Each alert lives one hour. Thus the live alerts increase by 1 each second, and the seeded random of the fake picks the alert of each update.
 - The first event comes 1 s after the first request of the app. The fake skips the updates before it, thus less than 1 s of updates.
-- The plan has 5 jobs of 162 minutes, as the plan `alerts-start-event`.
+- The plan has 5 jobs of 162 minutes.
 
 The first run of the plan is [Lab run 45362275890](https://github.com/mark1russell7/capacity/actions/runs/45362275890), with 5 jobs. Each value is the median of 10 readings, from the 2 arms of each job. No start failed.
 
