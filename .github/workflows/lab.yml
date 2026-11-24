@@ -18,7 +18,9 @@
 # expects fails the job. A gate with no read fails the job too: no read is not a pass.
 #
 # The bench of the scale query times the head against its base commit, one job for each case (bench-scale.main.ts). A pull
-# request always starts it. Its gate, the job bench-gate, fails when a case takes more than 1.1 times the time of the base,
+# request always starts it. In a pull request, the head is the merge commit of the checkout, and its base is the first parent
+# of that commit: the tip of main that the merge holds. The field base.sha of the event can be an older commit of main.
+# Its gate, the job bench-gate, fails when a case takes more than 1.1 times the time of the base,
 # when a case is too noisy to decide, or when a case has no record. A head can change the value of a case on purpose.
 # Then packages/lab/bench-changes.json names the case with the hashes of its two values and the reason. The gate does not
 # time that case, and a change of value with no entry fails the job. For example, one run of the bench only:
@@ -254,7 +256,7 @@ jobs:
       - name: The bench of the case
         env:
           CASE: ${{ matrix.case }}
-          BASE: ${{ github.event.pull_request.base.sha || inputs.base || 'origin/main' }}
+          BASE: ${{ github.event_name == 'pull_request' && 'HEAD^1' || inputs.base || 'origin/main' }}
           OUT: ${{ runner.temp }}/bench-records
         run: node packages/lab/src/bench-scale.main.ts measure --case "$CASE" --base "$BASE" --out "$OUT"
       - name: The record of the case
@@ -324,7 +326,7 @@ jobs:
       - name: The bench of the case
         env:
           CASE: ${{ matrix.case }}
-          BASE: ${{ github.event.pull_request.base.sha || inputs.base || 'origin/main' }}
+          BASE: ${{ github.event_name == 'pull_request' && 'HEAD^1' || inputs.base || 'origin/main' }}
           OUT: ${{ runner.temp }}/bench-records
         # three times the 6 rounds of the first try: the interval of the A/A median narrows by the square root of 3
         run: node packages/lab/src/bench-scale.main.ts measure --case "$CASE" --base "$BASE" --out "$OUT" --rounds 18
