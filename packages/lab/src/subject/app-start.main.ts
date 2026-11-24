@@ -22,6 +22,8 @@
 // - `readiness` is the time from the start of the process to the ready signal, less the copy and the ballasts of the
 //   moment `start`. `firstPass` and `passes` are null, because an app has no pass of the lab.
 // - `startHeap` and `watchHeap` are the heap peaks of the start and of the watch.
+// - `watchCpu` is the CPU time of the process over the watch, in milliseconds, and `watchMs` is the time of the watch. The
+//   CPU time has the load of the fakes on the app, and the small work of the watch of the memory.
 // - `peakRss` is VmHWM at ready. `ready` and `watch` are the memory at ready and the peak over the watch.
 // - `io` is the reads and the faults of the process at ready. `live` is the used heap after a full GC at ready.
 // - `limit` is the heap size limit of V8. `copyMs` and `ballastMs` are the times of the copy and of the ballasts of the
@@ -190,7 +192,12 @@ for (const flag of flags.filter((each) => each.at === "ready")) ballasts.push({ 
 
 const watch = watchMemory();
 const heapOfWatch = watchHeap();
+const cpuOfReady = process.cpuUsage();
+const watchStarted = performance.now();
 await sleep(watchMs);
+const cpuOfWatch = process.cpuUsage(cpuOfReady);
+const watchCpu = (cpuOfWatch.user + cpuOfWatch.system) / 1000;
+const watchedMs = performance.now() - watchStarted;
 const watched = watch.peak();
 watch.stop();
 const watchedHeap = heapOfWatch.stop();
@@ -215,6 +222,8 @@ const line = {
   startHeap: heapOfStart,
   watch: watched,
   watchHeap: watchedHeap,
+  watchCpu,
+  watchMs: watchedMs,
   passes: null,
   stalled: false,
   limit: getHeapStatistics().heap_size_limit,

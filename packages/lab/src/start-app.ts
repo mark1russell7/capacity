@@ -18,8 +18,8 @@ export const FAKES_PROGRAM = "fakes.main.ts";
 export const FAKE_PORT = 4100;
 
 /**
- * This amount is the memory limit of the sidecar of the fakes. The memory of the fakes is not in the measures of the
- * child. A start case gives the fakes no load, thus they need little memory (CAP-66 adds the load).
+ * This amount is the memory limit of the sidecar of the fakes when the case does not set its field `fakes`. The memory of
+ * the fakes is not in the measures of the child. A fake under load uses more memory, thus a case with a load can set more.
  */
 export const FAKES_MEMORY: Quantity = { value: 1, unit: "GiB" };
 
@@ -132,17 +132,48 @@ export const appFakesOf = (tree: TreeApp, dir: string, workload: string): AppFak
 });
 
 /**
- * This function gives the workload of the fakes of a start case. It has no class and no level, thus the rate of each
- * class is 0. A start case measures the start of an app with no load.
+ * This function gives the load variables of a contract by their ids, with their units and their ranges. They are the rate
+ * of each class, by the id of the class, and each request variable. A point of an app case can name them. A class with
+ * the id of a variable has no load variable: the variable has the id.
  */
-export const startWorkloadOf = (app: AppContract): Workload => ({
-  format: WORKLOAD_FORMAT,
-  id: `${app.id}/start`,
-  title: `The start of ${app.title}, with no load`,
-  source: { kind: "plan", note: "A start case of the lab gives no load. The rate of each class is 0." },
-  classes: [],
-  levels: {},
-});
+export const loadVariables = (app: AppContract): StartVariables => {
+  const taken = new Set(app.variables.map((each) => each.id));
+  return {
+    variables: Object.fromEntries([
+      ...app.classes.filter((entry) => !taken.has(entry.id)).map((entry): [string, StartVariable] => [entry.id, { unit: entry.rate.unit, min: entry.rate.min, max: entry.rate.max }]),
+      ...app.variables.filter((each) => each.kind === "request").map((each): [string, StartVariable] => [each.id, { unit: each.unit, min: each.min, max: each.max }]),
+    ]),
+  };
+};
+
+/** This function gives the amounts of the load variables (`loadVariables`) that a point names. The point sets them, and the seed does not measure them. */
+export const loadOf = (app: AppContract, point: StartPoint): Readonly<Record<string, Quantity>> =>
+  Object.fromEntries(Object.keys(loadVariables(app).variables).flatMap((id) => (point.at[id] === undefined ? [] : [[id, point.at[id]]])));
+
+/** This function tells if an amount of a point is above 0. An amount that is not an amount is not above 0. */
+const above = (amount: Quantity | undefined): boolean => amount !== undefined && isQuantity(amount) && amount.value > 0;
+
+/**
+ * This function gives the workload of the fakes at a point of an app case. Each class with a rate above 0 at the point is a
+ * class of the workload. It has the amount of each of its request variables at the point. A class that the point does not
+ * name has the rate 0, thus the workload does not hold it. The levels are the level variables that the point sets.
+ *
+ * A point with no rate gives no class: the start of the app with no load.
+ */
+export const workloadOf = (app: AppContract, point: StartPoint): Workload => {
+  const load = loadOf(app, point);
+  const classes = app.classes
+    .filter((entry) => above(load[entry.id]))
+    .map((entry) => ({ id: entry.id, rate: load[entry.id]!, request: Object.fromEntries(entry.request.flatMap((name) => (load[name] === undefined ? [] : [[name, load[name]]]))) }));
+  return {
+    format: WORKLOAD_FORMAT,
+    id: `${app.id}/${point.id}`,
+    title: `The load of ${app.title} at the point ${point.id}`,
+    source: { kind: "plan", note: "The point of a case of the lab gives the rate of each class and the amounts of its requests. A class that the point does not name has the rate 0." },
+    classes,
+    levels: levelsOf(app, point),
+  };
+};
 
 /** A host command is an argv with no shell and the folder where it starts. */
 export interface HostCommand {
@@ -212,6 +243,8 @@ const runProblems = (tree: string, app: AppContract): readonly StartProblem[] =>
  * - The run starts `node`, because the program `app-start` imports the script of the run in its own process.
  * - The run has a script, and its options of Node hold no placeholder.
  * - The variables of the points are the store variables of each contract, and the level variables of its seed.
+ * - A point can also name the load variables of each contract (`loadVariables`). A class with a rate above 0 comes from
+ *   an outside service, and the point names each request variable of the class. The lab sends no request of HTTP yet (CAP-71).
  * - Each amount of a point is in the range of each contract.
  * - The Node of the target is in the range `engines.node` of each tree that has the field.
  */
@@ -227,16 +260,25 @@ export const appCaseProblems = (value: StartCase, trees: readonly TreeApp[]): re
       else if (!satisfies(value.target.node, engines)) problems.push(problem("target", "target.node", `The tree "${tree}" needs Node "${engines}". The target has ${value.target.node}.`));
     }
     problems.push(...runProblems(tree, app));
-    const { variables } = appVariables(app);
+    const needed = appVariables(app).variables;
+    const variables = { ...loadVariables(app).variables, ...needed };
     value.points.forEach((point, index) => {
       const path = `points[${index}].at`;
-      for (const name of Object.keys(variables).filter((each) => !Object.hasOwn(point.at, each))) {
+      for (const name of Object.keys(needed).filter((each) => !Object.hasOwn(point.at, each))) {
         problems.push(problem("point", path, `The point does not name the variable "${name}" of the contract of the tree "${tree}".`));
+      }
+      for (const entry of app.classes.filter((each) => Object.hasOwn(loadVariables(app).variables, each.id) && above(point.at[each.id]))) {
+        if (entry.entry.kind === "http") {
+          problems.push(problem("point", `${path}.${entry.id}`, `The class "${entry.id}" of the contract of the tree "${tree}" comes from HTTP. The lab sends no request of HTTP yet (CAP-71).`));
+        }
+        for (const name of entry.request.filter((each) => !Object.hasOwn(point.at, each))) {
+          problems.push(problem("point", path, `The point gives the class "${entry.id}" a rate, and it does not name its request variable "${name}".`));
+        }
       }
       for (const [name, amount] of Object.entries(point.at)) {
         const variable = Object.hasOwn(variables, name) ? variables[name] : undefined;
         if (variable === undefined) {
-          problems.push(problem("point", `${path}.${name}`, `${of} has no store variable "${name}", and its seed holds no level variable "${name}".`));
+          problems.push(problem("point", `${path}.${name}`, `${of} has no store variable, load variable or level variable of its seed "${name}".`));
         } else if (!isQuantity(amount) || !convertible(amount.unit, variable.unit)) {
           problems.push(problem("point", `${path}.${name}`, `"${name}" is not an amount in a unit that converts to "${variable.unit}".`));
         } else {

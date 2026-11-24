@@ -46,6 +46,9 @@ export const IMAGE_MARGIN: Quantity = { value: 300, unit: "s" };
 /** This count is the steps of the image of the target, each in `IMAGE_MARGIN`: the pull, the inspect and the check child. */
 export const IMAGE_STEPS: number = 3;
 
+/** This amount is the smallest memory limit of the sidecar of the fakes of an app case: the field `fakes` of the case. */
+export const MIN_FAKES_MEMORY: Quantity = { value: 64, unit: "MiB" };
+
 /** This count is the most CPUs of a target. A runner of the lab has fewer. */
 export const MAX_TARGET_CPUS: number = 64;
 
@@ -273,6 +276,11 @@ export interface StartCase {
    */
   readonly samples?: Quantity;
   readonly target: StartTarget;
+  /**
+   * This amount is the memory limit of the sidecar of the fakes of the outside services of an app case, with
+   * `MIN_FAKES_MEMORY` or more. The default is `FAKES_MEMORY` of `start-app.ts`. A fake under load uses more memory.
+   */
+  readonly fakes?: Quantity;
   /** These facts of the target machine are the observations that the record compares with the children. */
   readonly observed: readonly StartObservation[];
 }
@@ -436,6 +444,12 @@ export const startCaseProblems = (value: StartCase): readonly StartProblem[] => 
   if (!isTimeUpTo(value.probe, MAX_PROBE)) problems.push(problem("time", "probe", `The probe interval is not a time above 0 and up to ${MAX_PROBE.value} ${MAX_PROBE.unit}.`));
   if (value.samples !== undefined && !(isTimeUpTo(value.samples, MAX_SAMPLES) && valueIn(value.samples, "s") >= valueIn(MIN_SAMPLES, "s"))) {
     problems.push(problem("time", "samples", `The sample interval is not a time from ${MIN_SAMPLES.value} ${MIN_SAMPLES.unit} to ${MAX_SAMPLES.value} ${MAX_SAMPLES.unit}.`));
+  }
+  if (value.fakes !== undefined) {
+    if (!app) problems.push(problem("target", "fakes", "The field fakes is a field of an app case. A case with no app has no fakes."));
+    else if (!isBytesFrom(value.fakes, valueIn(MIN_FAKES_MEMORY, "B"))) {
+      problems.push(problem("target", "fakes", `The memory of the fakes is not a whole count of bytes of ${MIN_FAKES_MEMORY.value} ${MIN_FAKES_MEMORY.unit} or more.`));
+    }
   }
   problems.push(...windowProblems(value.windows, isTimeUpTo(value.limit, MAX_START) ? value.limit : MAX_START), ...targetProblems(value.target), ...observedProblems(value));
   return problems;

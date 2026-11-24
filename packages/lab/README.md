@@ -479,6 +479,8 @@ An app has no pass of the lab. Thus `limit` is the longest start to the ready si
 The lab examines the contract of each tree before the seed, with `appCaseProblems`:
 
 - Each point names each store variable of the contract and each level variable of its seed, in the range of the contract.
+- A point can also name a load variable: the rate of a class, by the id of the class, or a request variable. Each amount is in the range of the contract.
+- A class with a rate above 0 comes from an outside service, and the point names each request variable of the class. The lab sends no request of HTTP yet (CAP-71).
 - The Node of the target is in the range `engines.node` of the `package.json` of the tree.
 - The options of Node of the command `run` hold no placeholder. An option with a value has the form `--name=value`.
 - The command `run` does not set `NODE_OPTIONS`, because the process of the app has started when it sets the environment.
@@ -487,12 +489,45 @@ The lab examines the contract of each tree before the seed, with `appCaseProblem
 
 A contract can have outside services, for example a feed or a channel of messages. The lab starts the fake of each service in place of the service:
 
-- Each child of the arm gets a sidecar from `@mark1russell7/rigor-bench/fresh`: a second container that starts before the child, with its own memory limit (`FAKES_MEMORY`).
+- Each child of the arm gets a sidecar from `@mark1russell7/rigor-bench/fresh`: a second container that starts before the child. Its memory limit is the field `fakes` of the case, or `FAKES_MEMORY` (1 GiB).
 - The sidecar is on the CPUs that the child does not use. Thus the memory and the CPU time of the fakes are not in the measures of the child.
 - The program `fakes` of the sidecar starts each fake of the contract, in the tree of the arm. The fake of the service at the index `n` gets the port `4100 + n`.
 - The child joins the network of the sidecar. The lab gives `{service.<id>}` the URL of the fake on `127.0.0.1`, and the child has no other network.
 - The child starts when each fake gives its ready signal. A fake that ends before the end of the child makes the run fail.
-- A start case gives the fakes a workload with no load: the rate of each class is 0. The load of an app comes with CAP-66.
+- The fakes get the workload of the point of the child (`workloadOf`). Each class with a rate above 0 at the point is a class of the workload, with the amounts of its requests.
+- A point with no rate gives the fakes no load. Thus a start case with no load variable measures the start of the app with no load.
+- Each pair of an arm and a point has its own sidecar. The record of the point has the load amounts in its sizes. Thus the rate of a class can be the variable of a start law.
+
+#### The load ladder of events
+
+The plan `alerts-start-event` starts alerts at 6 rungs of the rate of new events from the fake of its feeds (CAP-66). The watch after ready holds the load, and the law of `watchCores` gives the CPU time of one event.
+
+| Part | The value | Why |
+| --- | --- | --- |
+| The rungs | `event`: 0, 1, 3, 10, 30 and 100 events each second. Each event has 2000 B. `update` is 0. | The rungs cover the range of the class `event` of the contract. The rung 0 gives the cores of an idle app. |
+| The base point | 16 MiB of log, 10 feeds, 10 persons and 10 incidents | These are the base levels of the ladders of the levels. |
+| The watch | 180 s | Alerts polls its feeds. A long watch holds many polls, thus the CPU time over the watch is near its mean. |
+| The measures | `watchCores`, `watchPeak`, `watchHeapPeak` and `ready` | The slope of `watchCores` over the rate is the CPU seconds of one event. Its intercept is the cores of the idle app. |
+
+- The fake of the feeds gives the events of each class at a constant rate, from the first request of the app.
+- The fakes run in a sidecar on the other CPUs. Thus the CPU time of the fakes is not in `watchCores`.
+- The ladder of the class `update` comes with CAP-35. The laws of the alerts come with CAP-36.
+
+The first run of the plan is [Lab run 45247869988](https://github.com/mark1russell7/capacity/actions/runs/45247869988), with 5 jobs. Each value is the median of 10 readings, from the 2 arms of each job.
+
+| Events each second | `watchCores` | The live heap | `watchHeapPeak` | `watchPeak` | The GC time in the watch |
+| --- | --- | --- | --- | --- | --- |
+| 0 | 0.018 | 172 MiB | 199 MiB | 385 MiB | 141 ms |
+| 1 | 0.026 | 185 MiB | 241 MiB | 396 MiB | 169 ms |
+| 3 | 0.034 | 189 MiB | 251 MiB | 424 MiB | 274 ms |
+| 10 | 0.074 | 229 MiB | 362 MiB | 578 MiB | 864 ms |
+| 30 | 0.225 | 318 MiB | 428 MiB | 754 MiB | 4481 ms |
+| 100 | No reading | No reading | No reading | No reading | No reading |
+
+- The cores increase linearly with the rate. One event costs approximately 7 ms of CPU time.
+- The live heap and the GC time increase with the rate. At 100 events each second, each of the 10 starts reached the heap limit of V8 (556 MB).
+- Thus the heap limit is the first resource that binds, at a rate from 30 to 100 events each second.
+- The jobs are on 3 CPU models. A law needs 5 jobs and 40 points on one CPU model, thus this run gives no law. CAP-36 adds runs and fits the laws.
 
 #### The ladders of the levels and of the log
 
@@ -549,6 +584,7 @@ A start case can also model the disk, the page cache and the other processes of 
 | `heapPeak`, `livePeak`, `gc`, `fullGc` | The peaks of the used heap and of the live heap over the start, its GC time and its count of full GC events, from the GC profiler. |
 | `watchPeak`, `watchRss`, `watchAnon`, `watchHeap` | The peaks of the memory over the watch. |
 | `watchHeapPeak`, `watchLive`, `watchGc` | The heap peaks and the GC time of the watch, from the GC profiler. |
+| `watchCpu`, `watchCores` | The CPU time of the process over the watch, and that time over the time of the watch. Only the program `app-start` gives them. |
 | `passes` | The count of passes in the watch. |
 | `limit` | The heap size limit of V8 in the child. |
 | `writes`, `writeLongest` | The count of the writes of the snapshot, and the longest block of the event loop in one write. |
