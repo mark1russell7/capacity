@@ -549,6 +549,47 @@ The plans `alerts-start-feeds`, `alerts-start-persons` and `alerts-start-inciden
 - The contract accepts a log from 2,000,000 B to 400,000,000 B. Thus the log ladder stops at 400,000,000 B, and not at 512 MiB as the old plan `alerts-start`.
 - The jobs of one run can land on more than one CPU model. A law needs 5 jobs on one CPU model. Thus a ladder can need a second run of the same plan.
 
+#### The start gate of alerts
+
+The plan `alerts-start-gate` gives the limits of the start of alerts (CAP-49). The CI gate of alerts reads the limits file.
+
+| Part | The value | Why |
+| --- | --- | --- |
+| The arm | One arm `main`: alerts main at one commit, with its A/A copy | The gate holds the start of the current build. The A/A copy adds readings of the same build. |
+| The points | `live-1844` at 197,156,864 B of log, and `knee-192` at 192 MiB of log. Each point has 10 feeds, 10 persons and 10 incidents. | `live-1844` is the log of the live store when its starts stopped. `knee-192` is the knee of `ready` over the log. |
+| The target | The 1 GB target of the plan `alerts-start-app` | This is the machine of the observations. |
+| The rounds | 3 rounds, in 5 jobs | Each job starts 12 children. The time limit of each job is 119 minutes. |
+
+`startLimitsOf(plan, jobs)` gives the limits from the jobs of 5 or more CI runs. Each job is one run. The command writes them:
+
+```sh
+gh run download <run> -R mark1russell7/capacity -D runs
+node src/start-limits.main.ts limits --runs runs --out alerts-start-gate.limits.json
+```
+
+- **The value of a run.** At a point, it is the largest reading of `main` and `main~aa`, over the rounds of the run.
+- **The limit.** It is `runLimit` of `@mark1russell7/rigor-bench`: the worst value of the runs plus their spread, rounded up to a whole unit.
+- **The refusals.** The command refuses fewer than 5 runs, a record of another version of the case, and a record with a problem.
+- **No start that does not fit.** The command refuses a run with a child that passed a limit of the target. A gate holds a start that fits.
+- **The time.** The limit of the time uses `readiness`, and not `ready`. The ready probe of a live start measures from the start of the process.
+
+The limits file has the format `capacity-start-limits/1`. `readStartLimits` reads it.
+
+| Field | What it is |
+| --- | --- |
+| `format` | `capacity-start-limits/1` |
+| `plan`, `case` | The plan and its start case |
+| `subject`, `app` | The id of the contract of the app, and the URL of its repository |
+| `arm`, `commit`, `seeder` | The arm of the values, the commit of the arm, and the commit of the seed |
+| `target` | The target of the case: the image, the memory, the swap, the CPUs and the heap limit |
+| `runs` | The runs, in the order of the values. Each run has its `id` (`<CI run>/<job>/<attempt>`), `url`, `job`, `attempt` and `cpu`. |
+| `measures` | The measures of the limits: `start.live` and `start.peak` in B, and `start.readiness` in ms. Each one has its reading and its title. |
+| `points` | One entry for each point: its `id`, its amounts `at`, its `limits` and its `derivations` |
+| `points[].limits` | A limit set of the format `capacity-limits/1`, with the id `<case>/<point>`. Each limit has an amount ceiling and the headroom 0. |
+| `points[].derivations` | The result of `runLimit` for each measure: `limit`, `worst`, `spread`, the `values` of the runs, and the `unit` |
+
+A gate reads `points[].limits` with `readLimits` of `@mark1russell7/capacity`. A start passes when each measure is at its ceiling or below it.
+
 ### The machine model
 
 A start case can also model the disk, the page cache and the other processes of the target machine. With none of them, a child has the fast disk of the host of the lab.
