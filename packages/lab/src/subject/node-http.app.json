@@ -2,7 +2,7 @@
   "format": "capacity-app/1",
   "id": "node-http",
   "title": "The bare subject: a server of node:http at the defaults of Node",
-  "repository": "https://github.com/mark1russell7/capacity.git",
+  "repository": "https://github.com/metrograph-labs/capacity.git",
   "variables": [
     {
       "id": "body",

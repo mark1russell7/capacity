@@ -314,7 +314,7 @@ A timed run is one job of the workflow `lab.yml`: it measures one plan on one ru
 
 | Event | The plans |
 | --- | --- |
-| The schedule, each night at 06:22 UTC | Each plan with the trigger `schedule` |
+| The schedule, each night at 06:37 UTC | Each plan with the trigger `schedule` |
 | A pull request that changes the lab, the model, the laws, the lockfile or the workflow | Each plan with the trigger `pull_request`. A gate plan starts only for a change of a file of the gate. |
 | A push of such a change to `main` | Each plan with the trigger `pull_request` |
 | A dispatch by hand, with the input `plans` | The plans of the input. With no input, each plan with the trigger `pull_request`. |
@@ -322,7 +322,7 @@ A timed run is one job of the workflow `lab.yml`: it measures one plan on one ru
 The input `runs` of a dispatch is a JSON list of numbers. Each run of each plan is a job on its own runner, thus a limit can take the worst of many runners. For example, 5 runs of the plan `control`:
 
 ```sh
-gh workflow run lab.yml -R mark1russell7/capacity --ref <branch> -f plans=control -f runs='[1,2,3,4,5]'
+gh workflow run lab.yml -R metrograph-labs/capacity --ref <branch> -f plans=control -f runs='[1,2,3,4,5]'
 ```
 
 The workflow has three steps:
@@ -432,7 +432,7 @@ The fit of the laws of a plan takes minutes, thus only CI starts it. The workflo
 The fit reads only the manifests and the records. A job of the plan `rate` has approximately 3 GB of raw results. Thus the workflow downloads one artifact at a time, and deletes its raw results before the next download.
 
 ```sh
-gh workflow run laws.yml -R mark1russell7/capacity -f runs='<run of the plan rate> <run of the plan floor>'
+gh workflow run laws.yml -R metrograph-labs/capacity -f runs='<run of the plan rate> <run of the plan floor>'
 ```
 
 - `node src/laws.main.ts fit --records <folder> --out <folder>` reads each manifest `timed.json` in the folder and in its subfolders.
@@ -580,7 +580,7 @@ The plan `alerts-start-event` starts alerts at 11 rungs of the rate of new event
 - The fakes run in a sidecar on the other CPUs. Thus the CPU time of the fakes is not in `watchCores`.
 - The plan `alerts-start-update` gives the ladder of the class `update` (CAP-35). The laws of the alerts come with CAP-36.
 
-The first run of the plan is [Lab run 45247869988](https://github.com/mark1russell7/capacity/actions/runs/45247869988), with 5 jobs. Each value is the median of 10 readings, from the 2 arms of each job.
+The first run of the plan is [Lab run 45247869988](https://github.com/metrograph-labs/capacity/actions/runs/45247869988), with 5 jobs. Each value is the median of 10 readings, from the 2 arms of each job.
 
 | Events each second | `watchCores` | The live heap | `watchHeapPeak` | `watchPeak` | The GC time in the watch |
 | --- | --- | --- | --- | --- | --- |
@@ -596,7 +596,7 @@ The first run of the plan is [Lab run 45247869988](https://github.com/mark1russe
 - Thus the heap limit is the first resource that binds, at a rate from 30 to 100 events each second.
 - The jobs are on 3 CPU models. A law needs 5 jobs and 40 points on one CPU model, thus this run gives no law.
 
-The second run is the Lab run [45351701555](https://github.com/mark1russell7/capacity/actions/runs/45351701555), with 15 jobs. The run [45382785749](https://github.com/mark1russell7/capacity/actions/runs/45382785749) of `laws.yml` fits the laws over the two runs (CAP-36).
+The second run is the Lab run [45351701555](https://github.com/metrograph-labs/capacity/actions/runs/45351701555), with 15 jobs. The run [45382785749](https://github.com/metrograph-labs/capacity/actions/runs/45382785749) of `laws.yml` fits the laws over the two runs (CAP-36).
 
 - The 15 jobs on the Intel Xeon 6975P-C give 4 laws, with 75 points from 0 to 30 events each second. The other CPU models have too few jobs.
 - Each law is of the arm `main` at the first start. The intervals are 95 % intervals over whole jobs.
@@ -638,7 +638,7 @@ The plan `alerts-start-update` starts alerts at 6 rungs of the rate of updates f
 - The first event comes 1 s after the first request of the app. The fake skips the updates before it, thus less than 1 s of updates.
 - The plan has 5 jobs of 162 minutes.
 
-The first run of the plan is [Lab run 45362275890](https://github.com/mark1russell7/capacity/actions/runs/45362275890), with 5 jobs. Each value is the median of 10 readings, from the 2 arms of each job. No start failed.
+The first run of the plan is [Lab run 45362275890](https://github.com/metrograph-labs/capacity/actions/runs/45362275890), with 5 jobs. Each value is the median of 10 readings, from the 2 arms of each job. No start failed.
 
 | Updates each second | `watchCores` | The live heap | `watchHeapPeak` | `watchPeak` | The GC time in the watch |
 | --- | --- | --- | --- | --- | --- |
@@ -688,7 +688,7 @@ The plan `alerts-start-gate` gives the limits of the start of alerts (CAP-49). T
 `startLimitsOf(plan, jobs)` gives the limits from the jobs of 5 or more CI runs. Each job is one run. The command writes them:
 
 ```sh
-gh run download <run> -R mark1russell7/capacity -D runs
+gh run download <run> -R metrograph-labs/capacity -D runs
 node src/start-limits.main.ts limits --runs runs --out ../capacity/limits/alerts-start-gate.limits.json
 ```
 
@@ -795,7 +795,7 @@ The Actions artifacts of these runs expire in February 2027. Thus this section k
 
 An observation is a fact of the machine, for example "the cloud build was not ready in 90 s at `file-1844`". A job exits 1 when the lab reads a window of an observation differently from the machine. CAP-62 retired the plans `alerts-start-files`, `alerts-start-horizon`, `alerts-start-disk-mean` and `alerts-start-disk-peak`. The plan `alerts-start-log` replaced the plan `alerts-start`.
 
-- **`alerts-start`** (retired, the runs [44941391218](https://github.com/mark1russell7/capacity/actions/runs/44941391218) and [44945165388](https://github.com/mark1russell7/capacity/actions/runs/44945165388)):
+- **`alerts-start`** (retired, the runs [44941391218](https://github.com/metrograph-labs/capacity/actions/runs/44941391218) and [44945165388](https://github.com/metrograph-labs/capacity/actions/runs/44945165388)):
   - Each of the 90 children is ready in each window, but each job exits 1 on one observation.
   - The median `ready` of `cloud` is 4.89 s at 16 MiB, 9.59 s at 256 MiB and 24.12 s at 512 MiB.
   - At 512 MiB, `cloud` has a `peak` of 607.2 to 622.5 MiB and a `heapPeak` of 470.3 to 473.8 MiB.
@@ -805,12 +805,12 @@ An observation is a fact of the machine, for example "the cloud build was not re
   - With the arm `cloud`, shapes files of 0, 44.2 and 88.4 MiB give a median `peak` of 274.6, 449.7 and 588.9 MiB.
   - At the knee, the median `ready` of `cloud` is 7.66 s at `cut-1030` and 7.81 s at `file-1844`.
   - At `file-1844`, `cloud` and `cloud~aa` have a `readiness` of 2.87 to 6.05 s, and the machine is not ready in 90 s.
-- **`alerts-start-horizon`** (retired, the run [44943060999](https://github.com/mark1russell7/capacity/actions/runs/44943060999)):
+- **`alerts-start-horizon`** (retired, the run [44943060999](https://github.com/metrograph-labs/capacity/actions/runs/44943060999)):
   - Each of the 120 children is ready in 90 s, but each job exits 1 on one observation.
   - At `cut-1030`, the median `ready` is 12.78 s for `horizon`, 7.40 s for `new` and 7.07 s for `cloud`.
   - At `cut-1030`, the median `live` heap is 200.8 MiB for `horizon`, 280.7 MiB for `new` and 329.2 MiB for `cloud`.
   - At `file-1844`, `cloud` and `cloud~aa` have a `readiness` of 2.70 to 4.88 s, and the machine is not ready in 90 s.
-- **`alerts-start-disk-mean`** (retired, the run [44955644597](https://github.com/mark1russell7/capacity/actions/runs/44955644597)):
+- **`alerts-start-disk-mean`** (retired, the run [44955644597](https://github.com/metrograph-labs/capacity/actions/runs/44955644597)):
   - The disk had 5.5 MiB/s and 100 operations each second. Each of the 60 children of the jobs 1 to 4 passed its time limit of 660 s.
   - Thus the plan has no reading, and the two observations of the knee have no read. Each job exits 1.
   - Job 5 has no record, because the drop of the page cache took more than 60 s.
@@ -820,7 +820,7 @@ An observation is a fact of the machine, for example "the cloud build was not re
   - At `cut-1030`, the `readiness` of `cloud` is 416.3 to 461.6 s, and that of the other three arms is 473.0 to 501.6 s.
   - At `file-1844-again`, the snapshot arms `checkpoint` and `snapshot` have a `readiness` of 421.6 to 422.7 s, and `full` has 496.1 to 510.6 s.
   - Each job exits 1: at `cut-1030`, `cloud` and `cloud~aa` are late, and the machine is ready in 90 s. Thus the cap of the operations made the disk of the lab too slow. The bytes plans replace it.
-- **`alerts-start-bytes-mean`** (with the start subject `alerts`, the run [45001158462](https://github.com/mark1russell7/capacity/actions/runs/45001158462)):
+- **`alerts-start-bytes-mean`** (with the start subject `alerts`, the run [45001158462](https://github.com/metrograph-labs/capacity/actions/runs/45001158462)):
   - Each child is ready in 90 s, but the machine is not ready at `file-1844`. Thus each job exits 1.
   - At `cut-1030` and `file-1844`, the `readiness` of `cloud` and `cloud~aa` is 62.2 to 67.1 s, and that of `main` is 72.6 to 77.9 s.
   - There, each child of `main` writes one snapshot, and the longest block of one write is 406.6 to 515.1 ms.
@@ -830,7 +830,7 @@ An observation is a fact of the machine, for example "the cloud build was not re
   - At `cut-1030` and `file-1844`, the `readiness` of `cloud` and `cloud~aa` is 25.5 to 36.6 s, and that of `main` is 28.9 to 39.7 s.
   - There, each child of `main` writes one snapshot, and the longest block of one write is 170.6 to 823.4 ms.
   - At `file-1844-again`, the `readiness` of `main` is 23.9 to 25.5 s, and its `firstPass` is at most 0.14 s.
-- **`alerts-start-app`** (the run [45044576905](https://github.com/mark1russell7/capacity/actions/runs/45044576905)), with the case `alerts-start-app/subject` that CAP-62 deleted:
+- **`alerts-start-app`** (the run [45044576905](https://github.com/metrograph-labs/capacity/actions/runs/45044576905)), with the case `alerts-start-app/subject` that CAP-62 deleted:
   - The plan passes, and each of the 90 children of the two cases is ready in 90 s.
   - The case `alerts-start-app/subject` started the same commit and the same store with the start subject of the lab.
   - The medians of `peak` and `live` of the two cases differ by at most 7.8 MiB and 0.4 MiB.
@@ -843,7 +843,7 @@ An observation is a fact of the machine, for example "the cloud build was not re
 
 At each point, the ranges of the two cases overlap. At `cut-1030`, the ratio of the medians is 0.89. That is a little below the lowest A/A ratios of the two cases, 0.93 and 0.91. The lab made no statistical test. The ranges and the memory agree, thus the contract case replaces the subject case.
 
-- **The ladders of the levels and of the log** (the runs [45060628731](https://github.com/mark1russell7/capacity/actions/runs/45060628731) and [45072989987](https://github.com/mark1russell7/capacity/actions/runs/45072989987) of the levels, [45073979241](https://github.com/mark1russell7/capacity/actions/runs/45073979241) and [45080303535](https://github.com/mark1russell7/capacity/actions/runs/45080303535) of the log, and the run [45087929821](https://github.com/mark1russell7/capacity/actions/runs/45087929821) of `laws.yml`):
+- **The ladders of the levels and of the log** (the runs [45060628731](https://github.com/metrograph-labs/capacity/actions/runs/45060628731) and [45072989987](https://github.com/metrograph-labs/capacity/actions/runs/45072989987) of the levels, [45073979241](https://github.com/metrograph-labs/capacity/actions/runs/45073979241) and [45080303535](https://github.com/metrograph-labs/capacity/actions/runs/45080303535) of the log, and the run [45087929821](https://github.com/metrograph-labs/capacity/actions/runs/45087929821) of `laws.yml`):
   - Each child of the 35 jobs is ready at each rung, except at 10000 persons. There, each child reached the heap limit of V8.
   - The jobs on the Xeon 6975P-C give 20 laws, 5 measures for each ladder. The jobs on the EPYC 7763 are too few for a law.
   - The knee is the load where the law is two times its floor, by the rule `floor` with the share 1. The intervals are 95 % intervals over whole jobs.
@@ -864,7 +864,7 @@ At each point, the ranges of the two cases overlap. At `cut-1030`, the ratio of 
 A person starts a plan by hand, for example with 5 runs:
 
 ```sh
-gh workflow run lab.yml -R mark1russell7/capacity --ref <branch> -f plans=alerts-start-log -f runs='[1,2,3,4,5]'
+gh workflow run lab.yml -R metrograph-labs/capacity --ref <branch> -f plans=alerts-start-log -f runs='[1,2,3,4,5]'
 ```
 
 The programs of alerts are in `src/subject`. `alerts-seed.main.ts` writes a store with `seedStore` of the testkit of the tree. The seed writes the events at the rate of a live log, thus a larger log has more days of events. `alerts-start.main.ts` opens the store with `openMeasuredRuntime` of the runtime of the tree. With the snapshot, it also asks for the time of each write of the snapshot. An older tree ignores that option, and its measures of the writes are `null`. `alerts-config.json` is the configuration of each store: one place, one person and one channel, with made-up codes.

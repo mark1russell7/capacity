@@ -9,7 +9,7 @@
 #   file of the gate: the subject, the harness (its version is in the lockfile), the laws or the gate. The step gate of
 #   the job changes gives that answer.
 # - A person starts plans by hand. For example, 5 runs of the plan control, each on its own runner, 3 at once:
-#     gh workflow run lab.yml -R mark1russell7/capacity --ref <branch> -f plans=control -f runs='[1,2,3,4,5]'
+#     gh workflow run lab.yml -R metrograph-labs/capacity --ref <branch> -f plans=control -f runs='[1,2,3,4,5]'
 #
 # The job plan reads and examines each plan file. It gives the matrix: one job for each run of each plan, with the time
 # limit of the plan. With no runs, a plan has its count of jobs (the field jobs, 1 by default). Each job measures its
@@ -30,7 +30,7 @@
 # time that case, and a change of value with no entry fails the job. The noise cap of the gate is in
 # packages/lab/bench-limits.json, from the A/A pairs of 5 or more runs (bench-scale.main.ts limits).
 # For example, one run of the bench only:
-#     gh workflow run lab.yml -R mark1russell7/capacity --ref <branch> -f bench=only
+#     gh workflow run lab.yml -R metrograph-labs/capacity --ref <branch> -f bench=only
 name: Lab
 
 on:
@@ -54,8 +54,8 @@ on:
         type: string
         default: ""
   schedule:
-    # each night at 06:22 UTC: the rule runner-budget gives the minute of this repository and file
-    - cron: "22 6 * * *"
+    # each night at 06:37 UTC: the rule runner-budget gives the minute of this repository and file
+    - cron: "37 6 * * *"
   # Each pull request starts this workflow. Thus the summary check of the gate is always present. The job changes skips the
   # work when the pull request changes no file of the gate (CI.md of the template, "A gate with paths").
   pull_request:
