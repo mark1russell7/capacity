@@ -5,7 +5,7 @@
  */
 import { amountText, axisUnit, kneeSentence, linearTicks, logTicks, runsSentence, significant, unitWords, type Curve } from "./curves.ts";
 import type { OpenValue } from "@mark1russell7/capacity";
-import type { Step } from "./scale.ts";
+import type { Load, Step } from "./scale.ts";
 import { RATE_UNIT, STACK_NAMES, bandText, stackSentence, type RateRange, type Stack } from "./stack.ts";
 
 const SVG = "http://www.w3.org/2000/svg";
@@ -414,7 +414,7 @@ export const stackChart = (stack: Stack, title: string): HTMLElement => {
 /** A step chart is the figure of the count of instances over the rate. Its function `mark` moves the mark to the rate of the slider. */
 export interface StepChart {
   readonly figure: HTMLElement;
-  readonly mark: (rate: number, count: number | null) => void;
+  readonly mark: (value: number, count: number | null) => void;
 }
 
 /** This function gives the path of a line of steps. Each value holds up to the next x, then the line goes up or down. */
@@ -429,18 +429,18 @@ const stepArea = (frame: Frame, xs: readonly number[], upper: (index: number) =>
 };
 
 /**
- * This function makes the chart of the count of instances over the rate, with its interval. The region past the rates
- * that each law measured has its own fill and label. A mark shows the rate of the slider.
+ * This function makes the chart of the count of instances over the load, with its interval. The region past the values
+ * that each law measured has its own fill and label. A mark shows the load of the slider.
  */
-export const stepChart = (steps: readonly Step[], measured: RateRange, most: number, title: string): StepChart => {
-  const xs = steps.map((each) => each.rate);
+export const stepChart = (steps: readonly Step[], load: Pick<Load, "unit" | "axis">, measured: RateRange, most: number, title: string): StepChart => {
+  const xs = steps.map((each) => each.value);
   // A count past the search draws at the top of the search. The tip tells that it is more.
   const count = (index: number): number => steps[index]!.count.value ?? most;
   const low = (index: number): number => steps[index]!.count.interval.low ?? most;
   const high = (index: number): number => steps[index]!.count.interval.high ?? most;
   const top = Math.max(4, ...steps.map((_, index) => high(index)));
-  let at: { rate: number; count: number | null } | undefined;
-  let place: ((rate: number, count: number | null) => void) | undefined;
+  let at: { value: number; count: number | null } | undefined;
+  let place: ((value: number, count: number | null) => void) | undefined;
   const figure = html("figure", "curve scale-chart");
   const plot = plotBox((width, tip) => {
     const frame = frameOf(width, {
@@ -449,8 +449,8 @@ export const stepChart = (steps: readonly Step[], measured: RateRange, most: num
       unit: "{instance}",
       top,
       bottom: 0,
-      xTitle: "rate, requests/s (log scale)",
-      label: `${title}. The count of instances over the rate, from ${amountText(xs[0]!, RATE_UNIT)} to ${amountText(xs.at(-1)!, RATE_UNIT)}.`,
+      xTitle: `${load.axis} (log scale)`,
+      label: `${title}. The count of instances over the load, from ${amountText(xs[0]!, load.unit)} to ${amountText(xs.at(-1)!, load.unit)}.`,
     });
     const { chart, xOf, yOf } = frame;
     if (measured.max < xs.at(-1)!) {
@@ -469,8 +469,8 @@ export const stepChart = (steps: readonly Step[], measured: RateRange, most: num
     const cross = svg("line", { y1: MARGIN.top, y2: HEIGHT - MARGIN.bottom, class: "scale-mark", visibility: "hidden" });
     const dot = svg("circle", { r: 6, class: "scale-dot", visibility: "hidden" });
     chart.append(cross, dot);
-    place = (rate, value) => {
-      const x = xOf(rate);
+    place = (where, value) => {
+      const x = xOf(where);
       cross.setAttribute("x1", String(x));
       cross.setAttribute("x2", String(x));
       dot.setAttribute("cx", String(x));
@@ -478,7 +478,7 @@ export const stepChart = (steps: readonly Step[], measured: RateRange, most: num
       cross.setAttribute("visibility", "visible");
       dot.setAttribute("visibility", "visible");
     };
-    if (at !== undefined) place(at.rate, at.count);
+    if (at !== undefined) place(at.value, at.count);
     addHover(frame, tip, {
       xs,
       dots: [{ className: "", value: count }],
@@ -488,22 +488,22 @@ export const stepChart = (steps: readonly Step[], measured: RateRange, most: num
         return [
           html("strong", "", value === null ? `more than ${most} instances` : `${value} ${value === 1 ? "instance" : "instances"}`),
           html("span", "", countInterval(step.count, most)),
-          html("span", "", `at ${amountText(step.rate, RATE_UNIT)}`),
+          html("span", "", `at ${amountText(step.value, load.unit)}`),
           ...(step.extrapolated ? [html("span", "quiet", "past the measures")] : []),
         ];
       },
     });
     return chart;
   });
-  figure.append(plot, valueTable(["rate", "instances", "interval"], steps.length, (index) => {
+  figure.append(plot, valueTable(["load", "instances", "interval"], steps.length, (index) => {
     const step = steps[index]!;
-    return [amountText(step.rate, RATE_UNIT), step.count.value === null ? `more than ${most}` : String(step.count.value), countInterval(step.count, most)];
+    return [amountText(step.value, load.unit), step.count.value === null ? `more than ${most}` : String(step.count.value), countInterval(step.count, most)];
   }, true));
   return {
     figure,
-    mark: (rate, value) => {
-      at = { rate, count: value };
-      place?.(rate, value);
+    mark: (value, count) => {
+      at = { value, count };
+      place?.(value, count);
     },
   };
 };

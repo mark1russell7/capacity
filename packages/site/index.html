@@ -57,7 +57,7 @@
     </div>
     <label class="scale-rate" for="scale-rate">Load <output id="scale-rate-text" for="scale-rate"></output></label>
     <input id="scale-rate" class="scale-slider" type="range" min="0" max="1000" step="1" value="425" aria-describedby="scale-sentences">
-    <div class="scale-ends quiet" aria-hidden="true"><span>100 requests/s</span><span>1 million requests/s</span></div>
+    <div class="scale-ends quiet" aria-hidden="true"><span id="scale-low">100 requests/s</span><span id="scale-high">1 million requests/s</span></div>
     <div id="scale" class="scale"><p class="quiet">The law files of the slider load.</p></div>
   </section>
 
