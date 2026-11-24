@@ -341,6 +341,21 @@ The workflow has three steps:
 
 A rerun of the failed jobs of a run uploads only the artifacts of those jobs, with the next try. The other artifacts keep their first try. Thus the gates download the artifacts of all tries. With `--latest`, `gate.main.ts` and the bench gate read only the latest try of each artifact (`latestAttempts`).
 
+### The share of the runners
+
+The runners of the owner of the repository are a pool of 60 jobs, and the repositories of the owner share it. This repository uses at most 60 % of the pool: 36 jobs at one time.
+
+| Event | The group of the run | A newer run of the group |
+| --- | --- | --- |
+| A pull request | `lab-pull_request-<ref>` | It cancels the run in progress. |
+| A push to `main` | `lab-push` | It waits. GitHub keeps the run in progress and the newest run that waits. |
+| The schedule | `lab-schedule-<run>` | It cancels nothing. |
+| A dispatch | `lab-workflow_dispatch-<run>` | It cancels nothing. |
+
+- **A burst of merges.** The newest push holds the changes of each push that GitHub cancelled. Thus a burst of merges starts one run, not one run for each merge.
+- **The peak of a run.** Each matrix starts at most 3 jobs at one time (the rule `runner-budget` of `@mark1russell7/conventions`). The matrices `lab` and `bench` start together, and a gate job can run next to one of them. Thus a run has at most 7 jobs at one time.
+- **The rule.** Keep at most 3 runs of pull requests and dispatches at one time. With the run of a push, the peak is then 28 jobs, and 8 jobs stay for the other workflows. The schedule starts at 06:37 UTC, when the other runs are few.
+
 ### The folder of a run
 
 | File | What it is |
