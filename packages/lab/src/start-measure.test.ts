@@ -2,6 +2,7 @@ import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } 
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import type { AppContract } from "@mark1russell7/capacity";
 import type { ChildExit, ContainerOptions, FreshSkip, StartChild } from "@mark1russell7/rigor-bench/fresh";
 import { afterEach, describe, expect, it } from "vitest";
 import { APP_CASE, FIXTURE } from "./app-fixtures.ts";
@@ -383,7 +384,7 @@ const fakeAppContainer = (calls: Call[]) => (): StartChild => async (argv, limit
   calls.push({ argv, cwd: limits.cwd, timeoutMs: limits.timeoutMs });
   if (argv[1] === "-e") return ok(`${JSON.stringify(CHECK)}\n`);
   const line = JSON.parse(startLine(basename(flagOf(argv, "run"), ".json"), flagOf(argv, "case"), argv)) as Record<string, unknown>;
-  return ok(`${JSON.stringify({ ...line, firstPass: null, passes: null, closeMs: null, closeCode: null })}\n`);
+  return ok(`${JSON.stringify({ ...line, firstPass: null, passes: null, closeMs: null, closeCode: null, watchCpu: 500, watchMs: 2000 })}\n`);
 };
 
 /** The case of the app of the tests, with the target of the fake check. */
@@ -419,9 +420,55 @@ describe("measureStart of an app case", () => {
     const first = children.find((call) => call.cwd === tree("new"))!;
     const point = flagOf(first.argv, "case");
     expect(first.argv).toEqual(["node", "--expose-gc", "--max-semi-space-size=1", APP_START, "--run", join(folder, "runs", "new.json"), "--case", point, "--seeded", store(point), "--watch", "2000"]);
-    // A reading of an app has no first pass, and the record needs none.
+    // A reading of an app has no first pass, and the record needs none. The CPU of the watch is a needed measure of an app.
     expect(record.readings.every((reading) => reading.measures.firstPass === null)).toBe(true);
+    expect(record.readings[0]!.measures).toMatchObject({ watchCpu: { value: 500, unit: "ms" }, watchCores: { value: 0.25, unit: "{core}" } });
+    expect(startRecordProblems({ ...record, readings: record.readings.map((reading) => ({ ...reading, measures: { ...reading.measures, watchCores: null } })) })).toHaveLength(record.readings.length);
     expect(record.failures).toEqual([]);
+    expect(startRecordProblems(record)).toEqual([]);
+  });
+
+  it("gives the sidecar of each child the fakes of its point: the workload of the rate of the point, and the memory of the case", async () => {
+    // The contract of the tree gets a feed, a class of events from the feed, and the bytes of one event.
+    const loaded = (text: string): string => {
+      const app = JSON.parse(text) as AppContract;
+      const fake = { argv: ["node", "feed.ts", "--port", "{port}", "--rates", "{workload}"], cwd: ".", env: {}, ready: { kind: "line", text: "feed up" } };
+      return JSON.stringify({
+        ...app,
+        variables: [...app.variables, { id: "eventBytes", title: "The bytes of one event", kind: "request", unit: "B", min: 200, max: 100000, scale: "linear" }],
+        classes: [{ id: "event", title: "An event of the feed", rate: { unit: "{event}/s", min: 0, max: 100, scale: "linear" }, request: ["eventBytes"], entry: { kind: "service", service: "feed" } }],
+        services: [{ id: "feed", title: "A feed of events", fake }],
+        start: { ...app.start, run: { ...app.start.run, argv: [...app.start.run.argv, "--feed", "{service.feed}"] } },
+      });
+    };
+    const bytes = { value: 2000, unit: "B" };
+    const points = [
+      { id: "idle", at: { log: { value: 1, unit: "KiB" }, event: { value: 0, unit: "{event}/s" }, eventBytes: bytes } },
+      { id: "busy", at: { log: { value: 1, unit: "KiB" }, event: { value: 30, unit: "{event}/s" }, eventBytes: bytes } },
+    ];
+    const loadCase: StartCase = { ...APP, points, fakes: { value: 256, unit: "MiB" } };
+    const inside: Call[] = [];
+    const placed: string[] = [];
+    const container = (options: ContainerOptions): StartChild => {
+      const child = fakeAppContainer(inside)();
+      return async (argv, limits) => {
+        const sidecars = (options.sidecars ?? []).map((each) => `${basename(each.argv.at(-1) ?? "")} ${each.memory}`);
+        if (argv.includes(APP_START)) placed.push(`${basename(flagOf(argv, "run"), ".json")} ${flagOf(argv, "case")}: ${sidecars.join(", ") || "none"}`);
+        return child(argv, limits);
+      };
+    };
+    const folder = work();
+    const { record } = await measureStart(loadCase, { work: folder, start: fakeAppStart([], loaded), container, host: HOST, now: clock() });
+
+    expect([...new Set(placed)].sort()).toEqual([`base busy: base.busy.json ${256 * MIB}`, `base idle: base.idle.json ${256 * MIB}`, `new busy: new.busy.json ${256 * MIB}`, `new idle: new.idle.json ${256 * MIB}`]);
+    const workload = (name: string): unknown => JSON.parse(readFileSync(join(folder, "fakes", `${name}.workload.json`), "utf8"));
+    expect(workload("new.busy")).toMatchObject({ id: "fixture-app/busy", classes: [{ id: "event", rate: { value: 30, unit: "{event}/s" }, request: { eventBytes: bytes } }], levels: {} });
+    expect(workload("new.idle")).toMatchObject({ id: "fixture-app/idle", classes: [] });
+    // The load of a point is in its sizes, thus a start law can have the rate of a class as its variable.
+    expect(record.points.map((point) => [point.id, point.sizes])).toEqual([
+      ["idle", { log: { value: 1024, unit: "B" }, event: { value: 0, unit: "{event}/s" }, eventBytes: bytes }],
+      ["busy", { log: { value: 1024, unit: "B" }, event: { value: 30, unit: "{event}/s" }, eventBytes: bytes }],
+    ]);
     expect(startRecordProblems(record)).toEqual([]);
   });
 

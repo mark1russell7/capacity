@@ -59,10 +59,11 @@ import {
   fillCommand,
   hostCommand,
   levelsOf,
+  loadOf,
   readTreeApp,
   seedAmountsOf,
-  startWorkloadOf,
   variableValues,
+  workloadOf,
   type TreeApp,
 } from "./start-app.ts";
 
@@ -83,6 +84,8 @@ export const START_RECORD_FORMAT = "capacity-start-record/1";
  * - `heapPeak` and `livePeak` are the peaks of the used heap and of the live heap over the start, from the GC profiler.
  * - `gc` is the GC time of the start, and `fullGc` is the count of its full GC events.
  * - The measures `watch...` are the peaks over the watch after ready, and `passes` is the count of passes in the watch.
+ * - `watchCpu` is the CPU time of the process over the watch, and `watchCores` is that time over the time of the watch.
+ *   At a point with a load, the law of `watchCores` over the rate of a class gives the CPU time of one request.
  * - `limit` is the heap size limit of V8 in the child.
  * - `writes` is the count of the writes of the snapshot of the start, in the start and the watch.
  * - `writeLongest` is the longest block of the event loop in one write: the longest time between two pauses of the write.
@@ -117,6 +120,8 @@ export const START_MEASURES = {
   watchHeapPeak: "B",
   watchLive: "B",
   watchGc: "ms",
+  watchCpu: "ms",
+  watchCores: "{core}",
   passes: "{pass}",
   limit: "B",
   writes: "{write}",
@@ -549,6 +554,16 @@ export const writeMeasures = (fields: ChildFields): Record<WriteMeasure, Quantit
   };
 };
 
+/**
+ * This function gives the CPU measures of the watch from the fields `watchCpu` and `watchMs` of a child. They are the
+ * CPU time and the time of the watch. A child with no read of the two, or a watch of no time, gives null for each measure.
+ */
+const watchCpuMeasures = (extra: Readonly<Record<string, unknown>>): Record<"watchCpu" | "watchCores", Quantity | null> => {
+  const cpu = numberIn(extra, "watchCpu");
+  const ms = numberIn(extra, "watchMs");
+  return { watchCpu: amount("watchCpu", cpu), watchCores: amount("watchCores", cpu === null || ms === null || !(ms > 0) ? null : cpu / ms) };
+};
+
 /** This function gives the measures of one child from its time to ready and its fields. */
 export const startMeasures = (ms: number, fields: ChildFields): Measures<StartMeasure> => {
   const extra = fields.extra ?? {};
@@ -584,6 +599,7 @@ export const startMeasures = (ms: number, fields: ChildFields): Measures<StartMe
     watchHeapPeak: amount("watchHeapPeak", numberIn(watchHeap, "used")),
     watchLive: amount("watchLive", numberIn(watchHeap, "live")),
     watchGc: amount("watchGc", numberIn(watchHeap, "gcMs")),
+    ...watchCpuMeasures(extra),
     passes: amount("passes", numberIn(extra, "passes")),
     limit: amount("limit", numberIn(extra, "limit")),
     ...writeMeasures(fields),
@@ -662,7 +678,9 @@ export const childLimitOf = (value: StartCase): Quantity => quantity(valueIn(val
  * its arm on its point. The other arms still start.
  *
  * The contract of an arm can have outside services. Then each child of the arm gets a sidecar with the fakes of the
- * services, on the CPUs that the child does not use. The fakes get a workload with no load (`startWorkloadOf`).
+ * services, on the CPUs that the child does not use. The fakes get the workload of the point of the child (`workloadOf`):
+ * the rate of each class and the amounts of its requests. A point with no rate gives the fakes no load. The memory limit
+ * of the sidecar is the field `fakes` of the case, or `FAKES_MEMORY`.
  */
 export const measureStart = async (value: StartCase, options: StartMeasureOptions): Promise<StartMeasurement> => {
   const problems = startCaseProblems(value);
@@ -763,7 +781,7 @@ export const measureStart = async (value: StartCase, options: StartMeasureOption
     const tree = appOf(seederId);
     const { seed } = tree.app.start;
     const host = seed === undefined ? undefined : hostCommand(fillCommand(seed, { store: storeOf(point.id), ...variableValues(tree.app, point) }), seeder);
-    const sizes = { ...levelsOf(tree.app, point), ...(host === undefined ? {} : seedAmountsOf(await command(start, host.argv, host.cwd, limit), tree.app)) };
+    const sizes = { ...levelsOf(tree.app, point), ...loadOf(tree.app, point), ...(host === undefined ? {} : seedAmountsOf(await command(start, host.argv, host.cwd, limit), tree.app)) };
     points.push({ id: point.id, sizes, time: since(begun), args: [] });
   }
 
@@ -771,9 +789,11 @@ export const measureStart = async (value: StartCase, options: StartMeasureOption
   // The program of an app arm imports the run of its contract, with the options of Node of the run.
   const runOf = (id: string): string => join(options.work, "runs", `${id}.json`);
   const appOptions = new Map<string, readonly string[]>();
-  // The fakes of the services of an arm run in a sidecar of each child of the arm, with the workload of a start: no load.
-  // The map has the sidecars by the run file of their arm, because the argv of a child names its run file.
+  // The fakes of the services of an arm run in a sidecar of each child of the arm, with the workload of the point of the child.
+  // The map has the sidecars by the run file of their arm and the id of their point, because the argv of a child names the two.
   const sidecars = new Map<string, Sidecar>();
+  const sidecarKey = (run: string, point: string): string => JSON.stringify([run, point]);
+  const fakesMemory = valueIn(value.fakes ?? FAKES_MEMORY, "B");
   if (subject === undefined) {
     mkdirSync(join(options.work, "runs"), { recursive: true });
     for (const arm of value.arms) {
@@ -782,23 +802,26 @@ export const measureStart = async (value: StartCase, options: StartMeasureOption
       writeFileSync(runOf(arm.id), `${JSON.stringify(file, null, 2)}\n`);
       appOptions.set(arm.id, flags);
       if (tree.app.services.length === 0) continue;
-      const fakes = join(options.work, "fakes", `${arm.id}.json`);
-      const workload = join(options.work, "fakes", `${arm.id}.workload.json`);
       mkdirSync(join(options.work, "fakes"), { recursive: true });
-      writeFileSync(workload, `${JSON.stringify(startWorkloadOf(tree.app), null, 2)}\n`);
-      writeFileSync(fakes, `${JSON.stringify(appFakesOf(tree, treeOf(arm.id), workload), null, 2)}\n`);
       const program = ["node", programOf(FAKES_PROGRAM)];
-      sidecars.set(runOf(arm.id), { argv: [...program, "host", "--file", fakes], memory: valueIn(FAKES_MEMORY, "B"), cpuset: cpus.others, mounts: [options.work, REPO_ROOT], ready: [...program, "ready"] });
+      for (const point of value.points) {
+        const fakes = join(options.work, "fakes", `${arm.id}.${point.id}.json`);
+        const workload = join(options.work, "fakes", `${arm.id}.${point.id}.workload.json`);
+        writeFileSync(workload, `${JSON.stringify(workloadOf(tree.app, point), null, 2)}\n`);
+        writeFileSync(fakes, `${JSON.stringify(appFakesOf(tree, treeOf(arm.id), workload), null, 2)}\n`);
+        sidecars.set(sidecarKey(runOf(arm.id), point.id), { argv: [...program, "host", "--file", fakes], memory: fakesMemory, cpuset: cpus.others, mounts: [options.work, REPO_ROOT], ready: [...program, "ready"] });
+      }
     }
   }
-  /** This function gives the start of the children of the arms. The child of an arm with services gets the sidecar of its fakes. */
+  /** This function gives the start of the children of the arms. The child of an arm with services gets the sidecar of its fakes at its point. */
   const armsStart = (limited: boolean): StartChild => {
     const plain = containerOf(limited);
-    const own = new Map([...sidecars].map(([run, sidecar]) => [run, containerOf(limited, [sidecar])]));
-    return (argv, rest) => {
-      const at = argv.indexOf("--run");
-      return ((at === -1 ? undefined : own.get(argv[at + 1] ?? "")) ?? plain)(argv, rest);
+    const own = new Map([...sidecars].map(([key, sidecar]) => [key, containerOf(limited, [sidecar])]));
+    const flag = (argv: readonly string[], name: string): string => {
+      const at = argv.indexOf(name);
+      return at === -1 ? "" : (argv[at + 1] ?? "");
     };
+    return (argv, rest) => (own.get(sidecarKey(flag(argv, "--run"), flag(argv, "--case"))) ?? plain)(argv, rest);
   };
   const programFor = (arm: StartArm): string[] =>
     subject === undefined
@@ -1016,8 +1039,8 @@ const NEEDED: readonly StartMeasure[] = ["ready", "readiness", "firstPass", "end
 export const startRecordProblems = (record: StartRecord): readonly CheckProblem[] => {
   const problems: CheckProblem[] = [];
   const id = record.case.id;
-  // An app has no pass of the lab, thus its readings have no first pass.
-  const needed = record.case.app === undefined ? NEEDED : NEEDED.filter((name) => name !== "firstPass");
+  // An app has no pass of the lab, thus its readings have no first pass. The program app-start reads the CPU time of the watch.
+  const needed: readonly StartMeasure[] = record.case.app === undefined ? NEEDED : [...NEEDED.filter((name) => name !== "firstPass"), "watchCpu", "watchCores"];
   for (const reading of record.readings) {
     const missing = needed.filter((name) => reading.measures[name] === null);
     if (missing.length > 0) problems.push({ code: "read", path: `${id}: ${reading.arm} on ${reading.point}`, message: `The reading has no ${missing.join(", ")}.` });
