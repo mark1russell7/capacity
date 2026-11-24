@@ -678,7 +678,7 @@ The plans `alerts-start-feeds`, `alerts-start-persons` and `alerts-start-inciden
 
 - The target is the target of the plan `alerts-start-app`.
 - A start law set refuses a case with points that move a second variable. Otherwise a law of one variable also holds the effect of another variable.
-- The routes of alerts are the persons times the incidents and the system incidents. The ladders move one level at a time. Thus their laws do not give the interaction of the two levels (CAP-67).
+- The routes of alerts are the persons times the incidents and the system incidents. The ladders move one level at a time. Thus their laws do not give the interaction of the two levels. The grid of the routes gives it (CAP-67).
 - The plans have no trigger: a person starts them. The time limit of each plan is 151 minutes.
 - The contract accepts a log from 2,000,000 B to 400,000,000 B. Thus the log ladder stops at 400,000,000 B, and not at 512 MiB as the old plan `alerts-start`.
 - The jobs of one run can land on more than one CPU model. A law needs 5 jobs on one CPU model. Thus a ladder can need a second run of the same plan.
@@ -723,6 +723,20 @@ The limits file has the format `capacity-start-limits/1`. `readStartLimits` read
 | `points[].derivations` | The result of `runLimit` for each measure: `limit`, `worst`, `spread`, the `values` of the runs, and the `unit` |
 
 A gate reads `points[].limits` with `readLimits` of `@mark1russell7/capacity`. A start passes when each measure is at its ceiling or below it.
+
+#### The grid of the routes
+
+The plan `alerts-start-routes` starts alerts on a grid of the persons and the open incidents (CAP-67). Its start law set reads the routes from the line `amounts` of the run, with `from: "run"`.
+
+| Part | The value | Why |
+| --- | --- | --- |
+| The grid | `persons`: 1, 10, 100 and 1000. `incidents`: 0, 10, 100 and 1000. The point with 1000 persons and 1000 incidents is not in the grid. | A route is one person and one open incident or the system incident. Thus the routes are `persons × (incidents + 1)`, from 1 to 101,000. |
+| The paths | 4 points give approximately 1000 routes, and 3 points give approximately 100 or 10,000 routes. | Points with the same routes and different levels tell if the routes alone give the cost of a start. |
+| The upper limit | 110,000 routes | A start of alerts with 100,100 routes has a peak memory of 868 MB. The target has 1011 MB. |
+| The other parts | The base point, the arm, the limit, the measures and the target of the ladders | The grid and the ladders meet at the base point. |
+
+- A start law set from the run accepts points that move more than one variable. No point sets the routes.
+- The job of the plan has a time limit of 224 minutes.
 
 ### The machine model
 
