@@ -13,21 +13,23 @@ import {
   BENCH_LIMITS_FORMAT,
   BENCH_LIMIT_RUNS,
   BENCH_RECORD,
+  BENCH_ROUNDS,
+  BENCH_SLOTS,
   HEAD_ARM,
   benchCases,
-  benchAgainJobs,
   benchAgainOf,
   benchGate,
   benchLimitsOf,
   benchNotesOf,
   benchRead,
-  benchReadOfTries,
   benchSummaryOf,
   pairedTimes,
   readBenchChanges,
   readBenchLimits,
   readBenchRecords,
   resultHash,
+  slotJobs,
+  type BenchJob,
   type BenchChange,
   type BenchRecord,
 } from "./bench-scale.ts";
@@ -36,16 +38,16 @@ import { latestAttempts, readCompositions, readLaws } from "./jobs.ts";
 /** This folder holds the files of the package capacity. */
 const CAPACITY = fileURLToPath(new URL("../../capacity/", import.meta.url));
 
-const ROUNDS = 6;
+const ROUNDS = BENCH_ROUNDS;
 
 /**
  * This function gives the children of a run of 3 arms on one case: the base, the A/A base and the head. The head takes
  * `factor` times the time of the base. The order of the arms turns each round, and the times have a small seeded spread.
  */
-const processesOf = (id: string, factor: number): { processes: ArmProcess[]; aa: PairedTime[] } => {
+const processesOf = (id: string, factor: number, rounds: number = ROUNDS): { processes: ArmProcess[]; aa: PairedTime[] } => {
   const processes: ArmProcess[] = [];
   const aa: PairedTime[] = [];
-  for (let round = 0; round < ROUNDS; round += 1) {
+  for (let round = 0; round < rounds; round += 1) {
     const wobble = 1 + 0.002 * ((round % 3) - 1);
     const order = round % 2 === 0 ? [BASE_ARM, AA_ARM, HEAD_ARM] : [HEAD_ARM, AA_ARM, BASE_ARM];
     const ms: Record<string, number> = { [BASE_ARM]: 100 * wobble, [AA_ARM]: 100 / wobble, [HEAD_ARM]: 100 * factor * wobble };
@@ -57,7 +59,10 @@ const processesOf = (id: string, factor: number): { processes: ArmProcess[]; aa:
 
 const ENV = { cpu: "Test CPU", cores: 4, os: "linux", arch: "x64", node: "v26.0.0" };
 
-const recordOf = (id: string, factor: number, same = true, commits = { base: "a".repeat(40), head: "b".repeat(40) }): BenchRecord => ({
+/** This function gives one bench job of a case in a slot: the children of `processesOf` with the slot and the try. */
+const jobOf = (id: string, factor: number, slot: number, tried = 1): BenchJob => ({ slot, try: tried, ...processesOf(id, factor) });
+
+const recordOf = (id: string, factor: number, same = true, commits = { base: "a".repeat(40), head: "b".repeat(40) }, slot = 1, tried = 1): BenchRecord => ({
   format: BENCH_FORMAT,
   case: id,
   commits,
@@ -67,7 +72,12 @@ const recordOf = (id: string, factor: number, same = true, commits = { base: "a"
   same,
   // A changed case has a different hash on the head.
   hashes: { base: `base-${id}`, head: same ? `base-${id}` : `head-${id}` },
+  slot,
+  try: tried,
 });
+
+/** This function gives the records of the first try of a case: one record for each slot. */
+const pairOf = (id: string, factor: number, same = true): BenchRecord[] => Array.from({ length: BENCH_SLOTS }, (_, index) => recordOf(id, factor, same, undefined, index + 1));
 
 let folder = "";
 afterEach(() => {
@@ -124,99 +134,122 @@ describe("pairedTimes", () => {
 });
 
 describe("benchRead", () => {
-  it("passes a head that takes half the time of the base", () => {
-    const { processes, aa } = processesOf("x", 0.5);
-    const read = benchRead(processes, aa, { limit: 1.1 });
+  const COMMITS = { base: "a".repeat(40), head: "b".repeat(40) };
+
+  it("passes a head that takes half the time of the base when each of the two jobs reads it at the first look", () => {
+    const read = benchRead([jobOf("x", 0.5, 1), jobOf("x", 0.5, 2)], { limit: 1.1 });
     expect(read.gate.outcome).toBe("pass");
-    expect(read.cases[0]?.ratio).toBeCloseTo(0.5, 2);
-    expect(read.cases[0]?.headMs).toBeLessThan(read.cases[0]?.baseMs ?? 0);
-    // The bound is the high end of the interval, widened by the A/A noise of the case.
-    const one = read.cases[0];
-    expect(one?.bound).toBeCloseTo((one?.high ?? 0) * Math.exp(one?.noise ?? 0), 9);
-    expect(benchSummaryOf(read, { base: "a".repeat(40), head: "b".repeat(40) })).toContain("| A/A noise | Bound |");
+    expect(read.margin).toBeCloseTo(Math.log(1.1), 12);
+    expect(read.more).toEqual([]);
+    const [x] = read.cases;
+    expect(x?.ratio).toBeCloseTo(0.5, 2);
+    expect([x?.outcome, x?.look, x?.slots]).toEqual(["within", BENCH_ROUNDS, [BENCH_ROUNDS, BENCH_ROUNDS]]);
+    expect(x?.jobs.map((each) => [each.below, each.rounds])).toEqual([
+      [BENCH_ROUNDS, BENCH_ROUNDS],
+      [BENCH_ROUNDS, BENCH_ROUNDS],
+    ]);
+    const summary = benchSummaryOf(read, COMMITS);
+    expect(summary).toContain("| Pairs below the margin, each job | Look |");
+    expect(summary).toContain(`| ${BENCH_ROUNDS} of ${BENCH_ROUNDS}, ${BENCH_ROUNDS} of ${BENCH_ROUNDS} | ${BENCH_ROUNDS} |`);
   });
 
   it("blocks a head that takes twice the time of the base", () => {
-    const { processes, aa } = processesOf("x", 2);
-    expect(benchRead(processes, aa, { limit: 1.1 }).gate.outcome).toBe("block");
+    const read = benchRead([jobOf("x", 2, 1), jobOf("x", 2, 2)], { limit: 1.1 });
+    expect(read.gate.outcome).toBe("block");
+    expect(read.cases[0]?.outcome).toBe("beyond");
   });
 
-  it("cannot pass when the A/A spread is above the noise cap", () => {
-    const { processes, aa } = processesOf("x", 0.5);
-    const noisy = aa.map((each, index) => ({ ...each, b: each.b * (index % 2 === 0 ? 1.5 : 0.7) }));
-    expect(benchRead(processes, noisy, { limit: 1.1, noiseCap: 0.05 }).gate.outcome).toBe("no read");
+  it("asks for the next look of a case with a read in one job only, and gives the rounds of each slot", () => {
+    const read = benchRead([jobOf("x", 0.5, 1), jobOf("y", 0.5, 1), jobOf("y", 0.5, 2)], { limit: 1.1 });
+    expect(read.gate.outcome).toBe("no read");
+    expect(read.more).toEqual([{ case: "x", rounds: BENCH_ROUNDS }]);
+    expect(read.cases.map((each) => [each.case, each.outcome, each.slots])).toEqual([
+      ["x", "cannot decide", [BENCH_ROUNDS, 0]],
+      ["y", "within", [BENCH_ROUNDS, BENCH_ROUNDS]],
+    ]);
+    expect(benchSummaryOf(read, COMMITS)).toContain("| none |");
+  });
+
+  it("cannot decide a case when the A/A noise of a job is above the noise cap, and more rounds do not change it", () => {
+    const job = jobOf("x", 0.5, 1);
+    const noisy = job.aa.map((each, index) => ({ ...each, b: each.b * (index % 2 === 0 ? 1.5 : 0.7) }));
+    const read = benchRead([{ ...job, aa: noisy }, jobOf("x", 0.5, 2)], { limit: 1.1, noiseCap: 0.05 });
+    expect(read.gate.outcome).toBe("no read");
+    expect([read.cases[0]?.outcome, read.cases[0]?.capped]).toEqual(["cannot decide", true]);
+    expect(read.cases[0]?.reason).toContain("noise cap 0.05");
+    expect(read.more).toEqual([]);
+  });
+});
+
+describe("slotJobs", () => {
+  it("gives one job for each slot, and the rounds of a later try of a slot continue after the rounds of the earlier try", () => {
+    const pool = slotJobs([jobOf("x", 0.5, 2, 2), jobOf("x", 0.5, 1), jobOf("y", 0.5, 1), jobOf("x", 0.5, 1, 2)]);
+    expect(pool.map((each) => each.job)).toEqual(["slot 1", "slot 2"]);
+    const [one, two] = pool;
+    const roundsOf = (records: readonly PairedTime[] | undefined, id: string): number[] => (records ?? []).filter((each) => each.case === id).map((each) => each.round);
+    expect(roundsOf(one?.candidate, "x")).toEqual(Array.from({ length: 2 * BENCH_ROUNDS }, (_, round) => round));
+    expect(roundsOf(one?.aa, "x")).toEqual(Array.from({ length: 2 * BENCH_ROUNDS }, (_, round) => round));
+    expect(roundsOf(one?.candidate, "y")).toEqual(Array.from({ length: BENCH_ROUNDS }, (_, round) => round));
+    expect(roundsOf(two?.candidate, "x")).toEqual(Array.from({ length: BENCH_ROUNDS }, (_, round) => round));
+    expect([...(one?.candidate ?? []), ...(one?.aa ?? [])].every((each) => (each as { job?: string }).job === "slot 1")).toBe(true);
   });
 });
 
 describe("benchAgainOf", () => {
-  it("gives the cases that cannot decide and the cases with no record, and no case for a pass", () => {
-    expect(benchAgainOf(benchGate([recordOf("x", 0.5), recordOf("y", 0.5)], ["x", "y"]))).toEqual([]);
-    expect(benchAgainOf(benchGate([recordOf("x", 0.5)], ["x", "y"]))).toContain("y");
+  const IDS = ["x", "y", "z"];
+
+  it("gives no job for a pass, and two jobs of the first look for a case with no record", () => {
+    expect(benchAgainOf(benchGate(pairOf("x", 0.5), ["x"]), ["x"])).toEqual([]);
+    expect(benchAgainOf(benchGate([...pairOf("x", 0.5), ...pairOf("y", 0.5)], IDS), IDS)).toEqual(
+      Array.from({ length: BENCH_SLOTS }, (_, index) => ({ case: "z", index, slot: index + 1, try: 2, rounds: BENCH_ROUNDS })),
+    );
   });
 
-  it("gives no case when a change of value has no reason", () => {
-    const changed = benchGate([recordOf("x", 0.5, false), recordOf("y", 0.5)], ["x", "y", "z"]);
+  it("gives a job only for each slot with fewer rounds than the next look, in the order of the cases", () => {
+    const gate = benchGate([recordOf("z", 0.5), ...pairOf("y", 0.5), recordOf("x", 0.5, true, undefined, 2)], IDS);
+    expect(benchAgainOf(gate, IDS)).toEqual([
+      { case: "x", index: 0, slot: 1, try: 2, rounds: BENCH_ROUNDS },
+      { case: "z", index: 1, slot: 2, try: 2, rounds: BENCH_ROUNDS },
+    ]);
+  });
+
+  it("gives no job when a change of value has no reason", () => {
+    const changed = benchGate([...pairOf("x", 0.5, false), ...pairOf("y", 0.5)], IDS);
     expect(changed.unexplained).toEqual(["x"]);
-    expect(benchAgainOf(changed)).toEqual([]);
+    expect(benchAgainOf(changed, IDS)).toEqual([]);
   });
 
-  it("gives no case when a case is beyond the limit", () => {
-    expect(benchAgainOf(benchGate([recordOf("x", 0.5), recordOf("y", 3)], ["x", "y", "z"]))).toEqual([]);
-  });
-
-});
-
-describe("benchAgainJobs", () => {
-  it("gives each case of the second try its fresh jobs, in the order of the cases, each with its own index", () => {
-    expect(benchAgainJobs(["x", "y", "z"], ["z", "x"], 2)).toEqual([
-      { case: "x", index: 0, try: 2 },
-      { case: "x", index: 1, try: 3 },
-      { case: "z", index: 2, try: 2 },
-      { case: "z", index: 3, try: 3 },
-    ]);
-    expect(benchAgainJobs(["x"], [], 2)).toEqual([]);
-    expect(() => benchAgainJobs(["x"], ["x"], 0)).toThrow(RangeError);
-  });
-});
-
-describe("benchReadOfTries", () => {
-  it("pools the rounds of the tries of a case, and gives one try the verdict of its own rounds", () => {
-    const one = processesOf("x", 0.5);
-    const read = benchReadOfTries([one, processesOf("x", 0.5), processesOf("y", 0.5)], { limit: 1.1 });
-    expect(read.cases.map((each) => [each.case, each.tries, each.outcome])).toEqual([
-      ["x", 2, "within"],
-      ["y", 1, "within"],
-    ]);
-    // One try alone gives the read of benchRead.
-    expect(benchReadOfTries([one], { limit: 1.1 })).toEqual(benchRead(one.processes, one.aa, { limit: 1.1 }));
-    expect(benchSummaryOf(read, { base: "a".repeat(40), head: "b".repeat(40) })).toContain("| Outcome | Tries |");
-  });
-
-  it("cannot decide a case when one try is beyond the limit and the pool of the tries is within", () => {
-    const read = benchReadOfTries([processesOf("x", 0.5), processesOf("x", 0.5), processesOf("x", 0.5), processesOf("x", 3)], { limit: 1.1 });
-    const [x] = read.cases;
-    expect(x?.ratio).toBeLessThan(1);
-    expect(x?.opposed).toEqual(["try 4"]);
-    expect(x?.outcome).toBe("cannot decide");
-    expect(read.gate.outcome).toBe("no read");
+  it("gives no job when a case is beyond the limit or above the noise cap", () => {
+    expect(benchAgainOf(benchGate([...pairOf("x", 0.5), ...pairOf("y", 3)], IDS), IDS)).toEqual([]);
+    const [first, second] = pairOf("x", 0.5);
+    const noisy = { ...(first as BenchRecord), aa: (first as BenchRecord).aa.map((each, index) => ({ ...each, b: each.b * (index % 2 === 0 ? 1.5 : 0.7) })) };
+    expect(benchAgainOf(benchGate([noisy, second as BenchRecord], IDS, { noiseCap: 0.05 }), IDS)).toEqual([]);
   });
 });
 
 describe("benchGate", () => {
-  it("pools the records of the tries of a case, and a case is the same only when each try gives the same value", () => {
-    const result = benchGate([recordOf("x", 0.5), recordOf("y", 0.5), recordOf("x", 0.5)], ["x", "y"]);
-    expect(result.read.cases.map((each) => [each.case, each.tries])).toEqual([
-      ["x", 2],
-      ["y", 1],
+  it("joins the records of the slots and the tries of a case, and a case is the same only when each job gives the same value", () => {
+    const tries = [...pairOf("x", 0.5), recordOf("x", 0.5, true, undefined, 1, 2), recordOf("x", 0.5, true, undefined, 2, 2)];
+    const result = benchGate([...tries, ...pairOf("y", 0.5)], ["x", "y"]);
+    expect(result.read.cases.map((each) => [each.case, each.slots])).toEqual([
+      ["x", [2 * BENCH_ROUNDS, 2 * BENCH_ROUNDS]],
+      ["y", [BENCH_ROUNDS, BENCH_ROUNDS]],
     ]);
     expect(result.read.gate.outcome).toBe("pass");
-    const changed = benchGate([recordOf("x", 0.5), recordOf("x", 0.5, false)], ["x"]);
+    const changed = benchGate([recordOf("x", 0.5), recordOf("x", 0.5, false, undefined, 2)], ["x"]);
     expect(changed.changed).toEqual(["x"]);
     expect(changed.read.cases[0]?.same).toBe(false);
   });
 
+  it("reads a record with no slot and no try as a job of slot 1 of the first try", () => {
+    const { slot: _slot, try: _try, ...old } = recordOf("x", 0.5);
+    const result = benchGate([old, recordOf("x", 0.5, true, undefined, 2)], ["x"]);
+    expect(result.read.cases[0]?.slots).toEqual([BENCH_ROUNDS, BENCH_ROUNDS]);
+    expect(result.read.gate.outcome).toBe("pass");
+  });
+
   it("reads the records of all the cases, and names the cases with no record and the changed cases", () => {
-    const result = benchGate([recordOf("x", 0.5), recordOf("y", 0.6, false)], ["x", "y", "z"]);
+    const result = benchGate([...pairOf("x", 0.5), ...pairOf("y", 0.6, false)], ["x", "y", "z"]);
     expect(result.read.cases.map((each) => each.case)).toEqual(["x", "y"]);
     expect(result.missing).toEqual(["z"]);
     expect(result.changed).toEqual(["y"]);
@@ -227,7 +260,7 @@ describe("benchGate", () => {
 
   it("does not time a case that the head changes on purpose, and names a change of value with other hashes as unused", () => {
     const change: BenchChange = { case: "y", base: "base-y", head: "head-y", reason: "The base gave no value." };
-    const result = benchGate([recordOf("x", 0.5), recordOf("y", 3, false)], ["x", "y"], { changes: [change] });
+    const result = benchGate([...pairOf("x", 0.5), ...pairOf("y", 3, false)], ["x", "y"], { changes: [change] });
     expect(result.read.cases.map((each) => each.case)).toEqual(["x"]);
     expect(result.read.gate.outcome).toBe("pass");
     expect(result.intended.map((each) => [each.case, each.reason])).toEqual([["y", "The base gave no value."]]);
@@ -235,7 +268,7 @@ describe("benchGate", () => {
     expect(result.unexplained).toEqual([]);
     expect(result.unused).toEqual([]);
     expect(benchNotesOf(result)).toContain("| y |");
-    const old = benchGate([recordOf("x", 0.5), recordOf("y", 3, false)], ["x", "y"], { changes: [{ ...change, head: "head-old" }] });
+    const old = benchGate([...pairOf("x", 0.5), ...pairOf("y", 3, false)], ["x", "y"], { changes: [{ ...change, head: "head-old" }] });
     expect(old.unexplained).toEqual(["y"]);
     expect(old.unused).toEqual(["y"]);
     expect(old.read.gate.outcome).toBe("block");
