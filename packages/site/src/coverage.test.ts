@@ -134,7 +134,7 @@ describe("the coverage of the law files of the repository", () => {
     expect(alerts.families.at(-1)?.id).toBe("start");
     expect(alerts.rows.map((each) => each.id)).toContain("feeds");
     const feeds = cellOf(matrices, "alerts", "feeds", "start");
-    expect(feeds.state).toBe("measured");
+    expect(feeds.state).toBe("law");
     expect(feeds.goal).toBe(false);
   });
 

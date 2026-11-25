@@ -22,7 +22,7 @@ const FOLDERS = ["node-http-service/overhead", "node-http/rate"];
  * These folders hold the laws of start plans, each `<subject>/<plan>`. Their files are
  * `<cpu>/<arm>/<start>/<law>.law.json`, and the start law set of the plan names each law.
  */
-const START_FOLDERS = ["alerts-runtime/alerts-start-event"];
+const START_FOLDERS = ["alerts-runtime/alerts-start-event", "alerts-runtime/alerts-start-feeds", "alerts-runtime/alerts-start-persons"];
 
 /**
  * This number is the largest root mean square of the relative held-out residuals of a law.
