@@ -202,16 +202,7 @@ jobs:
         if: ${{ matrix.swap > 0 }}
         env:
           SWAP: ${{ matrix.swap }}
-        run: |
-          have=$(awk '/^SwapTotal:/ { print $2 * 1024 }' /proc/meminfo)
-          if [ "$have" -lt "$SWAP" ]; then
-            # the header of a swap file takes one page, thus the file has 1 MiB more
-            add=$(( (SWAP - have + 1048575) / 1048576 + 1 ))
-            sudo fallocate -l "${add}M" /lab.swap
-            sudo chmod 600 /lab.swap
-            sudo mkswap /lab.swap
-            sudo swapon /lab.swap
-          fi
+        run: node packages/lab/src/swap.main.ts "$SWAP"
       # A start case models the memory and the swap of a target. Its check child stops the case when the runner cannot model them.
       - name: The memory and the swap of the runner
         run: |

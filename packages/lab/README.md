@@ -793,6 +793,36 @@ The limits file has the format `capacity-start-limits/1`. `readStartLimits` read
 
 A gate reads `points[].limits` with `readLimits` of `@mark1russell7/capacity`. A start passes when each measure is at its ceiling or below it.
 
+##### The workflow of the start gate
+
+The workflow `start-gate.yml` measures a new commit of the app against the limits file (CAP-98). An app calls it from the workflow of its pull requests:
+
+```yaml
+start-gate:
+  uses: metrograph-labs/capacity/.github/workflows/start-gate.yml@<capacity commit>
+  with:
+    commit: ${{ github.event.pull_request.head.sha }}
+    capacity: <capacity commit>
+```
+
+- **The commit of the app.** `withArmCommit` gives the arm of the limits the commit `commit`. The seeder keeps its commit, thus each run opens the same stores.
+- **The commit of capacity.** A called workflow runs in the context of its caller. Thus the input `capacity` names the commit that the jobs check out. Give the commit of the `uses` line.
+- **The runs.** The job plan gives one job for each run (the input `runs`, 5 by default). The option `--arm` of `timed.main.ts plan` adds the tree of the new commit to the time limit of a job.
+- **The value of a run.** It is the value of the limits: `startValueOf`, the largest reading of the arm and its A/A copy at the point.
+- **The verdict.** `startGateOf` calls `limitUses` of `@mark1russell7/capacity` for each run at each point. `start-gate.main.ts` writes the use of each limit into the summary.
+
+| Outcome | When | The job |
+| --- | --- | --- |
+| `pass` | Each run holds each limit at each point. | It passes. |
+| `block` | A value is above its ceiling, or a child did not fit the target. | It fails. |
+| `no-read` | A run measured another commit or another version of the case, a record has a problem, a point has no value, or fewer runs have a record than the input `runs`. | It fails. A no read is not a pass. |
+
+The job gate reads the latest try of each job. Thus a rerun of a lost runner gives a read. A person starts the gate by hand, for example the proof run at the commit of the limits:
+
+```sh
+gh workflow run start-gate.yml -R metrograph-labs/capacity --ref main -f commit=<app commit>
+```
+
 #### The grid of the routes
 
 The plan `alerts-start-routes` starts alerts on a grid of the persons and the open incidents (CAP-67). Its start law set reads the routes from the line `amounts` of the run, with `from: "run"`.

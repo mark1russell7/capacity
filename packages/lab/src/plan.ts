@@ -12,7 +12,7 @@ import { CHECKS } from "./check.ts";
 import { FLOOR_IDS } from "./floor.ts";
 import { lawSetProblems, type LawSet } from "./laws.ts";
 import { startLawSetProblems, type StartLawSet } from "./start-laws.ts";
-import { isStartCase, startCaseProblems, startWindowOf, type StartCase } from "./start.ts";
+import { COMMIT, isStartCase, startCaseProblems, startWindowOf, type StartCase } from "./start.ts";
 
 /** This text is the format of a plan file. */
 export const PLAN_FORMAT = "capacity-plan/1";
@@ -349,6 +349,36 @@ export interface MatrixEntry {
  */
 export const planSwap = (plan: Plan): number =>
   plan.cases.filter(isStartCase).reduce((most, value) => Math.max(most, valueIn(value.target.swap, "B")), 0);
+
+/** An arm commit is a commit for one arm of the start cases of a plan. The option `--arm <arm>=<commit>` gives it. */
+export interface ArmCommit {
+  readonly arm: string;
+  readonly commit: string;
+}
+
+/**
+ * This function reads an arm commit from the text `<arm>=<commit>`. The commit has 40 lower-case hexadecimal digits.
+ * It throws a `RangeError` for a text of another shape.
+ */
+export const armCommitOf = (text: string): ArmCommit => {
+  const at = text.indexOf("=");
+  const arm = at < 0 ? "" : text.slice(0, at);
+  const commit = at < 0 ? "" : text.slice(at + 1);
+  if (arm === "" || !COMMIT.test(commit)) throw new RangeError(`The arm commit "${text}" is not <arm>=<commit>, with a commit of 40 lower-case hexadecimal digits.`);
+  return { arm, commit };
+};
+
+/**
+ * This function gives the plan with a new commit for one arm of each start case. The gate of an app measures the head
+ * of a pull request in this way. The seeder keeps its commit, thus each arm opens the same stores as the arms of the limits.
+ * It throws a `RangeError` for a plan with no start case that has the arm.
+ */
+export const withArmCommit = (plan: Plan, { arm, commit }: ArmCommit): Plan => {
+  const has = (value: Case | StartCase): value is StartCase => isStartCase(value) && value.arms.some((each) => each.id === arm);
+  if (!plan.cases.some(has)) throw new RangeError(`The plan "${plan.id}" has no start case with the arm "${arm}".`);
+  const cases = plan.cases.map((value) => (has(value) ? { ...value, arms: value.arms.map((each) => (each.id === arm ? { ...each, commit } : each)) } : value));
+  return { ...plan, cases };
+};
 
 /**
  * This function gives the matrix of the workflow: one job for each run of each plan. Each run is a

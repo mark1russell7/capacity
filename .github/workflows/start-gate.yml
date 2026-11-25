@@ -1,0 +1,194 @@
+# The start gate of an app: the runs of the start case of a limits file, with the arm of the limits at a new commit of the
+# app, against the limits of each point (CAP-98). The limits are the worst value of 5 or more CI runs plus their spread
+# (start-limits.main.ts). The gate fails when a run passes a ceiling, when a child does not fit the target, and when the
+# records cannot decide: a no read is not a pass.
+#
+# An app calls this workflow from the workflow of its pull requests, with the head of the pull request:
+#
+#     start-gate:
+#       uses: metrograph-labs/capacity/.github/workflows/start-gate.yml@<capacity commit>
+#       with:
+#         commit: ${{ github.event.pull_request.head.sha }}
+#         capacity: <capacity commit>
+#
+# A called workflow runs in the context of its caller, thus github.sha is the commit of the app. The input capacity names
+# the commit of this repository that the jobs check out. Give the commit of the uses line, thus the code and the limits
+# match the workflow. A person starts the gate by hand on this repository, for example the proof run of the commit of the limits:
+#     gh workflow run start-gate.yml -R metrograph-labs/capacity --ref main -f commit=<app commit>
+#
+# The job plan gives the matrix: one job for each run, with the time limit of the plan at the new commit (timed.main.ts
+# plan --arm). Each job measures the plan on its own runner and uploads its records as lab-<plan>-<run>-<attempt>. The
+# job gate reads the latest try of each job (start-gate.main.ts).
+name: Start gate
+
+on:
+  workflow_call:
+    inputs:
+      commit:
+        description: The commit of the app, 40 hexadecimal digits. The arm of the limits starts at this commit.
+        required: true
+        type: string
+      capacity:
+        description: The commit of metrograph-labs/capacity that the jobs check out. Give the commit of the uses line.
+        required: true
+        type: string
+      runs:
+        description: The count of runs, each on its own runner. The gate needs a record of each run.
+        required: false
+        type: number
+        default: 5
+      limits:
+        description: The limits file, in packages/capacity/limits.
+        required: false
+        type: string
+        default: alerts-start-gate.limits.json
+  workflow_dispatch:
+    inputs:
+      commit:
+        description: The commit of the app, 40 hexadecimal digits. The arm of the limits starts at this commit.
+        required: true
+        type: string
+      runs:
+        description: The count of runs, each on its own runner. The gate needs a record of each run.
+        required: false
+        type: number
+        default: 5
+      limits:
+        description: The limits file, in packages/capacity/limits.
+        required: false
+        type: string
+        default: alerts-start-gate.limits.json
+
+permissions:
+  contents: read
+
+env:
+  # a dispatch has no input capacity: then the jobs check out the commit of the dispatch
+  CAPACITY: ${{ inputs.capacity || github.sha }}
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+      plan: ${{ steps.plan.outputs.plan }}
+      arm: ${{ steps.plan.outputs.arm }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: metrograph-labs/capacity
+          ref: ${{ env.CAPACITY }}
+          persist-credentials: false
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 26
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # A commit of another shape, a count that is not a whole number above 0 and a plan with no such arm stop the run here.
+      - id: plan
+        name: The plan at the commit of the app
+        env:
+          COMMIT: ${{ inputs.commit }}
+          COUNT: ${{ inputs.runs }}
+          LIMITS: ${{ inputs.limits }}
+        run: |
+          case "$COUNT" in
+            ''|*[!0-9]*|0) echo "::error::The count of runs is not a whole number above 0: $COUNT."; exit 1 ;;
+          esac
+          case "$LIMITS" in
+            ''|*/*|.*) echo "::error::The limits file is not the name of a file in packages/capacity/limits: $LIMITS."; exit 1 ;;
+          esac
+          id=$(jq -er .plan "packages/capacity/limits/$LIMITS")
+          arm=$(jq -er .arm "packages/capacity/limits/$LIMITS")
+          runs="[$(seq -s, 1 "$COUNT")]"
+          matrix=$(node packages/lab/src/timed.main.ts plan --event workflow_dispatch --plans "$id" --runs "$runs" --arm "$arm=$COMMIT")
+          echo "$matrix"
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+          echo "plan=$id" >> "$GITHUB_OUTPUT"
+          echo "arm=$arm" >> "$GITHUB_OUTPUT"
+
+  lab:
+    needs: plan
+    strategy:
+      # each run gives its records, also when another run fails
+      fail-fast: false
+      # the convention of the shared runners: at most 3 jobs of a matrix at once
+      max-parallel: 3
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    # the runner of lab.yml: the subject has the first CPUs, and the driver and the reader have the others
+    runs-on: ubuntu-24.04
+    timeout-minutes: ${{ matrix.minutes }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: metrograph-labs/capacity
+          ref: ${{ env.CAPACITY }}
+          persist-credentials: false
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 26
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: The swap of the targets of the plan
+        if: ${{ matrix.swap > 0 }}
+        env:
+          SWAP: ${{ matrix.swap }}
+        run: node packages/lab/src/swap.main.ts "$SWAP"
+      - name: The memory and the swap of the runner
+        run: |
+          free -b
+          swapon --show
+          docker info --format 'cgroup {{.CgroupVersion}}, memory limit {{.MemoryLimit}}, swap limit {{.SwapLimit}}'
+      - name: The timed run of the plan at the commit of the app
+        env:
+          PLAN: ${{ matrix.plan }}
+          RUN: ${{ matrix.run }}
+          OUT: ${{ runner.temp }}/lab-records
+          ARM: ${{ needs.plan.outputs.arm }}
+          COMMIT: ${{ inputs.commit }}
+        run: node packages/lab/src/timed.main.ts measure --plan "$PLAN" --out "$OUT" --run "$RUN" --arm "$ARM=$COMMIT"
+      - name: The records of the run
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: lab-${{ matrix.plan }}-${{ matrix.run }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/lab-records
+          if-no-files-found: warn
+
+  gate:
+    needs: [plan, lab]
+    # also after a job that failed: the gate tells each run with no record, and a no read fails the job
+    if: ${{ !cancelled() && needs.plan.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: metrograph-labs/capacity
+          ref: ${{ env.CAPACITY }}
+          persist-credentials: false
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 26
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: The records of the runs
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: lab-${{ needs.plan.outputs.plan }}-*
+          path: ${{ runner.temp }}/start-records
+      - name: The start gate
+        env:
+          RECORDS: ${{ runner.temp }}/start-records
+          COMMIT: ${{ inputs.commit }}
+          COUNT: ${{ inputs.runs }}
+          LIMITS: ${{ inputs.limits }}
+        run: node packages/lab/src/start-gate.main.ts gate --limits "packages/capacity/limits/$LIMITS" --runs "$RECORDS" --commit "$COMMIT" --count "$COUNT"
