@@ -1,0 +1,190 @@
+{
+  "format": "capacity-plan/1",
+  "id": "alerts-start-routes-limit",
+  "title": "The start of alerts from its contract between 20000 and 70000 routes, in the two shapes of the persons and the open incidents, to find the routes where the start fails",
+  "check": null,
+  "triggers": [],
+  "jobs": 5,
+  "cases": [
+    {
+      "format": "capacity-start/1",
+      "id": "alerts-start-routes-limit/grid",
+      "title": "The start of alerts at each point. A point of k persons with 1000 incidents and a point of 1000 persons with k incidents give the same routes by different paths.",
+      "subject": "alerts-runtime",
+      "app": "https://github.com/metrograph-labs/alerts.git",
+      "arms": [
+        {
+          "id": "main",
+          "commit": "3195eba112180267f72b34cfbeb035cd411ded4b"
+        }
+      ],
+      "seeder": "3195eba112180267f72b34cfbeb035cd411ded4b",
+      "seed": "al126",
+      "rounds": 1,
+      "watch": {
+        "value": 60,
+        "unit": "s"
+      },
+      "probe": {
+        "value": 500,
+        "unit": "ms"
+      },
+      "target": {
+        "image": "node:24.21.0-bookworm-slim",
+        "node": "v24.21.0",
+        "memory": {
+          "value": 1011425280,
+          "unit": "B"
+        },
+        "swap": {
+          "value": 2147483648,
+          "unit": "B"
+        },
+        "cpus": 2,
+        "heapLimit": {
+          "value": 556269568,
+          "unit": "B"
+        }
+      },
+      "limit": {
+        "value": 240,
+        "unit": "s"
+      },
+      "windows": [
+        {
+          "value": 90,
+          "unit": "s"
+        }
+      ],
+      "observed": [],
+      "points": [
+        {
+          "id": "persons-20-incidents-1000",
+          "at": {
+            "log": {
+              "value": 16777216,
+              "unit": "B"
+            },
+            "feeds": {
+              "value": 10,
+              "unit": "{feed}"
+            },
+            "persons": {
+              "value": 20,
+              "unit": "{person}"
+            },
+            "incidents": {
+              "value": 1000,
+              "unit": "{incident}"
+            }
+          }
+        },
+        {
+          "id": "persons-1000-incidents-20",
+          "at": {
+            "log": {
+              "value": 16777216,
+              "unit": "B"
+            },
+            "feeds": {
+              "value": 10,
+              "unit": "{feed}"
+            },
+            "persons": {
+              "value": 1000,
+              "unit": "{person}"
+            },
+            "incidents": {
+              "value": 20,
+              "unit": "{incident}"
+            }
+          }
+        },
+        {
+          "id": "persons-40-incidents-1000",
+          "at": {
+            "log": {
+              "value": 16777216,
+              "unit": "B"
+            },
+            "feeds": {
+              "value": 10,
+              "unit": "{feed}"
+            },
+            "persons": {
+              "value": 40,
+              "unit": "{person}"
+            },
+            "incidents": {
+              "value": 1000,
+              "unit": "{incident}"
+            }
+          }
+        },
+        {
+          "id": "persons-1000-incidents-40",
+          "at": {
+            "log": {
+              "value": 16777216,
+              "unit": "B"
+            },
+            "feeds": {
+              "value": 10,
+              "unit": "{feed}"
+            },
+            "persons": {
+              "value": 1000,
+              "unit": "{person}"
+            },
+            "incidents": {
+              "value": 40,
+              "unit": "{incident}"
+            }
+          }
+        },
+        {
+          "id": "persons-70-incidents-1000",
+          "at": {
+            "log": {
+              "value": 16777216,
+              "unit": "B"
+            },
+            "feeds": {
+              "value": 10,
+              "unit": "{feed}"
+            },
+            "persons": {
+              "value": 70,
+              "unit": "{person}"
+            },
+            "incidents": {
+              "value": 1000,
+              "unit": "{incident}"
+            }
+          }
+        },
+        {
+          "id": "persons-1000-incidents-70",
+          "at": {
+            "log": {
+              "value": 16777216,
+              "unit": "B"
+            },
+            "feeds": {
+              "value": 10,
+              "unit": "{feed}"
+            },
+            "persons": {
+              "value": 1000,
+              "unit": "{person}"
+            },
+            "incidents": {
+              "value": 70,
+              "unit": "{incident}"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
