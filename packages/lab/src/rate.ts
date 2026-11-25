@@ -75,7 +75,8 @@ export const coresOf = (record: CaseRecord): number | CheckProblem => {
 /**
  * This check is the check of the plan `rate`. The cases of the plan send the bare request at a
  * sweep of rates, from a light load to past the limit of one core. The check gives the points of
- * the laws of the request rate, and the problems that make a point void.
+ * the laws of the request rate, and the problems that make a point void. The plans `size-body` and
+ * `size-reply` also use this check, at a light rate.
  *
  * - Each run must answer each request with no failure. Its driver must have a lag of `RATE_LAG_LIMIT` or
  *   less, else the driver is not the driver of the 5 runs of the limit.

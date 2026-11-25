@@ -1,0 +1,712 @@
+{
+  "format": "capacity-plan/1",
+  "id": "size-body",
+  "title": "The laws of the size of the request: a body of the request from 16 B to 4 MiB at 100 requests each second on one core",
+  "check": "rate",
+  "triggers": [],
+  "laws": {
+    "class": "size",
+    "variable": {
+      "id": "body",
+      "unit": "B",
+      "scale": "log"
+    },
+    "measures": [
+      {
+        "id": "cpu.request",
+        "title": "The CPU time of one request",
+        "residual": "relative",
+        "forms": [
+          "constant",
+          "linear",
+          "power",
+          "logarithm",
+          "hinge"
+        ],
+        "knee": {
+          "kind": "floor",
+          "share": 1
+        }
+      },
+      {
+        "id": "memory.high",
+        "title": "The highest memory of the subject in a run",
+        "residual": "relative",
+        "forms": [
+          "constant",
+          "linear",
+          "power",
+          "logarithm",
+          "hinge"
+        ]
+      },
+      {
+        "id": "network.rx.request",
+        "title": "The network bytes that the subject gets for one request",
+        "residual": "relative",
+        "forms": [
+          "constant",
+          "linear",
+          "power",
+          "logarithm",
+          "hinge"
+        ]
+      },
+      {
+        "id": "latency.p50",
+        "title": "The median latency of a request",
+        "residual": "relative",
+        "forms": [
+          "constant",
+          "linear",
+          "power",
+          "logarithm",
+          "hinge"
+        ],
+        "knee": {
+          "kind": "floor",
+          "share": 1
+        }
+      }
+    ]
+  },
+  "cases": [
+    {
+      "format": "capacity-case/1",
+      "id": "size-body/16",
+      "title": "The bare request with a body of the request of 16 B, at 100 requests each second",
+      "subject": "node-http",
+      "instance": {
+        "resources": {
+          "cpu": {
+            "value": 1,
+            "unit": "{core}"
+          },
+          "memory": {
+            "value": 512,
+            "unit": "MiB"
+          }
+        }
+      },
+      "demand": {
+        "classes": [
+          {
+            "id": "size",
+            "rate": {
+              "value": 100,
+              "unit": "{request}/s"
+            },
+            "request": {
+              "body": {
+                "value": 16,
+                "unit": "B"
+              }
+            }
+          }
+        ],
+        "levels": {}
+      },
+      "duration": {
+        "value": 4,
+        "unit": "s"
+      },
+      "arrivals": {
+        "arrivals": "poisson",
+        "seed": "size-body"
+      },
+      "connections": {
+        "mode": "pool",
+        "size": 64
+      },
+      "runs": 3
+    },
+    {
+      "format": "capacity-case/1",
+      "id": "size-body/64",
+      "title": "The bare request with a body of the request of 64 B, at 100 requests each second",
+      "subject": "node-http",
+      "instance": {
+        "resources": {
+          "cpu": {
+            "value": 1,
+            "unit": "{core}"
+          },
+          "memory": {
+            "value": 512,
+            "unit": "MiB"
+          }
+        }
+      },
+      "demand": {
+        "classes": [
+          {
+            "id": "size",
+            "rate": {
+              "value": 100,
+              "unit": "{request}/s"
+            },
+            "request": {
+              "body": {
+                "value": 64,
+                "unit": "B"
+              }
+            }
+          }
+        ],
+        "levels": {}
+      },
+      "duration": {
+        "value": 4,
+        "unit": "s"
+      },
+      "arrivals": {
+        "arrivals": "poisson",
+        "seed": "size-body"
+      },
+      "connections": {
+        "mode": "pool",
+        "size": 64
+      },
+      "runs": 3
+    },
+    {
+      "format": "capacity-case/1",
+      "id": "size-body/256",
+      "title": "The bare request with a body of the request of 256 B, at 100 requests each second",
+      "subject": "node-http",
+      "instance": {
+        "resources": {
+          "cpu": {
+            "value": 1,
+            "unit": "{core}"
+          },
+          "memory": {
+            "value": 512,
+            "unit": "MiB"
+          }
+        }
+      },
+      "demand": {
+        "classes": [
+          {
+            "id": "size",
+            "rate": {
+              "value": 100,
+              "unit": "{request}/s"
+            },
+            "request": {
+              "body": {
+                "value": 256,
+                "unit": "B"
+              }
+            }
+          }
+        ],
+        "levels": {}
+      },
+      "duration": {
+        "value": 4,
+        "unit": "s"
+      },
+      "arrivals": {
+        "arrivals": "poisson",
+        "seed": "size-body"
+      },
+      "connections": {
+        "mode": "pool",
+        "size": 64
+      },
+      "runs": 3
+    },
+    {
+      "format": "capacity-case/1",
+      "id": "size-body/1024",
+      "title": "The bare request with a body of the request of 1 KiB, at 100 requests each second",
+      "subject": "node-http",
+      "instance": {
+        "resources": {
+          "cpu": {
+            "value": 1,
+            "unit": "{core}"
+          },
+          "memory": {
+            "value": 512,
+            "unit": "MiB"
+          }
+        }
+      },
+      "demand": {
+        "classes": [
+          {
+            "id": "size",
+            "rate": {
+              "value": 100,
+              "unit": "{request}/s"
+            },
+            "request": {
+              "body": {
+                "value": 1024,
+                "unit": "B"
+              }
+            }
+          }
+        ],
+        "levels": {}
+      },
+      "duration": {
+        "value": 4,
+        "unit": "s"
+      },
+      "arrivals": {
+        "arrivals": "poisson",
+        "seed": "size-body"
+      },
+      "connections": {
+        "mode": "pool",
+        "size": 64
+      },
+      "runs": 3
+    },
+    {
+      "format": "capacity-case/1",
+      "id": "size-body/4096",
+      "title": "The bare request with a body of the request of 4 KiB, at 100 requests each second",
+      "subject": "node-http",
+      "instance": {
+        "resources": {
+          "cpu": {
+            "value": 1,
+            "unit": "{core}"
+          },
+          "memory": {
+            "value": 512,
+            "unit": "MiB"
+          }
+        }
+      },
+      "demand": {
+        "classes": [
+          {
+            "id": "size",
+            "rate": {
+              "value": 100,
+              "unit": "{request}/s"
+            },
+            "request": {
+              "body": {
+                "value": 4096,
+                "unit": "B"
+              }
+            }
+          }
+        ],
+        "levels": {}
+      },
+      "duration": {
+        "value": 4,
+        "unit": "s"
+      },
+      "arrivals": {
+        "arrivals": "poisson",
+        "seed": "size-body"
+      },
+      "connections": {
+        "mode": "pool",
+        "size": 64
+      },
+      "runs": 3
+    },
+    {
+      "format": "capacity-case/1",
+      "id": "size-body/8192",
+      "title": "The bare request with a body of the request of 8 KiB, at 100 requests each second",
+      "subject": "node-http",
+      "instance": {
+        "resources": {
+          "cpu": {
+            "value": 1,
+            "unit": "{core}"
+          },
+          "memory": {
+            "value": 512,
+            "unit": "MiB"
+          }
+        }
+      },
+      "demand": {
+        "classes": [
+          {
+            "id": "size",
+            "rate": {
+              "value": 100,
+              "unit": "{request}/s"
+            },
+            "request": {
+              "body": {
+                "value": 8192,
+                "unit": "B"
+              }
+            }
+          }
+        ],
+        "levels": {}
+      },
+      "duration": {
+        "value": 4,
+        "unit": "s"
+      },
+      "arrivals": {
+        "arrivals": "poisson",
+        "seed": "size-body"
+      },
+      "connections": {
+        "mode": "pool",
+        "size": 64
+      },
+      "runs": 3
+    },
+    {
+      "format": "capacity-case/1",
+      "id": "size-body/16384",
+      "title": "The bare request with a body of the request of 16 KiB, at 100 requests each second",
+      "subject": "node-http",
+      "instance": {
+        "resources": {
+          "cpu": {
+            "value": 1,
+            "unit": "{core}"
+          },
+          "memory": {
+            "value": 512,
+            "unit": "MiB"
+          }
+        }
+      },
+      "demand": {
+        "classes": [
+          {
+            "id": "size",
+            "rate": {
+              "value": 100,
+              "unit": "{request}/s"
+            },
+            "request": {
+              "body": {
+                "value": 16384,
+                "unit": "B"
+              }
+            }
+          }
+        ],
+        "levels": {}
+      },
+      "duration": {
+        "value": 4,
+        "unit": "s"
+      },
+      "arrivals": {
+        "arrivals": "poisson",
+        "seed": "size-body"
+      },
+      "connections": {
+        "mode": "pool",
+        "size": 64
+      },
+      "runs": 3
+    },
+    {
+      "format": "capacity-case/1",
+      "id": "size-body/32768",
+      "title": "The bare request with a body of the request of 32 KiB, at 100 requests each second",
+      "subject": "node-http",
+      "instance": {
+        "resources": {
+          "cpu": {
+            "value": 1,
+            "unit": "{core}"
+          },
+          "memory": {
+            "value": 512,
+            "unit": "MiB"
+          }
+        }
+      },
+      "demand": {
+        "classes": [
+          {
+            "id": "size",
+            "rate": {
+              "value": 100,
+              "unit": "{request}/s"
+            },
+            "request": {
+              "body": {
+                "value": 32768,
+                "unit": "B"
+              }
+            }
+          }
+        ],
+        "levels": {}
+      },
+      "duration": {
+        "value": 4,
+        "unit": "s"
+      },
+      "arrivals": {
+        "arrivals": "poisson",
+        "seed": "size-body"
+      },
+      "connections": {
+        "mode": "pool",
+        "size": 64
+      },
+      "runs": 3
+    },
+    {
+      "format": "capacity-case/1",
+      "id": "size-body/65536",
+      "title": "The bare request with a body of the request of 64 KiB, at 100 requests each second",
+      "subject": "node-http",
+      "instance": {
+        "resources": {
+          "cpu": {
+            "value": 1,
+            "unit": "{core}"
+          },
+          "memory": {
+            "value": 512,
+            "unit": "MiB"
+          }
+        }
+      },
+      "demand": {
+        "classes": [
+          {
+            "id": "size",
+            "rate": {
+              "value": 100,
+              "unit": "{request}/s"
+            },
+            "request": {
+              "body": {
+                "value": 65536,
+                "unit": "B"
+              }
+            }
+          }
+        ],
+        "levels": {}
+      },
+      "duration": {
+        "value": 4,
+        "unit": "s"
+      },
+      "arrivals": {
+        "arrivals": "poisson",
+        "seed": "size-body"
+      },
+      "connections": {
+        "mode": "pool",
+        "size": 64
+      },
+      "runs": 3
+    },
+    {
+      "format": "capacity-case/1",
+      "id": "size-body/131072",
+      "title": "The bare request with a body of the request of 128 KiB, at 100 requests each second",
+      "subject": "node-http",
+      "instance": {
+        "resources": {
+          "cpu": {
+            "value": 1,
+            "unit": "{core}"
+          },
+          "memory": {
+            "value": 512,
+            "unit": "MiB"
+          }
+        }
+      },
+      "demand": {
+        "classes": [
+          {
+            "id": "size",
+            "rate": {
+              "value": 100,
+              "unit": "{request}/s"
+            },
+            "request": {
+              "body": {
+                "value": 131072,
+                "unit": "B"
+              }
+            }
+          }
+        ],
+        "levels": {}
+      },
+      "duration": {
+        "value": 4,
+        "unit": "s"
+      },
+      "arrivals": {
+        "arrivals": "poisson",
+        "seed": "size-body"
+      },
+      "connections": {
+        "mode": "pool",
+        "size": 64
+      },
+      "runs": 3
+    },
+    {
+      "format": "capacity-case/1",
+      "id": "size-body/262144",
+      "title": "The bare request with a body of the request of 256 KiB, at 100 requests each second",
+      "subject": "node-http",
+      "instance": {
+        "resources": {
+          "cpu": {
+            "value": 1,
+            "unit": "{core}"
+          },
+          "memory": {
+            "value": 512,
+            "unit": "MiB"
+          }
+        }
+      },
+      "demand": {
+        "classes": [
+          {
+            "id": "size",
+            "rate": {
+              "value": 100,
+              "unit": "{request}/s"
+            },
+            "request": {
+              "body": {
+                "value": 262144,
+                "unit": "B"
+              }
+            }
+          }
+        ],
+        "levels": {}
+      },
+      "duration": {
+        "value": 4,
+        "unit": "s"
+      },
+      "arrivals": {
+        "arrivals": "poisson",
+        "seed": "size-body"
+      },
+      "connections": {
+        "mode": "pool",
+        "size": 64
+      },
+      "runs": 3
+    },
+    {
+      "format": "capacity-case/1",
+      "id": "size-body/1048576",
+      "title": "The bare request with a body of the request of 1 MiB, at 100 requests each second",
+      "subject": "node-http",
+      "instance": {
+        "resources": {
+          "cpu": {
+            "value": 1,
+            "unit": "{core}"
+          },
+          "memory": {
+            "value": 512,
+            "unit": "MiB"
+          }
+        }
+      },
+      "demand": {
+        "classes": [
+          {
+            "id": "size",
+            "rate": {
+              "value": 100,
+              "unit": "{request}/s"
+            },
+            "request": {
+              "body": {
+                "value": 1048576,
+                "unit": "B"
+              }
+            }
+          }
+        ],
+        "levels": {}
+      },
+      "duration": {
+        "value": 4,
+        "unit": "s"
+      },
+      "arrivals": {
+        "arrivals": "poisson",
+        "seed": "size-body"
+      },
+      "connections": {
+        "mode": "pool",
+        "size": 64
+      },
+      "runs": 3
+    },
+    {
+      "format": "capacity-case/1",
+      "id": "size-body/4194304",
+      "title": "The bare request with a body of the request of 4 MiB, at 100 requests each second",
+      "subject": "node-http",
+      "instance": {
+        "resources": {
+          "cpu": {
+            "value": 1,
+            "unit": "{core}"
+          },
+          "memory": {
+            "value": 512,
+            "unit": "MiB"
+          }
+        }
+      },
+      "demand": {
+        "classes": [
+          {
+            "id": "size",
+            "rate": {
+              "value": 100,
+              "unit": "{request}/s"
+            },
+            "request": {
+              "body": {
+                "value": 4194304,
+                "unit": "B"
+              }
+            }
+          }
+        ],
+        "levels": {}
+      },
+      "duration": {
+        "value": 4,
+        "unit": "s"
+      },
+      "arrivals": {
+        "arrivals": "poisson",
+        "seed": "size-body"
+      },
+      "connections": {
+        "mode": "pool",
+        "size": 64
+      },
+      "runs": 3
+    }
+  ]
+}
