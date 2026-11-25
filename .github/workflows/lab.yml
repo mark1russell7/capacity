@@ -184,7 +184,7 @@ jobs:
       max-parallel: 3
       matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
     # the subject has the first CPUs, and the driver and the reader have the others: this runner has 4 CPUs
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     # the setup, the build of the image of the harness, and the longest window of each run of the plan (planMinutes)
     timeout-minutes: ${{ matrix.minutes }}
     steps:
@@ -263,7 +263,7 @@ jobs:
       max-parallel: 3
       matrix:
         include: ${{ fromJSON(needs.plan.outputs.bench) }}
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 45
     steps:
       # the worktree of the base commit needs the history
@@ -335,7 +335,7 @@ jobs:
       max-parallel: 3
       matrix:
         include: ${{ fromJSON(needs.bench-gate.outputs.again) }}
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 45
     steps:
       # the worktree of the base commit needs the history
