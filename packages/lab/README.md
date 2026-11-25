@@ -942,6 +942,7 @@ At each point, the ranges of the two cases overlap. At `cut-1030`, the ratio of 
 - After the heap limit, the memory limit of the target comes next. The law of `watchPeak` reaches it at 6304 [5828, 6876] persons.
 - Thus at the base point of the other levels, one instance of alerts on the target starts with at most approximately 4800 persons.
 - The rung of 10000 feeds sets the exponent of `feeds`. A fit without that rung does not predict the cliff: its held-out residuals are near 1.4.
+- The run [45507817272](https://github.com/metrograph-labs/capacity/actions/runs/45507817272) of `laws.yml` fits the two runs of the log again, with the measure `watchHeapPeak` (CAP-49). It is a logarithm: 188 MB at 16 MiB and 206 MB at the largest log.
 - The ladders move one level at a time. The laws of two levels together come with CAP-67.
 
 A person starts a plan by hand, for example with 5 runs:

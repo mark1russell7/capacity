@@ -32,7 +32,8 @@ describe("the layers of a composition", () => {
     const memory = byId("alerts-runtime/xeon-6975p-c/memory");
     const all = lawIdsOf(memory, COMPOSITIONS);
     const load = lawIdsOf(memory, COMPOSITIONS, "load");
-    expect(all.length).toBe(3);
+    // The events give the whole value. The persons, the feeds and the log are terms with a base.
+    expect(all.length).toBe(4);
     expect(load).toEqual(["alerts-runtime/alerts-start-event/xeon-6975p-c/main/first/watch-peak"]);
   });
 

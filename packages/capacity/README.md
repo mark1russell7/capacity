@@ -342,6 +342,22 @@ The Laws run 45485195729 gives the laws of the plans `alerts-start-persons` and 
 - The compositions of alerts add these laws as terms with a base, in [The compositions of alerts](#the-compositions-of-alerts).
 - The Laws run 45493330469 adds the laws `watch-heap-peak` and `watch-cores` of the two plans (CAP-37).
 
+### The laws of the log of alerts
+
+The Laws run 45507817272 gives the laws of the plan `alerts-start-log` on the Intel Xeon 6975P-C (CAP-49). Their folder is `laws/alerts-runtime/alerts-start-log/xeon-6975p-c/main/first`. The variable is `log`, from 2 MiB to 382 MiB, the range of the contract of alerts. The run fits the records of the Lab runs 45073979241 and 45080303535 again, with the measure `watchHeapPeak`.
+
+| The measure | The median reading at 16 MiB | The median reading at 188 MiB | The median reading at 382 MiB |
+| --- | --- | --- | --- |
+| `ready` | 5.8 s | Between 7.2 s and 12.9 s | 21.0 s |
+| `heapPeak` | 218 MB | Between 293 MB and 302 MB | 317 MB |
+| `watchPeak` | 371 MB | Between 449 MB and 465 MB | 497 MB |
+| `watchHeapPeak` | 188 MB | Between 188 MB and 193 MB | 206 MB |
+
+- The log does not stop a start on the 1 GB target: each start of each rung was ready.
+- The memory of the process in the watch grows with the log, but the used heap stays almost level. Thus the memory of the log is outside the heap.
+- The compositions of alerts add the laws `watch-peak` and `watch-heap-peak` as terms with a base of 16 MiB.
+- The Lab runs of the log are older than the reading `watchCores`. Thus the CPU has no law of the log. CAP-96 adds it.
+
 ## The gate of the laws
 
 The gate tells if new measured values stay in the run ranges of their laws. A pull request that makes a subject slower or larger moves its values out of the ranges. `lawGate` gives the gate, and `lawRead` gives one read.
@@ -716,12 +732,13 @@ A test reads each composition file with `readComposition`. The id of each compos
 | Composition | Its terms |
 | --- | --- |
 | `alerts-runtime/xeon-6975p-c/cpu` | The law `watch-cores` of the plans `alerts-start-event`, `alerts-start-persons` and `alerts-start-feeds`, over the instance |
-| `alerts-runtime/xeon-6975p-c/memory` | The law `watch-peak` of the three plans, over the instance |
-| `alerts-runtime/xeon-6975p-c/heap` | The law `watch-heap-peak` of the three plans, over the instance |
+| `alerts-runtime/xeon-6975p-c/memory` | The law `watch-peak` of the three plans and of the plan `alerts-start-log`, over the instance |
+| `alerts-runtime/xeon-6975p-c/heap` | The law `watch-heap-peak` of the three plans and of the plan `alerts-start-log`, over the instance |
 
 - The law of the events gives the whole value. Its variable `event` is a level of the demand, in `{event}/s`.
 - The laws of the persons and the feeds are terms with a base: 10 persons and 10 feeds, the base point of the ladders.
-- A demand of alerts is `{ classes: [], levels: { event, persons, feeds } }`. A scale of the demand scales each level in it.
+- The laws of the log are terms with a base of 16 MiB. The CPU has no term of the log yet (CAP-96).
+- A demand of alerts is `{ classes: [], levels: { event, persons, feeds, log } }`. A scale of the demand scales each level in it.
 - A level that does not grow with the load goes in the option `given` of the query. An example is 2 persons when the events grow.
 - A demand with only `event` gives the values of the compositions before CAP-37.
 
@@ -943,11 +960,32 @@ The persons and the feeds are levels too. A query scales one level, and the opti
 | `lab-target-1gb` | The limits file | The persons, with 0 events | 2308 [1962, 2533] persons | `heap` | `memory` at 5569 |
 | `lab-target-1gb` | No headroom | The persons, with 0 events | 5016 [4629, 5309] persons | `heap` | `memory` at 12583 |
 
-- The live setup of 2 persons and 5 feeds holds more events than the base point of 10 and 10: 8.57, not 7.86.
+- At the base log of 16 MiB, 2 persons and 5 feeds hold more events than the base point of 10 and 10: 8.57, not 7.86.
+- The live store has a larger log. [The log](#the-log) gives the reach at the live log.
 - On the small cloud machine, the CPU of the persons binds first. The CPU of the watch grows as a power of the persons, with the exponent 0.63.
 - The CPU reach on the small cloud machine is a forecast, because the laws are of the Intel Xeon 6975P-C.
 - With no headroom on the lab target, the heap binds at 5016 [4629, 5309] persons. Each job of the lab started with 3000 persons and stopped on the heap with 10000.
 - The range of the law of the persons ends at 3000. Thus a reach past 3000 persons is an extrapolation.
+
+#### The log
+
+The log is a level too. Each query has 2 persons and 5 feeds in `given`, and the log in `given` for the events.
+
+| The log | `small-cloud-1gb`, the limits file | `small-cloud-1gb`, no headroom | `lab-target-1gb`, the limits file | `lab-target-1gb`, no headroom |
+| --- | --- | --- | --- | --- |
+| 16 MiB, the base point | 8.57 [7.76, 9.54], `memory` | 16.2 [14.7, 21.7], `memory` | 37.1 [30.8, 40.1], `heap` | 67.2 [52.3, 73.2], `heap` |
+| 64 MiB | 5.93 [5.34, 6.68], `memory` | 13.5 [12.3, 16.1], `memory` | 35.2 [28.5, 37.8], `memory` | 65.8 [51.3, 73.1], `heap` |
+| 128 MiB | 4.47 [3.83, 5.25], `memory` | 12.1 [10.9, 13.7], `memory` | 26.4 [20.3, 31.4], `memory` | 65.1 [50.3, 73.1], `heap` |
+| 188 MiB, the live store | 3.82 [3.24, 4.51], `memory` | 11.4 [10.3, 12.8], `memory` | 22.4 [18.3, 28.1], `memory` | 64.7 [49.7, 73.1], `heap` |
+| 256 MiB | 3.08 [2.52, 3.72], `memory` | 10.7 [9.60, 12.0], `memory` | 18.1 [16.8, 26.0], `memory` | 64.4 [49.2, 73.1], `heap` |
+| 382 MiB, the largest log of the contract | 1.70 [1.13, 2.35], `memory` | 9.29 [8.34, 10.4], `memory` | 16.8 [15.2, 22.8], `memory` | 64.0 [47.1, 73.1], `heap` |
+
+Each cell is the events each second of one copy and the limit that binds first.
+
+- The live store had a log of 197,156,864 B (188 MiB) on 2026-11-22. At that log, one copy on the small cloud machine holds 3.82 events each second, not 8.57.
+- With no events, each log of the contract fits on the small cloud machine. The memory binds at 538 [479, 628] MiB, past the range of the law.
+- On the lab target, the log moves the first limit from the heap to the memory at approximately 64 MiB.
+- The heap binds at almost the same rate at each log, because the used heap of the watch is almost level over the log.
 
 The rule does not tell these parts yet. CAP-37 adds them:
 
