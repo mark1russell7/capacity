@@ -1,0 +1,229 @@
+{
+  "format": "capacity-plan/1",
+  "id": "alerts-start-config",
+  "title": "The start of alerts at the live log with each level of the new config of AL-160 alone, and with all of them",
+  "check": null,
+  "triggers": [],
+  "jobs": 5,
+  "cases": [
+    {
+      "format": "capacity-start/1",
+      "id": "alerts-start-config/levels",
+      "title": "The start of alerts at the live log. The point old is the point live-1844 of the start gate. Each other point adds one level of the new config, or all of them.",
+      "subject": "alerts-runtime",
+      "app": "https://github.com/metrograph-labs/alerts.git",
+      "arms": [
+        {
+          "id": "main",
+          "commit": "621d7413ca4a6d2aa9e5a5ee21953c46c1ce03d5"
+        }
+      ],
+      "seeder": "621d7413ca4a6d2aa9e5a5ee21953c46c1ce03d5",
+      "seed": "al160",
+      "rounds": 3,
+      "watch": {
+        "value": 60,
+        "unit": "s"
+      },
+      "probe": {
+        "value": 500,
+        "unit": "ms"
+      },
+      "target": {
+        "image": "node:24.21.0-bookworm-slim",
+        "node": "v24.21.0",
+        "memory": {
+          "value": 1011425280,
+          "unit": "B"
+        },
+        "swap": {
+          "value": 2147483648,
+          "unit": "B"
+        },
+        "cpus": 2,
+        "heapLimit": {
+          "value": 556269568,
+          "unit": "B"
+        }
+      },
+      "limit": {
+        "value": 240,
+        "unit": "s"
+      },
+      "windows": [
+        {
+          "value": 90,
+          "unit": "s"
+        }
+      ],
+      "observed": [],
+      "points": [
+        {
+          "id": "old",
+          "at": {
+            "log": {
+              "value": 197156864,
+              "unit": "B"
+            },
+            "feeds": {
+              "value": 10,
+              "unit": "{feed}"
+            },
+            "persons": {
+              "value": 10,
+              "unit": "{person}"
+            },
+            "incidents": {
+              "value": 10,
+              "unit": "{incident}"
+            },
+            "gdelt": {
+              "value": 0,
+              "unit": "{place}"
+            },
+            "score": {
+              "value": 0,
+              "unit": "{person}"
+            },
+            "chain": {
+              "value": 0,
+              "unit": "{stack}"
+            }
+          }
+        },
+        {
+          "id": "gdelt",
+          "at": {
+            "log": {
+              "value": 197156864,
+              "unit": "B"
+            },
+            "feeds": {
+              "value": 10,
+              "unit": "{feed}"
+            },
+            "persons": {
+              "value": 10,
+              "unit": "{person}"
+            },
+            "incidents": {
+              "value": 10,
+              "unit": "{incident}"
+            },
+            "gdelt": {
+              "value": 1,
+              "unit": "{place}"
+            },
+            "score": {
+              "value": 0,
+              "unit": "{person}"
+            },
+            "chain": {
+              "value": 0,
+              "unit": "{stack}"
+            }
+          }
+        },
+        {
+          "id": "score",
+          "at": {
+            "log": {
+              "value": 197156864,
+              "unit": "B"
+            },
+            "feeds": {
+              "value": 10,
+              "unit": "{feed}"
+            },
+            "persons": {
+              "value": 10,
+              "unit": "{person}"
+            },
+            "incidents": {
+              "value": 10,
+              "unit": "{incident}"
+            },
+            "gdelt": {
+              "value": 0,
+              "unit": "{place}"
+            },
+            "score": {
+              "value": 10,
+              "unit": "{person}"
+            },
+            "chain": {
+              "value": 0,
+              "unit": "{stack}"
+            }
+          }
+        },
+        {
+          "id": "chain",
+          "at": {
+            "log": {
+              "value": 197156864,
+              "unit": "B"
+            },
+            "feeds": {
+              "value": 10,
+              "unit": "{feed}"
+            },
+            "persons": {
+              "value": 10,
+              "unit": "{person}"
+            },
+            "incidents": {
+              "value": 10,
+              "unit": "{incident}"
+            },
+            "gdelt": {
+              "value": 0,
+              "unit": "{place}"
+            },
+            "score": {
+              "value": 0,
+              "unit": "{person}"
+            },
+            "chain": {
+              "value": 1,
+              "unit": "{stack}"
+            }
+          }
+        },
+        {
+          "id": "all",
+          "at": {
+            "log": {
+              "value": 197156864,
+              "unit": "B"
+            },
+            "feeds": {
+              "value": 10,
+              "unit": "{feed}"
+            },
+            "persons": {
+              "value": 10,
+              "unit": "{person}"
+            },
+            "incidents": {
+              "value": 10,
+              "unit": "{incident}"
+            },
+            "gdelt": {
+              "value": 1,
+              "unit": "{place}"
+            },
+            "score": {
+              "value": 10,
+              "unit": "{person}"
+            },
+            "chain": {
+              "value": 1,
+              "unit": "{stack}"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
