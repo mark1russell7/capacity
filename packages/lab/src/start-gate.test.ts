@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { quantity } from "@mark1russell7/quantity";
+import { escapeMarkdown } from "@mark1russell7/text";
 import { describe, expect, it } from "vitest";
 import { armCommitOf, matrixOf, planMinutes, withArmCommit } from "./plan.ts";
 import { START_GATE_CASE as CASE, START_GATE_PLAN as PLAN, startJobsOf, writeStartJobs } from "./start-fixtures.ts";
@@ -59,14 +60,14 @@ describe("the start gate", () => {
     expect(worst?.use).toMatchObject({ value: quantity(104_002_500, "B"), amount: quantity(108_002_500, "B") });
     const summary = startGateSummaryOf(gate);
     expect(summary).toContain("The arm main at aaaaaaa, against the limits of d23377d, in 5 runs: pass: each run holds each limit at each point.");
-    expect(summary).toContain("| 60/5/1 | live-1844 | start.live | 104002500 B | 108002500 B | 0.963 |");
+    expect(summary).toContain(`| ${escapeMarkdown("60/5/1")} | ${escapeMarkdown("live-1844")} | ${escapeMarkdown("start.live")} | 104002500 B | 108002500 B | 0.963 |`);
   });
 
   it("blocks on a value above its ceiling, and on a child that did not fit the target", () => {
     const high = startGateOf(LIMITS, PLAN, headJobsOf(5, (record, job) => (job === 2 ? withReading(record, "live-1844", "live", quantity(200_000_000, "B")) : record)), { commit: HEAD });
     expect(high.outcome).toBe("block");
     expect(high.findings).toEqual([{ kind: "block", run: "60/3/1", point: "live-1844", message: "start.live is 200000000 B, above its ceiling 108002500 B (use 1.852)." }]);
-    expect(startGateSummaryOf(high)).toContain("- Block (60/3/1 at live-1844): start.live is 200000000 B, above its ceiling 108002500 B (use 1.852).");
+    expect(startGateSummaryOf(high)).toContain(`- Block (${escapeMarkdown("60/3/1 at live-1844")}): ${escapeMarkdown("start.live is 200000000 B, above its ceiling 108002500 B (use 1.852).")}`);
     const failed = startGateOf(
       LIMITS,
       PLAN,

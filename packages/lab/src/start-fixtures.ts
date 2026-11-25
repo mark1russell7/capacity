@@ -57,7 +57,7 @@ export const startRecordOf = (job: number, value: StartCase = START_GATE_CASE): 
 };
 
 /** This function gives `count` jobs of the plan in the CI run `run`. The function `change` changes the record of each job. */
-export const startJobsOf = (count = START_LIMIT_RUNS, run = 50, change: (record: StartRecord, job: number) => StartRecord = (record) => record): LawJob[] =>
+export const startJobsOf = (count: number = START_LIMIT_RUNS, run: number = 50, change: (record: StartRecord, job: number) => StartRecord = (record) => record): LawJob[] =>
   Array.from({ length: count }, (_, job) => ({
     timed: timedOf(START_GATE_PLAN.id, runOf(run), EPYC, `2026-11-24T07:${String(job).padStart(2, "0")}:00Z`),
     records: [],

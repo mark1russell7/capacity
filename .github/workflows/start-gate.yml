@@ -66,6 +66,10 @@ env:
   # a dispatch has no input capacity: then the jobs check out the commit of the dispatch
   CAPACITY: ${{ inputs.capacity || github.sha }}
 
+defaults:
+  run:
+    shell: bash
+
 jobs:
   plan:
     runs-on: ubuntu-latest
@@ -136,7 +140,7 @@ jobs:
         if: ${{ matrix.swap > 0 }}
         env:
           SWAP: ${{ matrix.swap }}
-        run: bash packages/lab/scripts/swap.sh "$SWAP"
+        run: node packages/lab/src/swap.main.ts "$SWAP"
       - name: The memory and the swap of the runner
         run: |
           free -b

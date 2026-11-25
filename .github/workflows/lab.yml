@@ -201,7 +201,7 @@ jobs:
         if: ${{ matrix.swap > 0 }}
         env:
           SWAP: ${{ matrix.swap }}
-        run: bash packages/lab/scripts/swap.sh "$SWAP"
+        run: node packages/lab/src/swap.main.ts "$SWAP"
       # A start case models the memory and the swap of a target. Its check child stops the case when the runner cannot model them.
       - name: The memory and the swap of the runner
         run: |

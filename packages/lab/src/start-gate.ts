@@ -58,13 +58,13 @@ export interface StartGateOptions {
 const NO_RESOURCES = { resources: {} };
 
 /**
- * This function gives the verdict of a start gate: the runs of the start case of the limits, with the arm of the limits at
- * the commit `commit`, against the limits of each point. The jobs come from `readJobs`. The function ignores a job of another plan.
+ * This function gives the verdict of a start gate. It compares the runs of the start case of the limits with the limits of each
+ * point. The arm of the limits has the commit `commit` in the runs. The jobs come from `readJobs`. The function ignores a job of another plan.
  *
  * - The value of a run at a point is the value of `startValueOf`, the same value as the value of the limits.
  * - A use above 1 blocks the gate. A child that did not fit the target also blocks it.
- * - A record of another version of the case, a record with a problem, a point with no value and fewer runs than
- *   `runs` give no read.
+ * - These give no read: a record of another version of the case, a record with a problem and a point with no value.
+ *   Fewer runs than `runs` also give no read.
  *
  * It throws an `Error` when the case of the plan is not the case of the limits. Then the limits need a new derivation.
  */
