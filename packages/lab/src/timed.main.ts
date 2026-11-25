@@ -20,8 +20,8 @@
  *   summary into `GITHUB_STEP_SUMMARY`, with a table for each start record. A verdict with a problem
  *   gives the exit code 1.
  * - `--arm` gives a new commit to one arm of each start case of the plans (`withArmCommit`). The workflow `start-gate.yml`
- *   measures the head of a pull request of an app in this way. Give the same `--arm` to `plan` and to `measure`, because
- *   the commit changes the count of trees, and thus the time limit of a job.
+ *   measures the head of a pull request of an app in this way. Give the same `--arm` to `plan` and to `measure`.
+ *   The commit changes the count of trees, and thus the time limit of a job.
  */
 import { appendFileSync, readFileSync } from "node:fs";
 import { join } from "node:path";
