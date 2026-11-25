@@ -1003,6 +1003,21 @@ Each cell is the events each second of one copy and the limit that binds first.
 - On the lab target, the log moves the first limit from the heap to the memory at approximately 64 MiB.
 - The heap binds at almost the same rate at each log, because the used heap of the watch is almost level over the log.
 
+#### The prediction for the cloud copy
+
+The live setup has 2 persons, 5 feeds and the live log. At 0.01 event each second, the compositions give these values. The test `src/scale-files.test.ts` holds them.
+
+| Measure | Value | Interval |
+| --- | --- | --- |
+| `memory`, the highest memory of the process | 473 MB | [462, 484] MB |
+| `heap`, the highest used heap | 203 MB | [193, 214] MB |
+
+- The small cloud machine gives 676 MB to the app. With 20 % of headroom, the limit is 541 MB.
+- Thus one copy holds 3.82 events each second at the live log. Above that rate, alerts needs a second copy.
+- A note of alerts gives a different value for its old config. The free memory was 676 MB before the start and 110 MB after it. Thus the start used approximately 566 MB, more than the limit of 541 MB.
+- The two values are not the same measure. The free memory of the host includes each process and the page cache.
+- The 24 h series of the cloud memory tells which value is correct. The laws come from the lab target, not from the cloud machine.
+
 The rule does not tell these parts yet. CAP-37 adds them:
 
 - The test that the levels add: the events, the persons and the feeds together (CAP-67).

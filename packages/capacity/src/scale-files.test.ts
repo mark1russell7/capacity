@@ -2,7 +2,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import type { Composition } from "./composition.ts";
+import { compositionValue, type Composition } from "./composition.ts";
 import type { InstanceType, Limit } from "./instance.ts";
 import type { Law } from "./law.ts";
 import { countReach, type ScaleModel } from "./scale.ts";
@@ -122,6 +122,23 @@ describe("the scale rule of alerts", () => {
     expect(reach.factor.interval.high).toBeLessThan(4.7);
     expect(factorOf(reach.factor)).toBeLessThan(factorOf(reachOf(alertsOn("small-cloud-1gb"), ONE_EVENT, live).factor) / 2);
   }, 2 * QUERY_TIME);
+
+  it("gives 473 MB of memory and 203 MB of used heap to the live setup at 0.01 event each second", () => {
+    // These values are the prediction of the rule for the cloud copy. The 24 h series of the cloud memory tests them.
+    const live: Amounts = { persons: { value: 2, unit: "{person}" }, feeds: { value: 5, unit: "{feed}" }, log: { value: 197_156_864, unit: "B" } };
+    const demand: Demand = { classes: [], levels: { event: { value: 0.01, unit: "{event}/s" } } };
+    const valueOf = (measure: string) => {
+      const value = compositionValue(ALERTS.find((each) => each.measure.id === measure)!, { laws, compositions }, demand, { given: live });
+      if (value.tag !== "ok") throw new Error(value.error.message);
+      return value.value;
+    };
+    const memory = valueOf("memory");
+    expect(Math.round(memory.value / 1e6)).toBe(473);
+    expect(memory.interval.low / 1e6).toBeGreaterThan(461);
+    expect(memory.interval.high / 1e6).toBeLessThan(485);
+    expect(memory.extrapolated).toBe(false);
+    expect(Math.round(valueOf("heap").value / 1e6)).toBe(203);
+  }, QUERY_TIME);
 
   it("holds each log of the contract with no events on the small cloud machine", () => {
     // The log law ends at 382 MiB, the largest log of the contract. The reach is past it, thus each log of the range fits.
