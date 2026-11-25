@@ -94,6 +94,8 @@ describe("startCaseProblems", () => {
     expect(paths(start({ arms: [CASE.arms[0]!], observed: [] }))).toEqual([]);
     expect(paths(bare({ arms: [CASE.arms[1]!, CASE.arms[1]!] }))).toEqual(["id arms[1].id"]);
     expect(paths(bare({ arms: [{ id: "Base", commit: A }, CASE.arms[1]!] }))).toEqual(["id arms[0].id"]);
+    // The tree of the seed has the id "seeder", thus an arm cannot have it.
+    expect(paths(bare({ arms: [{ id: "seeder", commit: A }, CASE.arms[1]!] }))).toEqual(["id arms[0].id"]);
     expect(paths(bare({ arms: ["base", CASE.arms[1]!] }))).toEqual(["shape arms[0]"]);
   });
 

@@ -45,6 +45,7 @@ import {
   type StartObservation,
   type StartPoint,
   type StartTarget,
+  SEEDER_TREE,
 } from "./start.ts";
 import {
   APP_START_PROGRAM,
@@ -738,9 +739,9 @@ export const measureStart = async (value: StartCase, options: StartMeasureOption
     };
   for (const arm of value.arms) trees.push(await makeTree(start, repository, arm.id, arm.commit, treeOf(arm.id), setupOf(arm.id)));
   const plain = value.arms.find((arm) => arm.commit === value.seeder);
-  const seederId = plain === undefined ? "seeder" : plain.id;
+  const seederId = plain === undefined ? SEEDER_TREE : plain.id;
   const seeder = treeOf(seederId);
-  if (plain === undefined) trees.push(await makeTree(start, repository, "seeder", value.seeder, seeder, setupOf("seeder")));
+  if (plain === undefined) trees.push(await makeTree(start, repository, SEEDER_TREE, value.seeder, seeder, setupOf(SEEDER_TREE)));
   /** This function gives the contract of a tree. */
   const appOf = (id: string): TreeApp => {
     const tree = apps.get(id);
