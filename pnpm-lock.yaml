@@ -185,8 +185,8 @@ importers:
         specifier: ^0.3.1
         version: 0.3.2(@swc/core@1.16.22)(dependency-cruiser@18.8.0)
       '@mark1russell7/conventions':
-        specifier: ^0.50.7
-        version: 0.50.7
+        specifier: ^0.52.2
+        version: 0.52.2
       '@mark1russell7/cue':
         specifier: ^2.0.0
         version: 2.1.4
@@ -660,6 +660,11 @@ packages:
     engines: {node: '>=22'}
     hasBin: true
 
+  '@mark1russell7/conventions@0.52.2':
+    resolution: {integrity: sha512-Ry4G7z4fbjUFE0iuZtWYs5RN8FLEDxiqXVU/BfrAuFN/NDVJLyMpn1I9bhXuOGAG6aa/8gwQj7uvPVYTwcFfUw==}
+    engines: {node: '>=22'}
+    hasBin: true
+
   '@mark1russell7/cue@2.1.4':
     resolution: {integrity: sha512-+EEUBpLrTBcJoMIOF3C5XMVpzO7eYrermtdleEvWLGNJK9/HGPT9o6GgbsW+Vl+s3/0QrXksc0qOIUlE70HI9Q==}
     engines: {node: '>=22'}
@@ -894,6 +899,10 @@ packages:
 
   '@mark1russell7/text@0.0.17':
     resolution: {integrity: sha512-jFqqVfCTQ0N65qvMP/gANAbnqB7ewpA3IeNxPeQTuF3IoSZkTgTl92PE47F5IOOfgz0Q0dF723crrYB8T6pR3g==}
+    engines: {node: '>=22.12'}
+
+  '@mark1russell7/text@0.0.18':
+    resolution: {integrity: sha512-sIOsTkBOhWLSDyE4qKyiokUT84NPJgPuhLPDyh2Y+mjGnNbGhF9Q6dt9NnSBtSW8C1D0rZfx8fPJ53g0gQGWfQ==}
     engines: {node: '>=22.12'}
 
   '@mark1russell7/text@0.0.6':
@@ -2729,6 +2738,11 @@ snapshots:
       '@mark1russell7/text': 0.0.17
       yaml: 2.9.1
 
+  '@mark1russell7/conventions@0.52.2':
+    dependencies:
+      '@mark1russell7/text': 0.0.18
+      yaml: 2.9.1
+
   '@mark1russell7/cue@2.1.4': {}
 
   '@mark1russell7/files@0.0.3': {}
@@ -2880,6 +2894,8 @@ snapshots:
   '@mark1russell7/text@0.0.13': {}
 
   '@mark1russell7/text@0.0.17': {}
+
+  '@mark1russell7/text@0.0.18': {}
 
   '@mark1russell7/text@0.0.6': {}
 
