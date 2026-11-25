@@ -167,8 +167,10 @@ describe("the coverage query", () => {
     expect(coverage(laws, plans, "CPU A").map((each) => each.families.length)).toEqual([6, 6, 7]);
   });
 
-  it("gives each CPU model one time, in order, and its short name", () => {
+  it("gives each CPU model one time, the model with the most laws first, and its short name", () => {
     expect(cpuModels(laws)).toEqual(["CPU A", "CPU B"]);
+    // The Lab run 45616232960 gave laws on an AMD EPYC 9V74. The page still opens on the model with the most laws.
+    expect(cpuModels([...laws, law("node-http", "rate", "memory", "CPU B")])).toEqual(["CPU B", "CPU A"]);
     expect(cpuName("Intel(R) Xeon(R) 6975P-C")).toBe("Intel Xeon 6975P-C");
   });
 

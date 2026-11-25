@@ -209,8 +209,15 @@ export const subjectOf = (id: string): Subject => {
 /** This function gives the short name of a CPU model: the model with no trademark signs. */
 export const cpuName = (model: string): string => model.replace(/\((R|TM)\)/g, "").replace(/\s+/g, " ").trim();
 
-/** This function gives the CPU models of the laws, in the order of their names. */
-export const cpuModels = (laws: readonly LawEntry[]): readonly string[] => [...new Set(laws.map((each) => each.cpu))].sort();
+/**
+ * This function gives the CPU models of the laws. The model with the most laws comes first, because the page opens on the
+ * first model. Models with the same count of laws are in the order of their names.
+ */
+export const cpuModels = (laws: readonly LawEntry[]): readonly string[] => {
+  const counts = new Map<string, number>();
+  for (const each of laws) counts.set(each.cpu, (counts.get(each.cpu) ?? 0) + 1);
+  return [...counts.keys()].sort((a, b) => counts.get(b)! - counts.get(a)! || (a < b ? -1 : a > b ? 1 : 0));
+};
 
 /**
  * This function gives the matrix of each subject on one CPU model. A cell has the state `law` when a law of its subject,
