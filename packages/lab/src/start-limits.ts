@@ -97,8 +97,8 @@ export interface StartLimitsOptions {
   readonly case?: string;
 }
 
-/** This function gives the start case of a plan for the limits. It throws an `Error` for a plan with no such case. */
-const caseOf = (plan: Plan, id: string | undefined): StartCase => {
+/** This function gives the start case of a plan for the limits and the gate. It throws an `Error` for a plan with no such case. */
+export const startCaseOf = (plan: Plan, id: string | undefined): StartCase => {
   const starts = plan.cases.filter(isStartCase);
   const found = id === undefined ? (starts.length === 1 ? starts[0] : undefined) : starts.find((each) => each.id === id);
   if (found === undefined) {
@@ -109,10 +109,22 @@ const caseOf = (plan: Plan, id: string | undefined): StartCase => {
 };
 
 /** This function gives the run of a job and its start record. */
-const runOf = (job: LawJob, record: StartRecord): StartLimitRun => {
+export const startLimitRunOf = (job: LawJob, record: StartRecord): StartLimitRun => {
   const url = job.timed.run?.url ?? null;
   const run = url === null ? "local" : (url.split("/").at(-1) ?? url);
   return { id: `${run}/${record.job}/${job.timed.attempt ?? 0}`, url, job: record.job, attempt: job.timed.attempt, cpu: record.machine.cpu };
+};
+
+/**
+ * This function gives the value of one start record at one point for one measure, in the unit of the measure. The value is
+ * the largest reading of the arm and its A/A copy, over the rounds. It gives undefined for a point with no reading, and for
+ * a reading with no value. The limits and the gate of a start case read each value with this function.
+ */
+export const startValueOf = (record: StartRecord, point: string, arm: string, measure: StartLimitMeasure): number | undefined => {
+  const children = new Set([arm, `${arm}~aa`]);
+  const each = record.readings.filter((reading) => reading.point === point && children.has(reading.arm)).map((reading) => reading.measures[measure.reading]);
+  if (each.length === 0 || each.some((amount) => amount === null)) return undefined;
+  return Math.max(...each.map((amount) => valueIn(amount!, measure.unit)));
 };
 
 /**
@@ -126,13 +138,12 @@ const runOf = (job: LawJob, record: StartRecord): StartLimitRun => {
  * It also throws for a record with a problem, for a child that did not fit the target, and for a job with no value.
  */
 export const startLimitsOf = (plan: Plan, jobs: readonly LawJob[], options: StartLimitsOptions = {}): StartLimits => {
-  const value = caseOf(plan, options.case);
+  const value = startCaseOf(plan, options.case);
   const arm = value.arms[0]?.id ?? "";
-  const children = new Set([arm, `${arm}~aa`]);
   const read: { readonly run: StartLimitRun; readonly record: StartRecord }[] = [];
   for (const job of jobs.filter((each) => each.timed.plan === plan.id)) {
     for (const record of (job.starts ?? []).filter((each) => each.case.id === value.id)) {
-      const run = runOf(job, record);
+      const run = startLimitRunOf(job, record);
       if (canonicalJson(record.case) !== canonicalJson(value)) {
         throw new Error(`The record of the run ${run.id} measures another version of the case "${value.id}". The limits come from the case of the plan file.`);
       }
@@ -152,9 +163,9 @@ export const startLimitsOf = (plan: Plan, jobs: readonly LawJob[], options: Star
     const derivations = Object.fromEntries(
       START_LIMIT_MEASURES.map((measure): [string, StartLimitDerivation] => {
         const values = read.map(({ run, record }) => {
-          const each = record.readings.filter((reading) => reading.point === point.id && children.has(reading.arm)).map((reading) => reading.measures[measure.reading]);
-          if (each.length === 0 || each.some((amount) => amount === null)) throw new Error(`The run ${run.id} has no reading of ${measure.reading} at the point "${point.id}".`);
-          return Math.max(...each.map((amount) => valueIn(amount!, measure.unit)));
+          const found = startValueOf(record, point.id, arm, measure);
+          if (found === undefined) throw new Error(`The run ${run.id} has no reading of ${measure.reading} at the point "${point.id}".`);
+          return found;
         });
         return [measure.id, { ...runLimit(values, { minimum: START_LIMIT_RUNS, digits: 0 }), unit: measure.unit }];
       }),

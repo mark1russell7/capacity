@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -7,67 +7,15 @@ import { checkLimits, LIMITS_FORMAT } from "@mark1russell7/capacity";
 import { readLimits } from "@mark1russell7/capacity/schema";
 import { quantity } from "@mark1russell7/quantity";
 import { describe, expect, it } from "vitest";
-import { EPYC, runOf, timedOf } from "./law-fixtures.ts";
-import type { LawJob } from "./laws.ts";
-import { planMinutes, readPlans, type Plan } from "./plan.ts";
+import { EPYC, runOf } from "./law-fixtures.ts";
+import { planMinutes } from "./plan.ts";
+import { START_GATE_CASE as CASE, START_GATE_PLAN as PLAN, startJobsOf as jobsOf, startRecordOf as recordOf, writeStartJobs } from "./start-fixtures.ts";
 import { START_LIMITS_FORMAT, START_LIMIT_RUNS, readStartLimits, startLimitsOf, startLimitsSummaryOf } from "./start-limits.ts";
-import { START_MEASURES, START_RECORD_FORMAT, startRecordProblems, type StartMeasure, type StartReading, type StartRecord } from "./start-measure.ts";
-import type { StartCase } from "./start.ts";
+import { startRecordProblems } from "./start-measure.ts";
 
-// The jobs of the tests are 5 jobs of one CI run of the plan alerts-start-gate. Each job starts the arm main and its A/A
-// copy at each point in each round. The value of a job at a point is its largest reading:
-// - live: 100 MB + 1 MB for each job + 10 MB for each point, + 1 kB for each round, + 500 B for the A/A copy.
-// - peak: 300 MB + 2 MB for each job, + 1 B for each round.
-// - readiness: 20000.4 ms + 100 ms for each job, + 10 ms for each round.
+// The jobs of the tests are 5 jobs of one CI run of the plan alerts-start-gate, from `start-fixtures.ts`.
 
-const PLANS = fileURLToPath(new URL("../plans/", import.meta.url));
-const PLAN: Plan = readPlans(PLANS).plans.find((each) => each.id === "alerts-start-gate")!;
-const CASE = PLAN.cases[0] as StartCase;
-const ARMS = ["main", "main~aa"] as const;
 const COMMAND = fileURLToPath(new URL("./start-limits.main.ts", import.meta.url));
-
-/** This function gives the measures of one reading. Each measure that the test does not set is 1 in its unit. */
-const measuresOf = (job: number, point: number, arm: number, round: number): Readonly<Record<StartMeasure, ReturnType<typeof quantity> | null>> => {
-  const base = Object.fromEntries(Object.entries(START_MEASURES).map(([name, unit]) => [name, quantity(1, unit)])) as Record<StartMeasure, ReturnType<typeof quantity>>;
-  return {
-    ...base,
-    live: quantity(100_000_000 + 1_000_000 * job + 10_000_000 * point + 1000 * round + 500 * arm, "B"),
-    peak: quantity(300_000_000 + 2_000_000 * job + round, "B"),
-    readiness: quantity(20_000.4 + 100 * job + 10 * round, "ms"),
-  };
-};
-
-/** This function gives the start record of one job. The record has the fields that the limits and the check read, thus the cast. */
-const recordOf = (job: number, value: StartCase = CASE): StartRecord => {
-  const readings: StartReading[] = [];
-  value.points.forEach((point, place) => {
-    for (let round = 0; round < value.rounds; round += 1) {
-      ARMS.forEach((arm, index) => {
-        readings.push({ arm, point: point.id, round, position: index, measures: measuresOf(job, place, index, round), open: [], stalled: false, ballasts: [], samples: [] } as unknown as StartReading);
-      });
-    }
-  });
-  const orders = value.points.flatMap((point) => Array.from({ length: value.rounds }, (_, round) => ({ case: point.id, round, arms: ["main", "main"] })));
-  return {
-    format: START_RECORD_FORMAT,
-    case: value,
-    machine: { cpu: EPYC },
-    job: String(job + 1),
-    pairs: ["main~aa"],
-    readings,
-    orders,
-    failures: [],
-    skipped: [],
-  } as unknown as StartRecord;
-};
-
-/** This function gives `count` jobs of the plan in the CI run `run`. */
-const jobsOf = (count = START_LIMIT_RUNS, run = 50, change: (record: StartRecord, job: number) => StartRecord = (record) => record): LawJob[] =>
-  Array.from({ length: count }, (_, job) => ({
-    timed: timedOf(PLAN.id, runOf(run), EPYC, `2026-11-24T07:${String(job).padStart(2, "0")}:00Z`),
-    records: [],
-    starts: [change(recordOf(job), job)],
-  }));
 
 describe("the plan of the start gate of alerts", () => {
   it("starts alerts main from its contract at the live log and at the knee, on the 1 GB target, in 5 jobs", () => {
@@ -146,20 +94,10 @@ describe("the limits file of the start gate of alerts", () => {
 });
 
 describe("the command of the start limits", () => {
-  /** This function writes the jobs into a folder, one subfolder for each job, as `gh run download` writes the artifacts of a run. */
-  const writeJobs = (folder: string, jobs: readonly LawJob[]): void =>
-    jobs.forEach((job, index) => {
-      const name = join(folder, `lab-${PLAN.id}-${index + 1}-1`);
-      mkdirSync(name, { recursive: true });
-      const record = `${CASE.id.replace("/", "-")}.record.json`;
-      writeFileSync(join(name, record), JSON.stringify(job.starts![0]));
-      writeFileSync(join(name, "timed.json"), JSON.stringify({ ...job.timed, files: [{ case: CASE.id, record, result: "none.json" }] }));
-    });
-
   it("writes the limits file of the runs of a folder and reads it again", () => {
     const folder = mkdtempSync(join(tmpdir(), "capacity-start-limits-"));
     try {
-      writeJobs(join(folder, "runs"), jobsOf());
+      writeStartJobs(join(folder, "runs"), jobsOf());
       const out = join(folder, "out", "alerts-start-gate.limits.json");
       const result = spawnSync(process.execPath, [COMMAND, "limits", "--runs", join(folder, "runs"), "--out", out], { encoding: "utf8", env: { ...process.env, GITHUB_STEP_SUMMARY: "" } });
       expect(result.stderr).toBe("");
