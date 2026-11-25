@@ -6,7 +6,7 @@ import { isRecord } from "@mark1russell7/optional/read";
 import { convertible, isQuantity, quantity, valueIn, type Quantity } from "@mark1russell7/quantity";
 import { errorMessage } from "@mark1russell7/text";
 import { satisfies, validRange } from "semver";
-import type { StartCase, StartPoint, StartProblem, StartVariable, StartVariables } from "./start.ts";
+import { SEEDER_TREE, type StartCase, type StartPoint, type StartProblem, type StartVariable, type StartVariables } from "./start.ts";
 
 /** This name is the file of the child program of an app case, in the folder `src/subject`. It starts the run of the contract. */
 export const APP_START_PROGRAM = "app-start.main.ts";
@@ -251,6 +251,7 @@ const runProblems = (tree: string, app: AppContract): readonly StartProblem[] =>
  * - The run starts `node`, because the program `app-start` imports the script of the run in its own process.
  * - The run has a script, and its options of Node hold no placeholder.
  * - The variables of the points are the store variables of each contract, and the level variables of its seed.
+ *   The tree `seeder` is not an arm. Its contract can come from an older commit, thus it ignores a variable that it does not have.
  * - A point can also name the load variables of each contract (`loadVariables`). A class with a rate above 0 comes from
  *   an outside service, and the point names each request variable of the class. The lab sends no request of HTTP yet (CAP-71).
  * - Each amount of a point is in the range of each contract.
@@ -286,6 +287,8 @@ export const appCaseProblems = (value: StartCase, trees: readonly TreeApp[]): re
       for (const [name, amount] of Object.entries(point.at)) {
         const variable = Object.hasOwn(variables, name) ? variables[name] : undefined;
         if (variable === undefined) {
+          // The seed reads only the variables of the contract of the seeder. Each arm examines the names of the point.
+          if (tree === SEEDER_TREE) continue;
           problems.push(problem("point", `${path}.${name}`, `${of} has no store variable, load variable or level variable of its seed "${name}".`));
         } else if (!isQuantity(amount) || !convertible(amount.unit, variable.unit)) {
           problems.push(problem("point", `${path}.${name}`, `"${name}" is not an amount in a unit that converts to "${variable.unit}".`));

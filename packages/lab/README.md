@@ -806,6 +806,8 @@ start-gate:
 ```
 
 - **The commit of the app.** `withArmCommit` gives the arm of the limits the commit `commit`. The seeder keeps its commit, thus each run opens the same stores.
+- **A new level of the app.** The points name each level of the contract of the new commit. The seed reads only the variables of its own contract, thus the tree `seeder` ignores a level that it does not have. Each arm examines all the names.
+- **The levels of AL-160.** The points give `gdelt`, `score` and `chain` the value 0. That is the old config of alerts, the config of the limits.
 - **The commit of capacity.** A called workflow runs in the context of its caller. Thus the input `capacity` names the commit that the jobs check out. Give the commit of the `uses` line.
 - **The runs.** The job plan gives one job for each run (the input `runs`, 5 by default). The option `--arm` of `timed.main.ts plan` adds the tree of the new commit to the time limit of a job.
 - **The value of a run.** It is the value of the limits: `startValueOf`, the largest reading of the arm and its A/A copy at the point.

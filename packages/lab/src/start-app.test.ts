@@ -127,6 +127,15 @@ describe("appCaseProblems", () => {
     expect(at([{ id: "far", at: { ...point.at, routes: { value: 1000, unit: "{route}" } } }])).toEqual(["point points[0].at.routes"]);
   });
 
+  it("lets the seeder tree ignore a variable of the point that its contract does not have, and an arm refuses it", () => {
+    // A new commit of the app adds a level. The seeder stays at the commit of the limits, and its seed does not read the level.
+    const points = [{ id: "more", at: { log: { value: 1, unit: "KiB" }, shapes: { value: 1, unit: "KiB" } } }];
+    expect(appCaseProblems({ ...APP_CASE, points }, [{ ...tree(), tree: "seeder" }])).toEqual([]);
+    expect(codes(appCaseProblems({ ...APP_CASE, points }, [tree()]))).toEqual(["point points[0].at.shapes"]);
+    // The seeder still needs each variable of its own contract, in its range.
+    expect(codes(appCaseProblems({ ...APP_CASE, points: [{ id: "big", at: { log: { value: 2, unit: "MiB" } } }] }, [{ ...tree(), tree: "seeder" }]))).toEqual(["point points[0].at.log"]);
+  });
+
   it("examines each tree: a problem of the seeder tree has its id", () => {
     const problems = appCaseProblems(APP_CASE, [tree(), { ...changed({ id: "other" }), tree: "seeder" }]);
     expect(problems.map((each) => each.message)).toEqual([expect.stringContaining('tree "seeder"')]);

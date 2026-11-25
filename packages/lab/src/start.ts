@@ -12,6 +12,9 @@ export const COMMIT: RegExp = /^[0-9a-f]{40}$/;
 /** This rule is the rule of the id of an arm or of a point: lower-case words joined by `-`. */
 export const START_ID: RegExp = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
+/** This id is the id of the tree of the seed when no arm has the commit of the seeder. An arm cannot have it. */
+export const SEEDER_TREE = "seeder";
+
 /** This count is the most rounds of a start case in one job. */
 export const MAX_START_ROUNDS: number = 10;
 
@@ -271,6 +274,7 @@ const armProblems = (arms: unknown): readonly StartProblem[] => {
     const { id, commit, ballast } = arm as Partial<StartArm>;
     if (typeof id !== "string" || !START_ID.test(id)) problems.push(problem("id", `${path}.id`, 'The id of the arm is not lower-case words joined by "-".'));
     else if (ids.has(id)) problems.push(problem("id", `${path}.id`, `The arm id "${id}" is in the case two times.`));
+    else if (id === SEEDER_TREE) problems.push(problem("id", `${path}.id`, `The arm id "${SEEDER_TREE}" is the id of the tree of the seed.`));
     else ids.add(id);
     if (typeof commit !== "string" || !COMMIT.test(commit)) problems.push(problem("commit", `${path}.commit`, "The commit is not 40 lower-case hexadecimal digits."));
     problems.push(...ballastProblems(ballast, `${path}.ballast`, "arm"));
