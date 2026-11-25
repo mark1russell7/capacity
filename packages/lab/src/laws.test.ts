@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { checkLaw } from "@mark1russell7/capacity";
 import { readLaw } from "@mark1russell7/capacity/schema";
+import { cpuEntry } from "@mark1russell7/rigor-bench";
 import { escapeMarkdown } from "@mark1russell7/text";
 import { describe, expect, it } from "vitest";
 import type { Case } from "./case.ts";
@@ -140,6 +141,9 @@ describe("the laws of a plan", () => {
 
   it("gives no law for a CPU model with no id, and no law with no job", () => {
     expect(CPU_IDS.other).toBeNull();
+    // The Lab run 45562204832 of CAP-67 had a job on an Intel Xeon 6973P-C. Its id is not the id of the 6975P-C.
+    expect(cpuEntry(CPU_IDS, "Intel(R) Xeon(R) 6973P-C").value).toBe("xeon-6973p-c");
+    expect(cpuEntry(CPU_IDS, "Intel(R) Xeon(R) 6975P-C").value).toBe("xeon-6975p-c");
     const { laws, problems } = lawsOf(FAST_PLAN, [jobOf(runOf(1), OTHER, 1)], FLOORS, OPTIONS);
     expect(laws).toEqual([]);
     expect(problems).toEqual([{ code: "cpu", path: OTHER, message: `The lab has no id for the CPU model "${OTHER}". Add a part of its name to CPU_IDS.` }]);
