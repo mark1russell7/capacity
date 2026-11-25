@@ -16,7 +16,7 @@ import {
   BENCH_ROUNDS,
   BENCH_SLOTS,
   HEAD_ARM,
-  benchCases,
+  benchCases, kneeLaws,
   benchAgainOf,
   benchGate,
   benchLimitsOf,
@@ -96,6 +96,16 @@ describe("benchCases", () => {
     // The compositions of alerts read a level of events, not the rate of a class. The bench has no case for them.
     expect(catalog.compositions.filter((each) => each.measure.id === "cpu" && !readsRate(each, catalog)).map((each) => each.id)).toEqual(["alerts-runtime/xeon-6975p-c/cpu"]);
     expect(cases.map((each) => each.id)).toEqual([...cpus.flatMap((id) => [`scale:${id}`, `reach:${id}`, `slider:${id}`]), "knee"]);
+  });
+
+  it("gives the case knee the first law of each form, and the same laws for a larger catalog", () => {
+    const laws = kneeLaws(catalog.laws);
+    const forms = new Set(catalog.laws.map((each) => each.form.id));
+    expect(laws.map((each) => each.form.id).sort()).toEqual([...forms].sort());
+    for (const law of laws) expect(catalog.laws.filter((each) => each.form.id === law.form.id && each.id < law.id)).toEqual([]);
+    // A copy of each law with an id after each id of the catalog adds no form, thus the case keeps its laws.
+    const larger = [...catalog.laws, ...catalog.laws.map((each) => ({ ...each, id: `zz/${each.id}` }))];
+    expect(kneeLaws(larger).map((each) => each.id)).toEqual(laws.map((each) => each.id));
   });
 
   it("gives the same hash for two calls of a case, so a child of each arm has one hash", async () => {
