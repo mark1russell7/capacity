@@ -136,6 +136,7 @@ export const CPU_IDS: Readonly<Record<string, string | null>> & { readonly other
   "EPYC 7763": "epyc-7763",
   "EPYC 9V45": "epyc-9v45",
   "EPYC 9V74": "epyc-9v74",
+  "6973P-C": "xeon-6973p-c",
   "6975P-C": "xeon-6975p-c",
   "8370C": "xeon-8370c",
   "8573C": "xeon-8573c",

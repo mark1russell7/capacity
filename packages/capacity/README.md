@@ -342,6 +342,22 @@ The Laws run 45485195729 gives the laws of the plans `alerts-start-persons` and 
 - The compositions of alerts add these laws as terms with a base, in [The compositions of alerts](#the-compositions-of-alerts).
 - The Laws run 45493330469 adds the laws `watch-heap-peak` and `watch-cores` of the two plans (CAP-37).
 
+### The laws of the routes of alerts
+
+The Laws run 45616232960 gives the laws of the plan `alerts-start-routes` on the AMD EPYC 9V74 and the Intel Xeon 6975P-C (CAP-67). Their folder is `laws/alerts-runtime/alerts-start-routes`. The variable is `routes`, from 1 to 11000. Alerts gives it in the line `amounts` of its run. The run fits the records of the Lab runs 45473162785 and 45562204832.
+
+| The measure | EPYC 9V74 at 1 route | EPYC 9V74 at 11000 routes | Xeon 6975P-C at 1 route | Xeon 6975P-C at 11000 routes |
+| --- | --- | --- | --- | --- |
+| `ready` | 4.8 s | 7.1 s | 4.7 s | 6.3 s |
+| `heap` | 198 MB | 254 MB | 205 MB | 262 MB |
+| `heap-peak` | 210 MB | 267 MB | 220 MB | 265 MB |
+| `peak` | 369 MB | 437 MB | 366 MB | 432 MB |
+| `watch-peak` | 373 MB | 549 MB | 387 MB | 560 MB |
+
+- Alerts cannot start with 100000 routes on the 1 GB target. Each start of 100 persons with 1000 incidents, and of 1000 persons with 100 incidents, reached the heap limit of V8 (556 MB). That is 76 of 76 tries on 5 CPU models.
+- The exponent of the law `heap` on the Xeon 6975P-C is at its upper bound of 4, and its interval is from 1.1 to 4. The noise floor of the law (50 MB) is almost as large as its change over the range (57 MB). Thus this law does not tell where the heap reaches its limit.
+- The limit of the routes between 11000 and 100000 comes from a grid at 20000, 40000 and 70000 routes (CAP-99). Then the scale rule of alerts uses the laws and the limit.
+- The job on an Intel Xeon 6973P-C gave no law: one job is less than the 5 jobs of a law. The Xeon 8370C (26 points) and the Xeon 8573C (13 points) have less than 40 points.
 ### The laws of the log of alerts
 
 The Laws run 45507817272 gives the laws of the plan `alerts-start-log` on the Intel Xeon 6975P-C (CAP-49). Their folder is `laws/alerts-runtime/alerts-start-log/xeon-6975p-c/main/first`. The variable is `log`, from 2 MiB to 382 MiB, the range of the contract of alerts. The run fits the records of the Lab runs 45073979241 and 45080303535 again, with the measure `watchHeapPeak`.
