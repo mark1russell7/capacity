@@ -281,7 +281,7 @@ The values of one job are not a law. The law set of the plan has the field `base
 - A record with no record of the base side in its job is a problem. The two sides of a pair with different loads are a problem too.
 - The set has the measures `cpu.request`, `memory`, `memory.high`, `latency.p50`, `latency.p90` and `latency.p99`. The network overhead is exact: 8 B more received and 40 B more sent for each request. Thus it has no law.
 - The summary tells for each overhead law, at the two ends of its range, if its interval shows an overhead, a saving or 0.
-- The gate of the laws does not read an overhead law. The gate of the runner laws is CAP-33.
+- The gate of the laws reads each overhead law with the plans `gate-overhead` and `gate-overhead-cost`. Refer to "The gate of the laws".
 - A law needs 5 jobs on one CPU model. A runner gets a random CPU model. Thus the laws pool the jobs of more than one run of the plan.
 - The conditions of a law do not identify the files of the subjects (CAP-69). Pool only the runs of one commit of the subjects.
 
@@ -477,16 +477,23 @@ A gate plan measures the subject again at some points of the laws of another pla
 
 The plans `gate-rate` and `gate-rate-cost` measure 4 rates of the plan `rate` from 300 to 3000 requests each second, in 13 jobs each night. The second plan adds 100 us to each request, thus its gate must block. Thus each night shows that the gate can block, and that the subject agrees with its laws.
 
-The plan `gate-rate` also starts on a pull request that changes a file of the gate (CAP-60). The step `gate` of the job `changes` finds these files:
+The plans `gate-overhead` and `gate-overhead-cost` hold the overhead laws of the service runner (CAP-33). They measure 4 pairs of the plan `overhead`, from 500 to 4000 requests each second, in 13 jobs each night.
+
+- A read of an overhead law is the service side less the bare side of its pair, in one job.
+- The base side must have the subject `base` of the law, the conditions of the service side and the same rate. A rule that cuts either side cuts the read.
+- The second plan adds 100 µs to each request of the service side, thus its gate must block.
+- A release of `@mark1russell7/service` changes the lockfile. Thus the plan `gate-overhead` starts on the pull request of the release, and a law that moves blocks it.
+
+The plans `gate-rate` and `gate-overhead` also start on a pull request that changes a file of the gate (CAP-60). The step `gate` of the job `changes` finds these files:
 
 | Part | The files |
 | --- | --- |
 | The subject and the cell | `packages/lab/src/**`, other than the tests |
 | The harness | `pnpm-lock.yaml` and `packages/lab/package.json`: they have the version of `@mark1russell7/harness` |
-| The laws | `packages/capacity/laws/**`, and the plans `floor`, `rate` and `gate-*` |
+| The laws | `packages/capacity/laws/**`, and the plans `floor`, `rate`, `overhead` and `gate-*` |
 | The gate | `packages/capacity/src/**`, other than the tests, and the workflow `lab.yml` |
 
-A pull request that changes no such file starts no gate plan. The plan `gate-rate-cost` starts only each night.
+A pull request that changes no such file starts no gate plan. The plans `gate-rate-cost` and `gate-overhead-cost` start only each night.
 
 ### The count of jobs of a gate plan
 
@@ -507,7 +514,7 @@ Thus a gate plan has 13 jobs. `planProblems` refuses a gate plan with fewer. A n
 The job `gate` of the workflow `lab.yml` starts after the jobs of the plans. It downloads the artifacts `lab-gate-*`, then it starts the command:
 
 ```sh
-node src/gate.main.ts --records <folder> [--records <folder>] [--laws <folder>]
+node src/gate.main.ts --records <folder> [--records <folder>] [--laws <folder>] [--latest]
 ```
 
 - The default folder of the laws is the folder `laws` of the package capacity.
