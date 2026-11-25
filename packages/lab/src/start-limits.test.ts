@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { checkLimits, LIMITS_FORMAT } from "@mark1russell7/capacity";
 import { readLimits } from "@mark1russell7/capacity/schema";
 import { quantity } from "@mark1russell7/quantity";
+import { mean, sd, tQuantile } from "@mark1russell7/rigor-statistics";
 import { describe, expect, it } from "vitest";
 import { EPYC, runOf } from "./law-fixtures.ts";
 import { planMinutes } from "./plan.ts";
@@ -88,6 +89,22 @@ describe("the limits file of the start gate of alerts", () => {
       for (const [measure, derivation] of Object.entries(point.derivations)) {
         expect(derivation.values, `${point.id} ${measure}`).toHaveLength(limits.runs.length);
         expect(derivation.limit, `${point.id} ${measure}`).toBeGreaterThanOrEqual(derivation.worst);
+      }
+    }
+  });
+
+  // The share of the runs with no change of the app that one measure blocks (CAP-100). A gate of 5 runs reads 6 measures.
+  const FALSE_FAIL_TAIL = 0.005;
+
+  it(`puts each limit above the next run of its measure at the tail ${FALSE_FAIL_TAIL}, from the t law of the runs`, () => {
+    const limits = readStartLimits(LIMITS);
+    if (limits === undefined) throw new Error("The limits file is missing.");
+    for (const point of limits.points) {
+      for (const [measure, { values, limit }] of Object.entries(point.derivations)) {
+        // The prediction bound of one more run: the mean plus the t quantile times the spread of a new value.
+        const n = values.length;
+        const bound = mean(values) + tQuantile(1 - FALSE_FAIL_TAIL, n - 1) * sd(values) * Math.sqrt(1 + 1 / n);
+        expect(limit, `${point.id} ${measure}`).toBeGreaterThanOrEqual(bound);
       }
     }
   });
