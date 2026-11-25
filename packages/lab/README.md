@@ -262,7 +262,7 @@ The check `overhead` (`overheadCheck`) gives each value and each problem of the 
 - The measures are the measures of `OVERHEAD_MEASURES`: `cpu.request`, `memory`, `memory.high`, `network.rx.request`, `network.tx.request`, `latency.p50`, `latency.p90`, `latency.p99`, `loop.lag.mean`, `loop.lag.max` and `loop.busy`.
 - A pair has the cases `<pair>/bare` and `<pair>/service`, with the subjects of `OVERHEAD_SIDES` and one load. A case with no partner, another subject or another load is a problem.
 - The reply of the service subject has one more header, `content-type`. Thus `network.tx.request` has an overhead of approximately the size of that header.
-- Each subject measures the lag of its event loop (CAP-68). Thus `loop.lag.mean.overhead` is the lag that the runner adds. The law of that lag is the part 2 of CAP-68.
+- Each subject measures the lag of its event loop (CAP-68). Thus `loop.lag.mean.overhead` is the lag that the runner adds. The package `capacity` has the three loop laws on the Intel Xeon 6975P-C.
 - The plan has no trigger: a person starts it. Its time limit is 55 minutes.
 
 #### The laws of the overhead

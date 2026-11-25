@@ -35,7 +35,7 @@ import { escapeMarkdown } from "@mark1russell7/text";
 import { isIdleCase, type Case } from "./case.ts";
 import { FLOOR_MEASURES, type FloorMeasure } from "./floor.ts";
 import { caseValue, runValues } from "./reads.ts";
-import { CPUSET_MEASURES, LOAD_MEASURES, QUANTILE_MEASURES, RECORD_FORMAT, RUN_MEASURES, type CaseRecord, type QuantileMeasure } from "./record.ts";
+import { CPUSET_MEASURES, LOAD_MEASURES, LOOP_MEASURES, QUANTILE_MEASURES, RECORD_FORMAT, RUN_MEASURES, type CaseRecord, type QuantileMeasure } from "./record.ts";
 import type { StartRecord } from "./start-measure.ts";
 import { isStartCase, type StartCase } from "./start.ts";
 import type { Timed } from "./timed.ts";
@@ -151,8 +151,11 @@ const CONDITION_STARTS = ["request.", "level."] as const;
 /** A law set problem tells what is not correct in the field `laws` of a plan. */
 export type LawSetProblem = Problem<"laws">;
 
-/** The units of the measures of a record, by name. */
-const UNITS: Readonly<Record<string, string>> = { ...RUN_MEASURES, ...LOAD_MEASURES, ...CPUSET_MEASURES };
+/**
+ * The unit of each measure of a law. The type needs a unit for each floor measure. Thus a new measure with no unit does not
+ * compile. Before CAP-68 the table had no `LOOP_MEASURES`, and each law of the event loop got an empty unit.
+ */
+const UNITS: Readonly<Record<FloorMeasure, string>> = { ...RUN_MEASURES, ...LOAD_MEASURES, ...CPUSET_MEASURES, ...LOOP_MEASURES };
 
 const RESIDUALS: readonly ResidualKind[] = ["absolute", "relative"];
 const SCALES: readonly Scale[] = ["linear", "log"];
@@ -790,7 +793,7 @@ const lawOf =(set: LawSet, measure: LawMeasure, id: string, range: RangePoints, 
       id,
       title: `${measure.title}${over}, on the CPU ${String(cpu)}`,
       subject: points.facts.subject,
-      measure: { id: `${measure.id}${points.bases === undefined ? "" : OVERHEAD_SUFFIX}`, unit: UNITS[measure.id] ?? "" },
+      measure: { id: `${measure.id}${points.bases === undefined ? "" : OVERHEAD_SUFFIX}`, unit: UNITS[measure.id] },
       residual: measure.residual,
       ...(measure.forms === undefined ? {} : { forms: measure.forms }),
       variable: set.variable,
