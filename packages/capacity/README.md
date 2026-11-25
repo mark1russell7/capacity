@@ -339,7 +339,8 @@ The Laws run 45479208486 gives the laws of the plan `alerts-start-event` on the 
 The Laws run 45485195729 gives the laws of the plans `alerts-start-persons` and `alerts-start-feeds` on the Intel Xeon 6975P-C (CAP-36). Their folders are `laws/alerts-runtime/alerts-start-persons` and `laws/alerts-runtime/alerts-start-feeds`. The variables are `persons`, from 1 to 3000, and `feeds`, from 1 to 10000. The README of the lab has the table of the laws, in [The laws of the persons and the feeds](../lab/README.md#the-laws-of-the-persons-and-the-feeds).
 
 - Alerts cannot start with 10000 persons on the 1 GB target: each job reached the heap limit of V8.
-- The compositions of the scale rule do not use these laws yet. CAP-37 adds them.
+- The compositions of alerts add these laws as terms with a base, in [The compositions of alerts](#the-compositions-of-alerts).
+- The Laws run 45493330469 adds the laws `watch-heap-peak` and `watch-cores` of the two plans (CAP-37).
 
 ## The gate of the laws
 
@@ -612,6 +613,20 @@ Each term gives parts, and the value is the sum of the parts.
 
 Each term can have a `factor`, a finite number other than 0. A law term over classes can have `"load": "total"`. Then the variable `rate` of the law is the total rate, not the rate of the class. Use it when the cost of one request changes with the load of the whole process. The garbage collection is an example.
 
+### A term with a base gives a change
+
+A ladder measures one level and holds the other levels at a base point. A law of that ladder gives the whole value at its level, not the part of its level. Thus two such laws do not add. A term with a `base` gives the change of its law from the base point:
+
+```json
+{ "law": "alerts-runtime/alerts-start-persons/xeon-6975p-c/main/first/watch-peak", "over": "instance", "base": { "persons": { "value": 10, "unit": "{person}" } } }
+```
+
+- The value is the law at the load point, less the law at the base point. The base point is the load point with the amounts of `base`.
+- The term gives two parts: the part at the load point, and the part at the base point with the weight times -1. The part at the base point has `base: true`.
+- The two parts read the same replicate in each row. Thus the doubt of the constant of the law cancels, and the interval is the interval of the change.
+- A demand and a state with no amount of a variable of `base` stay at the base point. Then the change is exactly 0.
+- The model of a sum of changes says that the levels add. The test of that model is CAP-67, the levels of alerts together.
+
 ### The units tell the weight of a part
 
 The weight of a part is the number that multiplies the value of its law. The quotient of the unit of the composition and the unit of the law decides it.
@@ -653,11 +668,13 @@ The sum has the laws of a linear map, and property tests hold each of them:
 - Each id is lower-case words, and the title is not empty.
 - A composition has one term or more. A list of classes is not empty, and it has each class one time.
 - A term over the instance does not read the rate of a class.
+- A base names one variable or more. Each name is a name, not `rate`, and each amount is finite.
 - A composition does not name itself.
 
 `compositionValue` also finds these problems:
 
 - A missing law or composition, and a cycle of compositions.
+- A base that names a variable that its law does not have, or an amount in a unit that does not convert.
 - Two records with one id.
 - A law with too few replicates for the level. Each problem of a part has the path of its term in front, for example `terms[0].write.rate`.
 
@@ -698,11 +715,15 @@ A test reads each composition file with `readComposition`. The id of each compos
 
 | Composition | Its terms |
 | --- | --- |
-| `alerts-runtime/xeon-6975p-c/cpu` | The law `watch-cores` of the plan `alerts-start-event`, over the instance |
-| `alerts-runtime/xeon-6975p-c/memory` | The law `watch-peak`, over the instance |
-| `alerts-runtime/xeon-6975p-c/heap` | The law `watch-heap-peak`, over the instance |
+| `alerts-runtime/xeon-6975p-c/cpu` | The law `watch-cores` of the plans `alerts-start-event`, `alerts-start-persons` and `alerts-start-feeds`, over the instance |
+| `alerts-runtime/xeon-6975p-c/memory` | The law `watch-peak` of the three plans, over the instance |
+| `alerts-runtime/xeon-6975p-c/heap` | The law `watch-heap-peak` of the three plans, over the instance |
 
-The variable `event` of these laws is a level of the demand, in `{event}/s`. Thus a demand of alerts is `{ classes: [], levels: { event } }`, and a scale of the demand scales the events.
+- The law of the events gives the whole value. Its variable `event` is a level of the demand, in `{event}/s`.
+- The laws of the persons and the feeds are terms with a base: 10 persons and 10 feeds, the base point of the ladders.
+- A demand of alerts is `{ classes: [], levels: { event, persons, feeds } }`. A scale of the demand scales each level in it.
+- A level that does not grow with the load goes in the option `given` of the query. An example is 2 persons when the events grow.
+- A demand with only `event` gives the values of the compositions before CAP-37.
 
 ## An instance type
 
@@ -911,8 +932,26 @@ The test `src/scale-files.test.ts` reads the laws, the compositions, the instanc
 - Each law is at the base point of the ladder: 16 MiB of log, 10 feeds, 10 persons and 10 incidents.
 - A reach past 55 events each second is outside the range of the laws. The rungs 60 and 70 gave no points, because each start reached the heap limit.
 
+The persons and the feeds are levels too. A query scales one level, and the option `given` holds the others.
+
+| Instance type | Limits | The load of the query | The reach of one copy | The limit that binds first | The next limits |
+| --- | --- | --- | --- | --- | --- |
+| `small-cloud-1gb` | The limits file | The events, with 2 persons and 5 feeds | 8.57 [7.76, 9.54] events each second | `memory` | `cpu` at 30.7, `heap` at 37.1 |
+| `small-cloud-1gb` | The limits file | The persons, with 0 events | 469 [391, 563] persons | `cpu` | `memory` at 704, `heap` at 2308 |
+| `small-cloud-1gb` | The limits file | The feeds, with 0 events | 3103 [2858, 3352] feeds | `memory` | `cpu` at 9071, `heap` at 9651 |
+| `small-cloud-1gb` | No headroom | The persons, with 0 events | 818 [723, 959] persons | `cpu` | `memory` at 2544, `heap` at 5016 |
+| `lab-target-1gb` | The limits file | The persons, with 0 events | 2308 [1962, 2533] persons | `heap` | `memory` at 5569 |
+| `lab-target-1gb` | No headroom | The persons, with 0 events | 5016 [4629, 5309] persons | `heap` | `memory` at 12583 |
+
+- The live setup of 2 persons and 5 feeds holds more events than the base point of 10 and 10: 8.57, not 7.86.
+- On the small cloud machine, the CPU of the persons binds first. The CPU of the watch grows as a power of the persons, with the exponent 0.63.
+- The CPU reach on the small cloud machine is a forecast, because the laws are of the Intel Xeon 6975P-C.
+- With no headroom on the lab target, the heap binds at 5016 [4629, 5309] persons. Each job of the lab started with 3000 persons and stopped on the heap with 10000.
+- The range of the law of the persons ends at 3000. Thus a reach past 3000 persons is an extrapolation.
+
 The rule does not tell these parts yet. CAP-37 adds them:
 
+- The test that the levels add: the events, the persons and the feeds together (CAP-67).
 - The laws of the polls, the routes, the incidents and the bursts, and the lag of the event loop (CAP-36 and CAP-68).
 - The new shared config of alerts: more sources, a score rule and a chain report. The contract of alerts names them.
 - The live load of the cloud copy, and the smallest instance type that holds it.

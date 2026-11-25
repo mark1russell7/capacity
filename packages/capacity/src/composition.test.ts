@@ -1,4 +1,5 @@
 import type { Result } from "@mark1russell7/optional";
+import { app, ref } from "@mark1russell7/vex";
 import { describe, expect, it } from "vitest";
 import { catalogLaws, costLaw, cpuComposition, layer1, layer2, memoryLaw, rowsOf } from "./composition.fixture.ts";
 import {
@@ -358,5 +359,91 @@ describe("a composition past the measures", () => {
       expect(interval.low, `rate ${rate}`).toBeCloseTo(found.interval.low, 12);
       expect(interval.high, `rate ${rate}`).toBeCloseTo(found.interval.high, 12);
     }
+  });
+});
+
+describe("a term with a base", () => {
+  const memoryOf = (term: Record<string, unknown>): Composition =>
+    cpuComposition("node-http/memory", [{ law: "node-http/memory", over: "instance", ...term } as Composition["terms"][number]], "MiB");
+  const BASE = { connections: { value: 100, unit: "{connection}" } };
+  const ROWS = memoryLaw().replicates;
+
+  it("gives the change of its law from the base point, row by row", () => {
+    const change = value(memoryOf({ base: BASE }));
+    // 0.05 MiB for each of the 300 connections past the base of 100 is 15 MiB. The constant 40 MiB cancels.
+    expect(change.value).toBeCloseTo(15, 12);
+    for (const [row, draw] of change.replicates.entries()) expect(draw).toBeCloseTo((ROWS[row]?.[1] as number) * 300, 9);
+    const parts = change.parts as readonly LawPart[];
+    expect(parts.map((part) => [part.base, part.weight])).toEqual([
+      [false, 1],
+      [true, -1],
+    ]);
+  });
+
+  it("gives the value with no base, less the value at the base point", () => {
+    const whole = value(memoryOf({}));
+    const atBase = value(memoryOf({}), { ...DEMAND, levels: { connections: BASE.connections } });
+    expect(value(memoryOf({ base: BASE })).value).toBeCloseTo(whole.value - atBase.value, 12);
+  });
+
+  it("gives 0 in each row for a demand with no amount of the variable of the base", () => {
+    const none = value(memoryOf({ base: BASE }), NO_DEMAND);
+    expect(none.value).toBe(0);
+    expect(none.replicates.every((draw) => draw === 0)).toBe(true);
+    expect(none.interval).toEqual({ low: 0, high: 0 });
+  });
+
+  it("reads the variable from the state of the instance", () => {
+    const given = must(compositionValue(memoryOf({ base: BASE }), CATALOG, NO_DEMAND, { given: { connections: { value: 300, unit: "{connection}" } } }));
+    expect(given.value).toBeCloseTo(10, 12);
+  });
+
+  it("converts the unit of the base to the unit of the variable", () => {
+    // A law of the memory over the age of the process in seconds: 40 MiB + 0.05 MiB for each second.
+    const aged: Law = {
+      ...memoryLaw(),
+      id: "node-http/age",
+      variables: [{ id: "age", unit: "s", min: 0, max: 1000, scale: "linear" }],
+      form: { id: "linear", program: app("add", ref("m0"), app("multiply", ref("m1"), ref("age"))) },
+    };
+    const composition = cpuComposition("node-http/memory", [{ law: "node-http/age", over: "instance", base: { age: { value: 1, unit: "min" } } }], "MiB");
+    const found = must(compositionValue(composition, { laws: [aged] }, NO_DEMAND, { given: { age: { value: 400, unit: "s" } } }));
+    // The base of 1 minute is 60 seconds. Thus the change is 0.05 MiB for each of 340 seconds, 17 MiB.
+    expect(found.value).toBeCloseTo(17, 12);
+  });
+
+  it("scales the change by the factor of the term", () => {
+    expect(value(memoryOf({ base: BASE, factor: 2 })).value).toBeCloseTo(30, 12);
+  });
+
+  it("gives the same rows on the path of the scale query and in compositionValue", () => {
+    const composition = memoryOf({ base: BASE });
+    const prepared = must(preparedOf(composition, CATALOG, 0.95));
+    const rows = rowValuesOf(must(flatPartsOf(prepared, DEMAND)), 0, prepared.rows);
+    const found = value(composition);
+    expect(rows[0]).toBeCloseTo(found.value, 12);
+    for (const [row, draw] of found.replicates.entries()) expect(rows[row + 1]).toBeCloseTo(draw, 9);
+  });
+
+  const broken: readonly [string, Record<string, unknown>, string, string][] = [
+    ["an empty base", {}, "term", "terms[0].base"],
+    ["a name that is not a name", { Connections: BASE.connections }, "variable", "terms[0].base.Connections"],
+    ["the rate", { rate: { value: 1, unit: "{request}/s" } }, "variable", "terms[0].base.rate"],
+    ["an amount that is not finite", { connections: { value: Number.NaN, unit: "{connection}" } }, "amount", "terms[0].base.connections"],
+  ];
+
+  it.each(broken)("finds %s", (_, base, code, path) => {
+    expect(checkComposition(memoryOf({ base }))).toContainEqual(expect.objectContaining({ code, path }));
+  });
+
+  it("finds a base that names no variable of the law, or a unit that does not convert", () => {
+    expect(problemOf(compositionValue(memoryOf({ base: { persons: { value: 1, unit: "{person}" } } }), CATALOG, DEMAND))).toMatchObject({
+      code: "variable",
+      path: "terms[0].base.persons",
+    });
+    expect(problemOf(compositionValue(memoryOf({ base: { connections: { value: 1, unit: "s" } } }), CATALOG, DEMAND))).toMatchObject({
+      code: "unit",
+      path: "terms[0].base.connections",
+    });
   });
 });

@@ -136,9 +136,9 @@ const loadValueOf = (factor: OpenValue, load: number): OpenValue => ({
   },
 });
 
-/** This function gives the laws of some compositions that a catalog holds, each one time, in their nested compositions too. */
+/** This function gives the laws of some compositions that move with the load, each one time, in their nested compositions too. */
 const lawsOf = (compositions: readonly Composition[], catalog: Catalog): readonly Law[] => {
-  const ids = new Set(compositions.flatMap((composition) => lawIdsOf(composition, catalog.compositions ?? [])));
+  const ids = new Set(compositions.flatMap((composition) => lawIdsOf(composition, catalog.compositions ?? [], "load")));
   return catalog.laws.filter((law) => ids.has(law.id));
 };
 
@@ -243,7 +243,8 @@ export interface ScaleSubject {
 /**
  * This function gives each subject that has a composition of a resource on one CPU model. A composition is on a CPU
  * model when each of its laws is on it. The slider moves one load, thus each law of the compositions of a subject reads
- * the rate, or each law reads the same one variable. The laws of alerts read the level `event`. The subjects of
+ * the rate, or each law reads the same one variable. The laws of alerts read the level `event`. A term with a base
+ * does not move with the load, thus the load leaves it out. The subjects of
  * `SUBJECT_NAMES` come first, in its order.
  */
 export const scaleSubjects = (
@@ -271,7 +272,7 @@ export const scaleSubjects = (
       others.push(composition);
       continue;
     }
-    const load = loadKey(ids);
+    const load = loadKey(lawIdsOf(composition, compositions, "load"));
     if (load === null) continue;
     const group = groups.get(composition.subject) ?? { load, compositions: [], laws: new Set<string>(), unlimited: [] };
     // Each composition of a subject moves with the one load of the slider.

@@ -321,6 +321,32 @@
           "logarithm",
           "hinge"
         ]
+      },
+      {
+        "id": "watchHeapPeak",
+        "law": "watch-heap-peak",
+        "title": "The highest used heap of the process in the watch after ready",
+        "residual": "relative",
+        "forms": [
+          "constant",
+          "linear",
+          "power",
+          "logarithm",
+          "hinge"
+        ]
+      },
+      {
+        "id": "watchCores",
+        "law": "watch-cores",
+        "title": "The CPU time of the process in the watch after ready, over the time of the watch",
+        "residual": "absolute",
+        "forms": [
+          "constant",
+          "linear",
+          "power",
+          "logarithm",
+          "hinge"
+        ]
       }
     ]
   }

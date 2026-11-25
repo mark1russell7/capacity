@@ -7,7 +7,7 @@ import type { InstanceType, Limit } from "./instance.ts";
 import type { Law } from "./law.ts";
 import { countReach, type ScaleModel } from "./scale.ts";
 import { readComposition, readInstance, readLaw, readLimits } from "./schema.ts";
-import type { Demand } from "./workload.ts";
+import type { Amounts, Demand } from "./workload.ts";
 
 /** This folder holds the instance files: one size of a machine or a container in each file. */
 const INSTANCES = fileURLToPath(new URL("../instances/", import.meta.url));
@@ -48,9 +48,9 @@ const alertsOn = (id: string, with_: readonly Limit[] = limits.limits): ScaleMod
   catalog: { laws, compositions },
 });
 
-/** This function gives the reach of one copy of alerts, or throws with the problem. */
-const reachOf = (model: ScaleModel) => {
-  const reach = countReach(model, 1, ONE_EVENT, { most: 1000 });
+/** This function gives the reach of one copy of alerts over a demand and a state of the instance, or throws with the problem. */
+const reachOf = (model: ScaleModel, demand: Demand = ONE_EVENT, given: Amounts = {}, most = 1000) => {
+  const reach = countReach(model, 1, demand, { most, given });
   if (reach.tag !== "ok") throw new Error(reach.error.message);
   return reach.value;
 };
@@ -102,5 +102,32 @@ describe("the scale rule of alerts", () => {
     const cpu = reach.limits.find((each) => each.limit === "cpu")!;
     expect(factorOf(cpu.factor)).toBeGreaterThan(2 * factorOf(reach.factor));
     expect(reach.limits[0]!.binds).toBe(1);
+  }, QUERY_TIME);
+
+  it("gives more events to the live setup of 2 persons and 5 feeds than to the base of 10 and 10", () => {
+    // A level that does not grow with the load is a state of the instance, thus it is in given.
+    const reach = reachOf(alertsOn("small-cloud-1gb"), ONE_EVENT, { persons: { value: 2, unit: "{person}" }, feeds: { value: 5, unit: "{feed}" } });
+    expect(reach.binding).toBe("memory");
+    expect(factorOf(reach.factor)).toBeCloseTo(8.57, 1);
+    expect(factorOf(reach.factor)).toBeGreaterThan(factorOf(reachOf(alertsOn("small-cloud-1gb")).factor));
+  }, 2 * QUERY_TIME);
+
+  it("gives the CPU as the first limit of the persons on the small cloud machine, at 469 persons with no events", () => {
+    // The CPU of the watch grows as a power of the persons: 0.57 core at 3000 persons. 0.25 core, less 30 % of headroom, is 0.175 core.
+    const reach = reachOf(alertsOn("small-cloud-1gb"), { classes: [], levels: { persons: { value: 1, unit: "{person}" } } }, { event: { value: 0, unit: "{event}/s" } }, 100_000);
+    expect(reach.binding).toBe("cpu");
+    expect(factorOf(reach.factor)).toBeGreaterThan(460);
+    expect(factorOf(reach.factor)).toBeLessThan(480);
+    expect(reach.factor.interval.low).toBeGreaterThan(380);
+    expect(reach.factor.interval.high).toBeLessThan(580);
+  }, QUERY_TIME);
+
+  it("holds 3000 persons and not 10000 on the lab target with no headroom, as the lab found", () => {
+    // Each job of the lab started with 3000 persons, and each job reached the heap limit of V8 with 10000.
+    const bare = limits.limits.map((limit) => ({ ...limit, headroom: 0 }));
+    const reach = reachOf(alertsOn("lab-target-1gb", bare), { classes: [], levels: { persons: { value: 1, unit: "{person}" } } }, { event: { value: 0, unit: "{event}/s" } }, 100_000);
+    expect(reach.binding).toBe("heap");
+    expect(reach.factor.interval.low).toBeGreaterThan(3000);
+    expect(reach.factor.interval.high).toBeLessThan(10_000);
   }, QUERY_TIME);
 });
