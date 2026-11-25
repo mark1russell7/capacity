@@ -96,11 +96,36 @@ const sliderOf = (id: string, api: BenchApi, model: ScaleModel, demand: Demand):
 };
 
 /**
- * This function gives the cases of the bench. Each composition of the processor time gives a scale case, a reach case and a slider case. The
- * case `knee` gives the knee of each law by each rule. The order of the cases is the order of the compositions.
+ * This function tells if each law of a composition, and of each composition that it names, reads the rate of a class. The
+ * bench gives a demand of requests, thus it reads only these compositions. The laws of alerts read a level of events.
+ * The site has the same walk in `lawIdsOf`. This file imports only the types of `@mark1russell7/capacity`. Thus each
+ * child of the bench loads only the package of the checkout of its arm.
+ */
+export const readsRate = (composition: Composition, catalog: BenchCatalog): boolean =>
+  composition.terms.every((term) => {
+    if ("law" in term) return catalog.laws.find((law) => law.id === term.law)?.variables.some((variable) => variable.id === "rate") === true;
+    const nested = catalog.compositions.find((each) => each.id === term.composition);
+    return nested !== undefined && readsRate(nested, catalog);
+  });
+
+/**
+ * This function gives the laws of the case `knee`: the first law of each form, in the order of the ids. The count of the forms
+ * is small and it does not grow with the catalog. Thus the case keeps its size when the catalog grows, and it still times
+ * each form (CAP-97). With each law of a catalog of 24 laws, a job of the case took more than its 45 minutes.
+ */
+export const kneeLaws = (laws: readonly Law[]): readonly Law[] => {
+  const first = new Map<string, Law>();
+  const byId = [...laws].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  for (const law of byId) if (!first.has(law.form.id)) first.set(law.form.id, law);
+  return [...first.values()];
+};
+
+/**
+ * This function gives the cases of the bench. Each composition of the processor time over the rate gives a scale case, a reach case and a slider case. The
+ * case `knee` gives the knee of each law of `kneeLaws` by each rule. The order of the cases is the order of the compositions.
  */
 export const benchCases = (catalog: BenchCatalog): readonly BenchCase[] => {
-  const cpus = catalog.compositions.filter((composition) => composition.measure.id === "cpu");
+  const cpus = catalog.compositions.filter((composition) => composition.measure.id === "cpu" && readsRate(composition, catalog));
   const demand = demandAt(BENCH_RATE);
   const scales = cpus.flatMap((composition): BenchCase[] => {
     const model = cpuModel(composition, catalog);
@@ -112,9 +137,10 @@ export const benchCases = (catalog: BenchCatalog): readonly BenchCase[] => {
       { id: `slider:${composition.id}`, run: (api) => sliderOf(`slider:${composition.id}`, api, model, demand) },
     ];
   });
+  const laws = kneeLaws(catalog.laws);
   const knee: BenchCase = {
     id: "knee",
-    run: (api) => catalog.laws.flatMap((law) => KNEE_RULES.map((rule) => api.lawKnee(law, law.variables[0]?.id ?? "", rule))),
+    run: (api) => laws.flatMap((law) => KNEE_RULES.map((rule) => api.lawKnee(law, law.variables[0]?.id ?? "", rule))),
   };
   return [...scales, knee];
 };

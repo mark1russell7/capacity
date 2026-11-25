@@ -8,15 +8,16 @@ import {
   multiplyUnits,
   parseUnit,
   factorOf,
+  isQuantity,
   whyNotConvertible,
 } from "@mark1russell7/quantity";
 import { instancePointOf, loadPointOf, totalRate, type Load } from "./demand.ts";
 import { DEFAULT_LEVEL, type Law, type Measure, type Problem, type ProblemCode } from "./law.ts";
-import { SLUG, finite, repeated } from "./names.ts";
+import { NAME, SLUG, finite, repeated } from "./names.ts";
 import { recordOf, valuesAt } from "./program.ts";
 import { edgePointOf, edgeValuesOf, heldValue, intervalOf, levelProblem, pointValuesOf, runOf, type LevelOptions, type LoadPoint, type Range } from "./value.ts";
 import { demandProblems } from "./workload-check.ts";
-import type { Amounts, Demand, WorkloadClass, WorkloadProblemCode } from "./workload.ts";
+import { RATE, type Amounts, type Demand, type WorkloadClass, type WorkloadProblemCode } from "./workload.ts";
 
 /** This text is the format of a composition file. */
 export const COMPOSITION_FORMAT = "capacity-composition/1";
@@ -32,12 +33,19 @@ export type Over = "instance" | "each" | readonly string[];
  * A law term adds a law to a composition, times `factor` (1 when the term gives none). The field
  * `load` tells which rate the variable `rate` of the law reads. A term over the instance always
  * reads the total rate.
+ *
+ * A term with a `base` gives the change of its law from the base point. The change is the value at
+ * the load point less the value at the base point. The base point is the load point, with the
+ * amount of `base` for each variable that `base` names. Use it for a law of a ladder of one level.
+ * That ladder holds the other levels at a base point. A demand with no amount for a variable of
+ * `base` stays at the base point, thus the change is 0.
  */
 export interface LawTerm {
   readonly law: string;
   readonly over: Over;
   readonly load?: Load | undefined;
   readonly factor?: number | undefined;
+  readonly base?: Amounts | undefined;
 }
 
 /**
@@ -100,11 +108,16 @@ interface PartBase {
   readonly run: Range;
 }
 
-/** A law part is the value of a law at the point of one class, or of the instance when `class` is null. */
+/**
+ * A law part is the value of a law at the point of one class. When `class` is null, it is the
+ * value at the point of the instance. A term with a base gives two parts. The first part is at the load point.
+ * The second part is at the base point, with `base` true and the weight times -1.
+ */
 export interface LawPart extends PartBase {
   readonly kind: "law";
   readonly law: string;
   readonly class: string | null;
+  readonly base: boolean;
   readonly outside: readonly string[];
 }
 
@@ -203,6 +216,16 @@ export const checkComposition = (composition: Composition): readonly Composition
     if (term.over === "instance" && term.load === "class") {
       add("term", `${path}.load`, "A term over the instance has no class. Its law reads the total rate.");
     }
+    if (term.base !== undefined) {
+      const names = Object.keys(term.base);
+      if (names.length === 0) add("term", `${path}.base`, "The base names no variable.");
+      for (const name of names) {
+        const where = `${path}.base.${name}`;
+        if (!NAME.test(name)) add("variable", where, `"${name}" is not a name: a lower-case letter, then letters and digits.`);
+        else if (name === RATE) add("variable", where, "The rate comes from the demand. A base does not hold it.");
+        else if (!isQuantity(term.base[name])) add("amount", where, `The amount of "${name}" is not a finite amount in a canonical unit.`);
+      }
+    }
   }
   return problems;
 };
@@ -247,6 +270,36 @@ const classRate = (demand: Demand, id: string, unit: string, path: string): Resu
 const instanceRate = (demand: Demand, unit: string, path: string): Result<number, CompositionProblem> => {
   const total = totalRate(demand, unit);
   return total.tag === "err" ? err(under(total.error, path)) : ok(total.value.value);
+};
+
+/**
+ * This function gives the problem of the base of a term for its law, or undefined. Each name of the
+ * base is a variable of the law, and its amount converts to the unit of that variable.
+ */
+const baseProblem = (law: Law, base: Amounts, path: string): CompositionProblem | undefined => {
+  for (const [name, amount] of Object.entries(base)) {
+    const variable = law.variables.find((each) => each.id === name);
+    if (variable === undefined) return problem("variable", `${path}.${name}`, `The law "${law.id}" has no variable "${name}".`);
+    if (!convertible(amount.unit, variable.unit)) {
+      const why = whyNotConvertible(amount.unit, variable.unit) ?? "the units are different";
+      return problem("unit", `${path}.${name}`, `The variable "${name}" of the law "${law.id}" is in "${variable.unit}", not in "${amount.unit}": ${why}.`);
+    }
+  }
+  return undefined;
+};
+
+/** This function gives the amounts of a base that no list of amounts gives. The point holds them at the base. */
+const heldOf = (base: Amounts, lists: readonly Amounts[]): Amounts =>
+  Object.fromEntries(Object.entries(base).filter(([name]) => !lists.some((amounts) => Object.hasOwn(amounts, name))));
+
+/** This function gives the base point of a term: the load point, with the amount of the base for each variable that it names. */
+const basePointOf = (law: Law, point: LoadPoint, base: Amounts): LoadPoint => {
+  const next: Record<string, number> = { ...point };
+  for (const [name, amount] of Object.entries(base)) {
+    const variable = law.variables.find((each) => each.id === name) as Law["variables"][number];
+    next[name] = amount.value * factorOf(amount.unit, variable.unit);
+  }
+  return next;
 };
 
 /** The sum of the parts of one composition, with the change from its interval to its run. */
@@ -311,6 +364,8 @@ export const preparedOf = (composition: Composition, catalog: Catalog, level: nu
       if (isLawTerm(term)) {
         const law = laws.value.get(term.law);
         if (law === undefined) return problem("law", `${path}.law`, `The catalog has no law "${term.law}".`);
+        const badBase = baseProblem(law, term.base ?? {}, `${path}.base`);
+        if (badBase !== undefined) return badBase;
         reads.set(law.id, law);
         continue;
       }
@@ -346,6 +401,7 @@ interface Leaf {
   readonly term: number;
   readonly law: Law;
   readonly class: string | null;
+  readonly base: boolean;
   readonly weight: number;
   readonly point: LoadPoint;
   readonly path: string;
@@ -399,7 +455,9 @@ const treeOf = (prepared: Prepared, demand: Demand, given: Amounts): Result<Tree
         term.over === "instance" ? [null] : term.over === "each" ? demand.classes.map((entry) => entry.id) : term.over;
       for (const id of targets) {
         const where = `${path}.${id ?? "instance"}`;
-        const point = id === null ? instancePointOf(demand, law, given) : loadPointOf(demand, id, law, given, { load: term.load ?? "class" });
+        const request = id === null ? {} : (demand.classes.find((entry) => entry.id === id)?.request ?? {});
+        const state = term.base === undefined ? given : { ...heldOf(term.base, [request, demand.levels, given]), ...given };
+        const point = id === null ? instancePointOf(demand, law, state) : loadPointOf(demand, id, law, state, { load: term.load ?? "class" });
         if (point.tag === "err") return err(under(point.error, where));
         let by = weight.value.by;
         const rateUnit = weight.value.rate;
@@ -408,7 +466,10 @@ const treeOf = (prepared: Prepared, demand: Demand, given: Amounts): Result<Tree
           if (rate.tag === "err") return rate;
           by *= rate.value;
         }
-        nodes.push({ kind: "law", term: index, law, class: id, weight: by, point: point.value, path: where });
+        nodes.push({ kind: "law", term: index, law, class: id, base: false, weight: by, point: point.value, path: where });
+        if (term.base !== undefined) {
+          nodes.push({ kind: "law", term: index, law, class: id, base: true, weight: -by, point: basePointOf(law, point.value, term.base), path: `${where}.base` });
+        }
       }
     }
     return ok({ unit, nodes });
@@ -477,6 +538,7 @@ const sumOf = (tree: Tree, rows: number, level: number, sums: Map<Tree, Sum>): R
         term: node.term,
         law: node.law.id,
         class: node.class,
+        base: node.base,
         weight: by,
         value: by * estimate,
         interval: scaled,

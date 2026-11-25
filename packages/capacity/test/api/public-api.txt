@@ -741,7 +741,7 @@ declare const APP_FILE = "capacity-app.json";
 declare const APP_FORMAT = "capacity-app/1";
 
 ### build/instance.chunk.d.ts#APP_LINE_KINDS
-declare const APP_LINE_KINDS: readonly ["pass", "write", "readings"];
+declare const APP_LINE_KINDS: readonly ["pass", "write", "readings", "amounts"];
 
 ### build/instance.chunk.d.ts#AmountCeiling
 interface AmountCeiling {
@@ -1014,6 +1014,7 @@ interface LawPart extends PartBase {
   readonly kind: "law";
   readonly law: string;
   readonly class: string | null;
+  readonly base: boolean;
   readonly outside: readonly string[];
 }
 
@@ -1026,6 +1027,7 @@ interface LawTerm {
   readonly over: Over;
   readonly load?: Load | undefined;
   readonly factor?: number | undefined;
+  readonly base?: Amounts | undefined;
 }
 
 ### build/instance.chunk.d.ts#LawValue
@@ -1229,7 +1231,7 @@ interface Variable {
 }
 
 ### build/instance.chunk.d.ts#VariableKind
-type VariableKind = "request" | "level" | "store";
+type VariableKind = "request" | "level" | "store" | "run";
 
 ### build/instance.chunk.d.ts#WORKLOAD_FORMAT
 declare const WORKLOAD_FORMAT = "capacity-workload/1";

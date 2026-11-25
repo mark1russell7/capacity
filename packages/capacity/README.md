@@ -330,6 +330,34 @@ The Laws run 45069050798 gives the laws of the plan `overhead` on the Intel Xeon
 
 A test of the lab reads these files with the plan `overhead`. Each law names the subject of its base side, and its residual is absolute. Its held-out error is less than its largest value at an end of its range.
 
+### The laws of the events of alerts
+
+The Laws run 45479208486 gives the laws of the plan `alerts-start-event` on the Intel Xeon 6975P-C (CAP-36 and CAP-86). Their folder is `laws/alerts-runtime/alerts-start-event/xeon-6975p-c/main/first`: the arm `main` at the first start. The variable of each law is `event`, the events each second from 0 to 55. The README of the lab has the table of the laws, in [The load ladder of events](../lab/README.md#the-load-ladder-of-events).
+
+### The laws of the persons and the feeds of alerts
+
+The Laws run 45485195729 gives the laws of the plans `alerts-start-persons` and `alerts-start-feeds` on the Intel Xeon 6975P-C (CAP-36). Their folders are `laws/alerts-runtime/alerts-start-persons` and `laws/alerts-runtime/alerts-start-feeds`. The variables are `persons`, from 1 to 3000, and `feeds`, from 1 to 10000. The README of the lab has the table of the laws, in [The laws of the persons and the feeds](../lab/README.md#the-laws-of-the-persons-and-the-feeds).
+
+- Alerts cannot start with 10000 persons on the 1 GB target: each job reached the heap limit of V8.
+- The compositions of alerts add these laws as terms with a base, in [The compositions of alerts](#the-compositions-of-alerts).
+- The Laws run 45493330469 adds the laws `watch-heap-peak` and `watch-cores` of the two plans (CAP-37).
+
+### The laws of the log of alerts
+
+The Laws run 45507817272 gives the laws of the plan `alerts-start-log` on the Intel Xeon 6975P-C (CAP-49). Their folder is `laws/alerts-runtime/alerts-start-log/xeon-6975p-c/main/first`. The variable is `log`, from 2 MiB to 382 MiB, the range of the contract of alerts. The run fits the records of the Lab runs 45073979241 and 45080303535 again, with the measure `watchHeapPeak`.
+
+| The measure | The median reading at 16 MiB | The median reading at 188 MiB | The median reading at 382 MiB |
+| --- | --- | --- | --- |
+| `ready` | 5.8 s | Between 7.2 s and 12.9 s | 21.0 s |
+| `heapPeak` | 218 MB | Between 293 MB and 302 MB | 317 MB |
+| `watchPeak` | 371 MB | Between 449 MB and 465 MB | 497 MB |
+| `watchHeapPeak` | 188 MB | Between 188 MB and 193 MB | 206 MB |
+
+- The log does not stop a start on the 1 GB target: each start of each rung was ready.
+- The memory of the process in the watch grows with the log, but the used heap stays almost level. Thus the memory of the log is outside the heap.
+- The compositions of alerts add the laws `watch-peak` and `watch-heap-peak` as terms with a base of 16 MiB.
+- The Lab runs of the log are older than the reading `watchCores`. Thus the CPU has no law of the log. CAP-96 adds it.
+
 ## The gate of the laws
 
 The gate tells if new measured values stay in the run ranges of their laws. A pull request that makes a subject slower or larger moves its values out of the ranges. `lawGate` gives the gate, and `lawRead` gives one read.
@@ -498,7 +526,7 @@ The contract of an app is one record that each app gives to the lab and to the m
 
 | Part | What it tells |
 | --- | --- |
-| `variables` | Each load variable: its kind, its unit and its range. A `request` variable comes with each request, a `level` stays in the app, and a `store` is in the store at the start. |
+| `variables` | Each load variable: its kind, its unit and its range. A `request` variable comes with each request, a `level` stays in the app, and a `store` is in the store at the start. The run gives a `run` variable in its line `amounts`, and no workload sets it. |
 | `classes` | Each kind of request: the range of its rate, its request variables and its entry. The entry is a request of HTTP with a path template, or an outside service. |
 | `start` | The commands `install`, `check` and `seed`, and the process `run` with its ready signal and its lines. A command is a program and its arguments, with no shell. |
 | `services` | Each outside service that the app calls, and the fake that the lab starts in its place. |
@@ -515,8 +543,11 @@ The field `lines` of `start.run` names the JSON lines of the output of the run t
 | `pass` | The end of one pass of the loop of the app. The lab counts the passes in the watch after ready. |
 | `write` | One write of the snapshot. The fields `longestMs`, `writeMs`, `rowsMs`, `wallMs` and `cpuMs` give its times in milliseconds. |
 | `readings` | One collection of the live metrics. The field `readings` is a list of `SeriesReading`: `{ series, at, value }`. `collectReadings` of `@mark1russell7/otel-ts/pull` gives this list. |
+| `amounts` | The amounts of the run variables. The field `amounts` gives each run variable by its id, in its unit. The lab keeps the last line of the watch. |
 
 `APP_LINE_KINDS` is the closed set of the kinds. A run with no line of a kind gives no reading of that kind.
+
+A contract with a `run` variable has a line `amounts`. Only a store or a level variable goes into the seed as `{variable.<id>}`.
 
 ```json
 "lines": [{ "kind": "pass", "ev": "lab-pass", "title": "The end of a pass of the loop" }]
@@ -598,6 +629,20 @@ Each term gives parts, and the value is the sum of the parts.
 
 Each term can have a `factor`, a finite number other than 0. A law term over classes can have `"load": "total"`. Then the variable `rate` of the law is the total rate, not the rate of the class. Use it when the cost of one request changes with the load of the whole process. The garbage collection is an example.
 
+### A term with a base gives a change
+
+A ladder measures one level and holds the other levels at a base point. A law of that ladder gives the whole value at its level, not the part of its level. Thus two such laws do not add. A term with a `base` gives the change of its law from the base point:
+
+```json
+{ "law": "alerts-runtime/alerts-start-persons/xeon-6975p-c/main/first/watch-peak", "over": "instance", "base": { "persons": { "value": 10, "unit": "{person}" } } }
+```
+
+- The value is the law at the load point, less the law at the base point. The base point is the load point with the amounts of `base`.
+- The term gives two parts: the part at the load point, and the part at the base point with the weight times -1. The part at the base point has `base: true`.
+- The two parts read the same replicate in each row. Thus the doubt of the constant of the law cancels, and the interval is the interval of the change.
+- A demand and a state with no amount of a variable of `base` stay at the base point. Then the change is exactly 0.
+- The model of a sum of changes says that the levels add. The test of that model is CAP-67, the levels of alerts together.
+
 ### The units tell the weight of a part
 
 The weight of a part is the number that multiplies the value of its law. The quotient of the unit of the composition and the unit of the law decides it.
@@ -639,11 +684,13 @@ The sum has the laws of a linear map, and property tests hold each of them:
 - Each id is lower-case words, and the title is not empty.
 - A composition has one term or more. A list of classes is not empty, and it has each class one time.
 - A term over the instance does not read the rate of a class.
+- A base names one variable or more. Each name is a name, not `rate`, and each amount is finite.
 - A composition does not name itself.
 
 `compositionValue` also finds these problems:
 
 - A missing law or composition, and a cycle of compositions.
+- A base that names a variable that its law does not have, or an amount in a unit that does not convert.
 - Two records with one id.
 - A law with too few replicates for the level. Each problem of a part has the path of its term in front, for example `terms[0].write.rate`.
 
@@ -679,6 +726,21 @@ The CPU is in `{core}`, and the memory is in MiB. A demand has one class at the 
 - **The range of layer 2 is 100 to 8000 requests each second**, the range of the overhead laws. The laws of layer 1 go to 36000.
 
 A test reads each composition file with `readComposition`. The id of each composition is its path. It has a value at each end of the range of its laws, with no extrapolation. A test also holds the part of the runner above 0 at each end of the range.
+
+### The compositions of alerts
+
+| Composition | Its terms |
+| --- | --- |
+| `alerts-runtime/xeon-6975p-c/cpu` | The law `watch-cores` of the plans `alerts-start-event`, `alerts-start-persons` and `alerts-start-feeds`, over the instance |
+| `alerts-runtime/xeon-6975p-c/memory` | The law `watch-peak` of the three plans and of the plan `alerts-start-log`, over the instance |
+| `alerts-runtime/xeon-6975p-c/heap` | The law `watch-heap-peak` of the three plans and of the plan `alerts-start-log`, over the instance |
+
+- The law of the events gives the whole value. Its variable `event` is a level of the demand, in `{event}/s`.
+- The laws of the persons and the feeds are terms with a base: 10 persons and 10 feeds, the base point of the ladders.
+- The laws of the log are terms with a base of 16 MiB. The CPU has no term of the log yet (CAP-96).
+- A demand of alerts is `{ classes: [], levels: { event, persons, feeds, log } }`. A scale of the demand scales each level in it.
+- A level that does not grow with the load goes in the option `given` of the query. An example is 2 persons when the events grow.
+- A demand with only `event` gives the values of the compositions before CAP-37.
 
 ## An instance type
 
@@ -760,6 +822,23 @@ The folder `limits` holds the limits files that the lab gives from CI runs. The 
 | `limits/alerts-start-gate.limits.json` | The start of alerts: the used heap, the peak of the resident set and the time to ready, at two sizes of the log | The plan `alerts-start-gate` and the command `start-limits.main.ts`. The README of the lab tells them. |
 
 Each point of a start limits file holds one limit set of the format `capacity-limits/1`. A test of the lab reads the file.
+
+### The instance files
+
+The folder `instances` holds the instance files, one instance type in each file. The id of each type is its path. A test reads each file with `readInstance`.
+
+| Instance type | CPU | Memory | Heap | Where the amounts come from |
+| --- | --- | --- | --- | --- |
+| `small-cloud-1gb` | 0.25 core | 676 MB | 556 MB | A small cloud machine with 1 GB that runs alerts. Its CPU is the baseline share of a shared core. Its memory is the free memory before the start of alerts. |
+| `lab-target-1gb` | 2 cores | 1011 MB | 556 MB | The target of the lab: the limits of its container and the heap limit of V8 |
+
+The limits file `limits/alerts-scale.limits.json` holds the limits of one copy of alerts:
+
+| Limit | Ceiling | Headroom | Why |
+| --- | --- | --- | --- |
+| `cpu` | The CPU of the instance | 0.3 | The baseline of a shared core is a mean. A burst of events needs more for a short time. |
+| `memory` | The memory of the instance | 0.2 | The law gives the peak of a watch of 180 s. A longer run and a larger log give higher peaks. |
+| `heap` | The heap limit of V8 | 0.2 | The same reason as the memory |
 
 ### What an instance type and a limit do not have
 
@@ -851,6 +930,70 @@ The interval tells the doubt of the laws. It does not tell the noise of one run.
 The search reads a grid along the share of one instance, `1 / n`, on a log scale. A bisection then finds each crossing. Two crossings in one step of the grid can hide the first.
 
 Tests hold the scale rule and the reach against each other on generated demands: the count holds the load, and one instance less does not.
+
+### The scale rule of alerts
+
+The test `src/scale-files.test.ts` reads the laws, the compositions, the instance files and the limits of alerts (CAP-37). The query `countReach` gives the highest rate of events that one copy holds.
+
+| Instance type | Limits | The rate of one copy, events each second | The limit that binds first | The next limits |
+| --- | --- | --- | --- | --- |
+| `small-cloud-1gb` | The limits file | 7.86 [7.18, 8.64] | `memory` | `cpu` at 28.9, `heap` at 33.9 |
+| `small-cloud-1gb` | No headroom | 15.4 [14.1, 20.0] | `memory` | `cpu` at 42.1, `heap` at 64.0 |
+| `lab-target-1gb` | The limits file | 33.9 [24.9, 35.7] | `heap` | `memory` at 46.8, `cpu` at 63.6 |
+| `lab-target-1gb` | No headroom | 64.0 [50.2, 73.0] | `heap` | `cpu` at 72.1, `memory` at 115 |
+
+- On the small cloud machine, the memory binds first, at less than a third of the rate where the CPU binds.
+- On the lab target, the heap binds first. With no headroom, it binds at 64 [50, 73] events each second. Each job of the lab reached the heap limit at the rung 60.
+- With no headroom on the lab target, the CPU binds first in 9 % of the replicates. Near the heap limit, the law of the cores bends up.
+- Each law is of the Intel Xeon 6975P-C. The CPU of the cloud machine is a different model, thus its CPU reach is a forecast.
+- Each law is at the base point of the ladder: 16 MiB of log, 10 feeds, 10 persons and 10 incidents.
+- A reach past 55 events each second is outside the range of the laws. The rungs 60 and 70 gave no points, because each start reached the heap limit.
+
+The persons and the feeds are levels too. A query scales one level, and the option `given` holds the others.
+
+| Instance type | Limits | The load of the query | The reach of one copy | The limit that binds first | The next limits |
+| --- | --- | --- | --- | --- | --- |
+| `small-cloud-1gb` | The limits file | The events, with 2 persons and 5 feeds | 8.57 [7.76, 9.54] events each second | `memory` | `cpu` at 30.7, `heap` at 37.1 |
+| `small-cloud-1gb` | The limits file | The persons, with 0 events | 469 [391, 563] persons | `cpu` | `memory` at 704, `heap` at 2308 |
+| `small-cloud-1gb` | The limits file | The feeds, with 0 events | 3103 [2858, 3352] feeds | `memory` | `cpu` at 9071, `heap` at 9651 |
+| `small-cloud-1gb` | No headroom | The persons, with 0 events | 818 [723, 959] persons | `cpu` | `memory` at 2544, `heap` at 5016 |
+| `lab-target-1gb` | The limits file | The persons, with 0 events | 2308 [1962, 2533] persons | `heap` | `memory` at 5569 |
+| `lab-target-1gb` | No headroom | The persons, with 0 events | 5016 [4629, 5309] persons | `heap` | `memory` at 12583 |
+
+- At the base log of 16 MiB, 2 persons and 5 feeds hold more events than the base point of 10 and 10: 8.57, not 7.86.
+- The live store has a larger log. [The log](#the-log) gives the reach at the live log.
+- On the small cloud machine, the CPU of the persons binds first. The CPU of the watch grows as a power of the persons, with the exponent 0.63.
+- The CPU reach on the small cloud machine is a forecast, because the laws are of the Intel Xeon 6975P-C.
+- With no headroom on the lab target, the heap binds at 5016 [4629, 5309] persons. Each job of the lab started with 3000 persons and stopped on the heap with 10000.
+- The range of the law of the persons ends at 3000. Thus a reach past 3000 persons is an extrapolation.
+
+#### The log
+
+The log is a level too. Each query has 2 persons and 5 feeds in `given`, and the log in `given` for the events.
+
+| The log | `small-cloud-1gb`, the limits file | `small-cloud-1gb`, no headroom | `lab-target-1gb`, the limits file | `lab-target-1gb`, no headroom |
+| --- | --- | --- | --- | --- |
+| 16 MiB, the base point | 8.57 [7.76, 9.54], `memory` | 16.2 [14.7, 21.7], `memory` | 37.1 [30.8, 40.1], `heap` | 67.2 [52.3, 73.2], `heap` |
+| 64 MiB | 5.93 [5.34, 6.68], `memory` | 13.5 [12.3, 16.1], `memory` | 35.2 [28.5, 37.8], `memory` | 65.8 [51.3, 73.1], `heap` |
+| 128 MiB | 4.47 [3.83, 5.25], `memory` | 12.1 [10.9, 13.7], `memory` | 26.4 [20.3, 31.4], `memory` | 65.1 [50.3, 73.1], `heap` |
+| 188 MiB, the live store | 3.82 [3.24, 4.51], `memory` | 11.4 [10.3, 12.8], `memory` | 22.4 [18.3, 28.1], `memory` | 64.7 [49.7, 73.1], `heap` |
+| 256 MiB | 3.08 [2.52, 3.72], `memory` | 10.7 [9.60, 12.0], `memory` | 18.1 [16.8, 26.0], `memory` | 64.4 [49.2, 73.1], `heap` |
+| 382 MiB, the largest log of the contract | 1.70 [1.13, 2.35], `memory` | 9.29 [8.34, 10.4], `memory` | 16.8 [15.2, 22.8], `memory` | 64.0 [47.1, 73.1], `heap` |
+
+Each cell is the events each second of one copy and the limit that binds first.
+
+- The live store had a log of 197,156,864 B (188 MiB) on 2026-11-22. At that log, one copy on the small cloud machine holds 3.82 events each second, not 8.57.
+- With no events, each log of the contract fits on the small cloud machine. The memory binds at 538 [479, 628] MiB, past the range of the law.
+- On the lab target, the log moves the first limit from the heap to the memory at approximately 64 MiB.
+- The heap binds at almost the same rate at each log, because the used heap of the watch is almost level over the log.
+
+The rule does not tell these parts yet. CAP-37 adds them:
+
+- The test that the levels add: the events, the persons and the feeds together (CAP-67).
+- The laws of the polls, the routes, the incidents and the bursts, and the lag of the event loop (CAP-36 and CAP-68).
+- The new shared config of alerts: more sources, a score rule and a chain report. The contract of alerts names them.
+- The live load of the cloud copy, and the smallest instance type that holds it.
+- What stops a second copy of alerts. Until then, the count of copies is 1.
 
 ## The homes of the parts
 

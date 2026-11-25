@@ -52,13 +52,23 @@ export interface StartLawMeasure {
 
 /**
  * A start law set tells the laws that the start records of a plan give. The field `startLaws` of a plan holds it.
- * The variable is a variable of the subject. The size of its file in each seeded store is the value of the variable.
+ * The variable is a variable of the subject. The field `from` tells where each point gets the value of the variable.
+ *
+ * - `seed` (the default): the amount that the seed wrote in the store of the point.
+ * - `run`: the amount that the run gave in its last line `amounts`, for a run variable of the contract. No point sets it.
  */
 export interface StartLawSet {
   readonly variable: LawVariable;
+  readonly from?: StartLawSource;
   readonly measures: readonly StartLawMeasure[];
   readonly conditions?: Readonly<Record<string, ConditionValue>>;
 }
+
+/** These sources give the value of the variable of a start law: the seed of the store, or the run of the app. */
+export const START_LAW_SOURCES = ["seed", "run"] as const;
+
+/** A start law source tells where each point of a start law gets the value of its variable. */
+export type StartLawSource = (typeof START_LAW_SOURCES)[number];
 
 /** A start kind tells if a start opens the store of the seed (`first`) or the store after an earlier start (`second`). */
 export type StartKind = "first" | "second";
@@ -86,15 +96,19 @@ const startMeasureProblems = (value: unknown, path: string, seen: Set<string>, l
 };
 
 /**
- * This function examines the start law set of a plan and gives each problem that it finds. Each case must be a start case,
- * and each point of each case must have an amount of the variable. The points of a case have one amount of each other
- * variable. Otherwise a law of the variable also holds the effect of another variable. A correct set gives an empty list.
+ * This function examines the start law set of a plan and gives each problem that it finds. Each case must be a start case.
+ * For a variable from the seed, each point of each case must have an amount of the variable. The points of a case have one
+ * amount of each other variable. Otherwise a law of the variable also holds the effect of another variable. For a variable
+ * from the run, no point sets the variable, and the other variables of the points make it move. A correct set gives an empty list.
  */
 export const startLawSetProblems = (laws: unknown, cases: readonly (Case | StartCase)[]): readonly LawSetProblem[] => {
   if (!isRecord(laws)) return [{ code: "laws", path: "startLaws", message: "The start law set is not a record." }];
   const problems: LawSetProblem[] = [];
-  const { variable, measures, conditions } = laws;
+  const { variable, measures, conditions, from } = laws;
   problems.push(...variableProblems(variable, "startLaws.variable"));
+  if (from !== undefined && !START_LAW_SOURCES.includes(from as StartLawSource)) {
+    problems.push({ code: "laws", path: "startLaws.from", message: `The source of the variable is not one of ${START_LAW_SOURCES.join(", ")}.` });
+  }
   if (!Array.isArray(measures) || measures.length === 0) {
     problems.push({ code: "laws", path: "startLaws.measures", message: "The set has no measure. A start law set gives a law for one measure or more." });
   } else {
@@ -108,6 +122,12 @@ export const startLawSetProblems = (laws: unknown, cases: readonly (Case | Start
   cases.forEach((value, index) => {
     const path = `cases[${index}]`;
     if (!isStartCase(value)) return void problems.push({ code: "laws", path, message: `The case "${value.id}" is a case of load. A plan with start laws has only start cases.` });
+    if (from === "run") {
+      value.points.forEach((point, at) => {
+        if (point.at[id] !== undefined) problems.push({ code: "laws", path: `${path}.points[${at}].at`, message: `The point "${point.id}" sets the variable "${id}". The variable comes from the run, thus no point sets it.` });
+      });
+      return;
+    }
     value.points.forEach((point, at) => {
       if (point.at[id] === undefined) problems.push({ code: "laws", path: `${path}.points[${at}].at`, message: `The point "${point.id}" has no amount of the variable "${id}".` });
     });
@@ -234,9 +254,10 @@ const groupsOf = (set: StartLawSet, base: string, jobs: readonly { readonly time
         }
         const casePoint = record.case.points.find((point) => point.id === reading.point);
         const seeded = record.points.find((point) => point.id === reading.point) ?? record.points.find((point) => point.id === casePoint?.after);
-        const size = seeded?.sizes[set.variable.id];
+        const size = set.from === "run" ? reading.amounts?.[set.variable.id] : seeded?.sizes[set.variable.id];
         if (size === undefined) {
-          problems.push({ code: "read", path: `${base}/${key}`, message: `The store of the point "${reading.point}" in ${job} has no size of the variable "${set.variable.id}".` });
+          const where = set.from === "run" ? `The run of the arm "${reading.arm}" on the point "${reading.point}" in ${job} gave no amount` : `The store of the point "${reading.point}" in ${job} has no size`;
+          problems.push({ code: "read", path: `${base}/${key}`, message: `${where} of the variable "${set.variable.id}".` });
           continue;
         }
         group.points.push({ reading, x: valueIn(size, set.variable.unit), timed });
@@ -259,7 +280,8 @@ const groupsOf = (set: StartLawSet, base: string, jobs: readonly { readonly time
  * This function gives the laws of a plan from the start records of its jobs. Each CPU model gets one law for each arm, each kind
  * of start and each measure of the start law set. The id of a law is `<subject>/<plan>/<cpu>/<arm>/<start>/<law>`.
  *
- * - **The points:** each reading of an arm gives one point. The variable is the size of its file in the seeded store of the point.
+ * - **The points:** each reading of an arm gives one point. The variable is the amount in the seeded store of the point, or the
+ *   amount that the run gave for a variable from the run.
  *   A point with the field `after` is a second start. Its laws are the laws with the start `second`.
  * - **The jobs:** a job with no CI run, or with a problem in its verdict, gives no point. A law needs 40 points or more and
  *   5 jobs or more (`leastCount` and `leastGroups` of the level 0.95), because the bootstrap draws whole jobs.

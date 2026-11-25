@@ -28,11 +28,21 @@ describe("the layers of a composition", () => {
     expect([...ids].sort()).toEqual(["node-http-service/overhead/xeon-6975p-c/cpu.request.overhead", "node-http/rate/xeon-6975p-c/cpu.request"]);
   });
 
+  it("gives the laws that move with the load, with no term of a base", () => {
+    const memory = byId("alerts-runtime/xeon-6975p-c/memory");
+    const all = lawIdsOf(memory, COMPOSITIONS);
+    const load = lawIdsOf(memory, COMPOSITIONS, "load");
+    // The events give the whole value. The persons, the feeds and the log are terms with a base.
+    expect(all.length).toBe(4);
+    expect(load).toEqual(["alerts-runtime/alerts-start-event/xeon-6975p-c/main/first/watch-peak"]);
+  });
+
   it("gives the common range of the rate of the laws, or the reason for none", () => {
     expect(rateRangeOf([lawWith("a", rate(100, 36000)), lawWith("b", rate(50, 8000))])).toEqual({ min: 100, max: 8000, scale: "log" });
     expect(rateRangeOf([lawWith("a", rate(100, 200)), lawWith("b", rate(1, 300, "linear"))])).toEqual({ min: 100, max: 200, scale: "linear" });
     expect(rateRangeOf([])).toMatch(/no law/);
     expect(rateRangeOf([lawWith("a", undefined)])).toMatch(/no variable rate/);
+    expect(rateRangeOf([lawWith("a", undefined)], "event")).toMatch(/no variable event/);
     expect(rateRangeOf([lawWith("a", rate(1, 10)), lawWith("b", rate(20, 30))])).toMatch(/no common range/);
   });
 });

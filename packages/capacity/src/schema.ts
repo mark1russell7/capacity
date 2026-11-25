@@ -101,6 +101,7 @@ export const compositionSchema: z.ZodType<Composition> = z.strictObject({
         over: z.union([z.literal("instance"), z.literal("each"), z.array(z.string())]),
         load: z.enum(["class", "total"]).optional(),
         factor: factorSchema,
+        base: z.lazy(() => amountsSchema).optional(),
       }),
       z.strictObject({ composition: z.string(), factor: factorSchema }),
     ]),
@@ -210,7 +211,7 @@ export const appSchema: z.ZodType<AppContract> = z.strictObject({
   id: z.string(),
   title: z.string(),
   repository: z.string(),
-  variables: z.array(z.strictObject({ id: z.string(), title: z.string(), kind: z.enum(["request", "level", "store"]), ...rangeFields })),
+  variables: z.array(z.strictObject({ id: z.string(), title: z.string(), kind: z.enum(["request", "level", "store", "run"]), ...rangeFields })),
   classes: z.array(
     z.strictObject({
       id: z.string(),

@@ -41,15 +41,21 @@ export interface Stack {
 /** This unit is the unit of the request rate of a demand. */
 export const RATE_UNIT = "{request}/s";
 
-/** This function gives the ids of the laws that a composition reads, in its terms and in its nested compositions, each one time. */
-export const lawIdsOf = (composition: Composition, compositions: readonly Composition[]): readonly string[] => {
+/**
+ * This function gives the ids of the laws that a composition reads, in its terms and in its nested compositions, each
+ * one time. With `load`, it gives only the laws that move with the load. A term with a base reads its own level, and
+ * its change is 0 at the base point. Thus `load` leaves out each term with a base.
+ */
+export const lawIdsOf = (composition: Composition, compositions: readonly Composition[], which: "all" | "load" = "all"): readonly string[] => {
   const ids = new Set<string>();
   const seen = new Set<string>();
   const walk = (each: Composition): void => {
     if (seen.has(each.id)) return;
     seen.add(each.id);
     for (const term of each.terms) {
-      if ("law" in term) ids.add(term.law);
+      if ("law" in term) {
+        if (which === "all" || term.base === undefined) ids.add(term.law);
+      }
       else {
         const nested = compositions.find((other) => other.id === term.composition);
         if (nested !== undefined) walk(nested);
@@ -71,15 +77,18 @@ export const stackBaseOf = (composition: Composition, compositions: readonly Com
   return compositions.find((each) => each.id === nested[0]!.composition);
 };
 
-/** This function gives the range of the request rate that each law holds: the highest start and the lowest end. */
-export const rateRangeOf = (laws: readonly Law[]): RateRange | string => {
-  const variables = laws.map((law) => law.variables.find((variable) => variable.id === RATE));
+/**
+ * This function gives the range of a variable that each law holds: the highest start and the lowest end. The variable is
+ * the request rate when the caller gives no other variable.
+ */
+export const rateRangeOf = (laws: readonly Law[], variable = RATE): RateRange | string => {
+  const variables = laws.map((law) => law.variables.find((each) => each.id === variable));
   if (laws.length === 0) return "The composition reads no law.";
-  if (variables.some((each) => each === undefined)) return "A law of the composition has no variable rate.";
+  if (variables.some((each) => each === undefined)) return `A law of the composition has no variable ${variable}.`;
   const rates = variables.filter((each) => each !== undefined);
   const min = Math.max(...rates.map((each) => each.min));
   const max = Math.min(...rates.map((each) => each.max));
-  if (!(min < max)) return "The laws of the composition hold no common range of the rate.";
+  if (!(min < max)) return `The laws of the composition hold no common range of the variable ${variable}.`;
   return { min, max, scale: rates.every((each) => each.scale === "log") ? "log" : "linear" };
 };
 

@@ -6,6 +6,7 @@
 // that the lab loads first makes the import of that module by the app faster.
 
 import type * as Http from "node:http";
+import type { Quantity } from "@mark1russell7/quantity";
 
 /** This time is the interval of the probes of a ready signal `http`, in milliseconds. */
 export const READY_POLL_MS = 10;
@@ -128,20 +129,23 @@ export const lineRecorder = (kinds: readonly { readonly kind: string; readonly e
 };
 
 /**
- * This function gives the fields `passes`, `writes` and `readings` of the line of a child from the recorded lines of a run.
+ * This function gives the fields `passes`, `writes`, `readings` and `amounts` of the line of a child from the recorded lines of a run.
  * `passes` is the count of the lines `pass` from `readyAt` to `endAt`. `writes` is each line `write` up to `endAt`, with its
- * times. `readings` is each line `readings` up to `endAt`, with its readings. A run whose contract names no line of a kind
- * gives null for that field.
+ * times. `readings` is each line `readings` up to `endAt`, with its readings. `amounts` comes from the last line `amounts` up to `endAt`.
+ * It holds each run variable of `units` that the line gives as a finite number, in the unit of the variable. A run whose contract names
+ * no line of a kind gives null for that field.
  */
 export const runLineFields = (
   kinds: readonly { readonly kind: string }[],
   lines: readonly RecordedLine[],
   readyAt: number,
   endAt: number,
+  units: Readonly<Record<string, string>> = {},
 ): {
   readonly passes: number | null;
   readonly writes: readonly Readonly<Record<string, number>>[] | null;
   readonly readings: readonly LineCollection[] | null;
+  readonly amounts: Readonly<Record<string, Quantity>> | null;
 } => {
   const named = new Set(kinds.map((each) => each.kind));
   const passes = named.has("pass") ? lines.filter((line) => line.kind === "pass" && line.ms >= readyAt && line.ms <= endAt).length : null;
@@ -160,5 +164,15 @@ export const runLineFields = (
   const readings = named.has("readings")
     ? lines.filter((line) => line.kind === "readings" && line.ms <= endAt).map((line) => ({ ms: line.ms, readings: lineReadings(line.fields["readings"]) }))
     : null;
-  return { passes, writes, readings };
+  const last = named.has("amounts") ? lines.filter((line) => line.kind === "amounts" && line.ms <= endAt).at(-1) : undefined;
+  const given = last?.fields["amounts"];
+  const amounts = !named.has("amounts")
+    ? null
+    : Object.fromEntries(
+        Object.entries(units).flatMap(([id, unit]) => {
+          const value = typeof given === "object" && given !== null && !Array.isArray(given) ? (given as Readonly<Record<string, unknown>>)[id] : undefined;
+          return typeof value === "number" && Number.isFinite(value) ? [[id, { value, unit }]] : [];
+        }),
+      );
+  return { passes, writes, readings, amounts };
 };

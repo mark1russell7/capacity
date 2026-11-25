@@ -9,16 +9,19 @@ import {
   LIMIT_NAMES,
   SETTING_CHOICES,
   SUBJECT_NAMES,
+  RATE_LOAD,
   pointSentences,
   positionOf,
-  rateAt,
   scaleSubjects,
+  sliderLoadOf,
   sliderOf,
   stepsOfSlider,
+  valueAt,
   type InstanceSetting,
+  type Load,
   type Slider,
 } from "./scale.ts";
-import { RATE_UNIT, lawIdsOf, stackBaseOf, stackOf } from "./stack.ts";
+import { lawIdsOf, stackBaseOf, stackOf } from "./stack.ts";
 
 const ROADMAP = "https://github.com/metrograph-labs/capacity/blob/main/docs/ROADMAP.md";
 const STATE_TEXT = { law: "A law with its interval", measured: "Measured in CI, no law yet", none: "Not measured" } as const;
@@ -282,6 +285,7 @@ const scaleBox = byId<HTMLDivElement>("scale");
 const scaleSubject = byId<HTMLSelectElement>("scale-subject");
 const scaleRate = byId<HTMLInputElement>("scale-rate");
 const scaleRateText = byId<HTMLOutputElement>("scale-rate-text");
+const scaleEnds = [byId<HTMLSpanElement>("scale-low"), byId<HTMLSpanElement>("scale-high")] as const;
 const SETTING_SELECTS = {
   cores: byId<HTMLSelectElement>("scale-cores"),
   memory: byId<HTMLSelectElement>("scale-memory"),
@@ -296,12 +300,19 @@ for (const key of ["cores", "memory", "headroom"] as const) {
   for (const value of SETTING_CHOICES[key]) SETTING_SELECTS[key].append(new Option(SETTING_TEXT[key](value), String(value), false, value === DEFAULT_SETTING[key]));
 }
 
-/** This rate is the load of the slider before the reader moves it. */
-const DEFAULT_RATE = 5000;
-scaleRate.value = String(Math.round(positionOf(DEFAULT_RATE) * 1000));
+// The slider moves the load of the shown subject: requests each second for Node, events each second for alerts.
+let sliderLoad: Load = RATE_LOAD;
+/** This function puts the slider at the start of a load. */
+const startSlider = (load: Load): void => {
+  sliderLoad = load;
+  scaleEnds[0].textContent = amountText(load.min, load.unit);
+  scaleEnds[1].textContent = amountText(load.max, load.unit);
+  scaleRate.value = String(Math.round(positionOf(load, load.start) * 1000));
+};
+startSlider(RATE_LOAD);
 
-/** This function gives the rate of the slider, at two significant digits, thus the text and the count agree. */
-const sliderRate = (): number => Number(rateAt(Number(scaleRate.value) / 1000).toPrecision(2));
+/** This function gives the load of the slider, at two significant digits, thus the text and the count agree. */
+const sliderValue = (): number => Number(valueAt(sliderLoad, Number(scaleRate.value) / 1000).toPrecision(2));
 
 const settingOf = (): InstanceSetting => ({
   cores: Number(SETTING_SELECTS.cores.value),
@@ -310,22 +321,23 @@ const settingOf = (): InstanceSetting => ({
 });
 
 // A ladder takes most of a second to build. The page keeps each one, thus a setting that comes back is at once ready.
-const sliders = new Map<string, Slider | string>();
-let shown: { readonly slider: Slider; readonly chart: StepChart; readonly result: HTMLElement } | undefined;
+// Each one keeps its load, thus a text keeps the unit of its subject at the ends of the slider.
+const sliders = new Map<string, { readonly slider: Slider | string; readonly load: Load | undefined }>();
+let shown: { readonly slider: Slider; readonly unlimited: readonly string[]; readonly chart: StepChart; readonly result: HTMLElement } | undefined;
 
-/** This function shows the scale rule at the rate of the slider: the count, the fill of each limit and the sentences. */
+/** This function shows the scale rule at the load of the slider: the count, the fill of each limit and the sentences. */
 const showPoint = (): void => {
-  const rate = sliderRate();
-  scaleRateText.textContent = amountText(rate, RATE_UNIT);
+  const value = sliderValue();
+  scaleRateText.textContent = amountText(value, sliderLoad.unit);
   if (shown === undefined) return;
-  const { slider, chart, result } = shown;
-  const point = slider.at(rate);
+  const { slider, unlimited, chart, result } = shown;
+  const point = slider.at(value);
   if (typeof point === "string") {
     result.replaceChildren(make("p", "quiet", point));
     return;
   }
   const most = slider.ladder.most;
-  chart.mark(rate, point.count.value);
+  chart.mark(value, point.count.value);
   const count = make("div", "scale-count");
   const { low, high } = point.count.interval;
   count.append(
@@ -356,13 +368,13 @@ const showPoint = (): void => {
   const caption = make("p", "quiet scale-caption", "Each bar is the use of a resource of one instance, as a share of the part that the headroom leaves.");
   const sentences = make("div", "scale-sentences");
   sentences.id = "scale-sentences";
-  sentences.append(...pointSentences(point, slider.measured, most).map((each) => make("p", "", each)));
+  sentences.append(...pointSentences(point, slider, most, unlimited).map((each) => make("p", "", each)));
   const tiles = make("div", "scale-tiles");
   const fills = make("div", "scale-fills");
   fills.append(meters, caption);
   tiles.append(count, fills);
   result.replaceChildren(tiles, sentences);
-  if (point.extrapolated || rate > slider.measured.max) result.classList.add("past");
+  if (point.extrapolated || value > slider.measured.max) result.classList.add("past");
   else result.classList.remove("past");
 };
 
@@ -383,27 +395,32 @@ const showScale = async (cpu: string): Promise<void> => {
   const subject = subjects.find((each) => each.subject === scaleSubject.value)!;
   const setting = settingOf();
   const key = JSON.stringify([cpu, subject.subject, setting]);
-  let slider = sliders.get(key);
-  if (slider === undefined) {
+  let entry = sliders.get(key);
+  if (entry === undefined) {
     const laws = await loadLaws(subject.laws);
     scaleBox.setAttribute("aria-busy", "true");
     // The page paints its old state before the search, thus the controls do not freeze with no sign.
     await new Promise((resolve) => setTimeout(resolve, 0));
-    slider = sliderOf(subject.compositions, setting, { laws, compositions: COMPOSITIONS });
-    sliders.set(key, slider);
+    const catalog = { laws, compositions: COMPOSITIONS };
+    const load = sliderLoadOf(subject.compositions, setting, catalog);
+    entry = { slider: sliderOf(subject.compositions, setting, catalog), load: typeof load === "string" ? undefined : load };
+    sliders.set(key, entry);
     scaleBox.removeAttribute("aria-busy");
   }
   if (key !== JSON.stringify([select.value, scaleSubject.value, settingOf()])) return;
+  const { slider, load } = entry;
+  if (load !== undefined && load.id !== sliderLoad.id) startSlider(load);
   if (typeof slider === "string") {
     shown = undefined;
     scaleBox.replaceChildren(make("p", "quiet", slider));
+    showPoint();
     return;
   }
   const title = `${SUBJECT_NAMES[subject.subject] ?? subject.subject}, ${SETTING_TEXT.cores(setting.cores)} and ${SETTING_TEXT.memory(setting.memory)} for each instance`;
-  const chart = stepChart(stepsOfSlider(slider), slider.measured, slider.ladder.most, title);
+  const chart = stepChart(stepsOfSlider(slider), slider.load, slider.measured, slider.ladder.most, title);
   const result = make("div", "scale-result");
   result.setAttribute("aria-live", "polite");
-  shown = { slider, chart, result };
+  shown = { slider, unlimited: subject.unlimited, chart, result };
   scaleBox.replaceChildren(result, chart.figure);
   showPoint();
 };

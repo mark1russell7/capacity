@@ -1,9 +1,9 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { verdictOf } from "./check.ts";
-import { FLOOR_LIMITS, FLOOR_MEASURES, FLOOR_PAIRS, LOOP_FLOOR_MEASURES, floorCheck, floorPair, type FloorMeasure } from "./floor.ts";
+import { FLOOR_LIMITS, FLOOR_MEASURES, FLOOR_PAIRS, floorCheck, floorPair, type FloorMeasure } from "./floor.ts";
 import { LAG_LIMIT, caseValue, worstLag } from "./reads.ts";
-import type { CaseRecord, LoadMeasure, RunMeasure, RunRecord } from "./record.ts";
+import { LOOP_MEASURES, type CaseRecord, type LoadMeasure, type LoopMeasure, type RunMeasure, type RunRecord } from "./record.ts";
 
 /** The record of the case control/base of the Lab run 44453927945 on main. Each case of the plan floor has its load. */
 const BASE = JSON.parse(readFileSync(new URL("../test/fixtures/control-base.record.json", import.meta.url), "utf8")) as CaseRecord;
@@ -15,7 +15,7 @@ const eachRun = (record: CaseRecord, change: (run: RunRecord) => RunRecord): Cas
 const withMeasures = (run: RunRecord, measures: Partial<RunRecord["measures"]>): RunRecord => ({ ...run, measures: { ...run.measures, ...measures } });
 
 /** This function gives a copy of a record with `delta` added to the measure `name` in each run. */
-const shifted = (record: CaseRecord, name: RunMeasure | LoadMeasure, delta: number): CaseRecord =>
+const shifted = (record: CaseRecord, name: RunMeasure | LoadMeasure | LoopMeasure, delta: number): CaseRecord =>
   eachRun(record, (run) => {
     const amount = run.measures[name];
     return amount === null ? run : withMeasures(run, { [name]: { ...amount, value: amount.value + delta } } as Partial<RunRecord["measures"]>);
@@ -50,6 +50,9 @@ const twoSd = (values: readonly number[]): number => {
 
 const level = (name: FloorMeasure): number => caseValue(BASE, name) as number;
 
+/** These measures are the floor measures of the fixture: a lab before CAP-68 gives no loop measures. */
+const FIXTURE_MEASURES = FLOOR_MEASURES.filter((name) => !Object.hasOwn(LOOP_MEASURES, name));
+
 const CPU = [0.004, -0.002, 0.001, 0.003, -0.001];
 const P99 = [0.05, -0.03, 0.02, 0.04, -0.01];
 
@@ -62,29 +65,40 @@ describe("the check of the noise floor", () => {
     expect(values["cpu.request.level"]).toBeCloseTo(level("cpu.request"), 9);
     expect(values["latency.p99.floor"]).toBeCloseTo(twoSd(P99), 9);
     expect(values["latency.p99.bias"]).toBeCloseTo(0.014, 9);
-    for (const name of FLOOR_MEASURES.filter((each) => each !== "cpu.request" && each !== "latency.p99")) {
+    for (const name of FIXTURE_MEASURES.filter((each) => each !== "cpu.request" && each !== "latency.p99")) {
       expect(values[`${name}.floor`]).toBe(0);
       expect(values[`${name}.bias`]).toBe(0);
       expect(values[`${name}.level`]).toBe(level(name));
     }
     expect(values["lag.max.worst"]).toBe(worstLag([BASE]));
-    expect(Object.keys(values)).toHaveLength(3 * FLOOR_MEASURES.length + 1);
+    expect(Object.keys(values)).toHaveLength(3 * FIXTURE_MEASURES.length + 1);
   });
 
-  it("gives the floor, the level and the bias of each loop measure with no limit, and skips them for a lab before CAP-68", () => {
+  it("gives the floor, the level and the bias of each loop measure, and skips them for a lab before CAP-68", () => {
     // each run of the case b of the pair p has a lag 1000 ms larger than the case a: far above any limit
     const withLoop = (record: CaseRecord, lag: number): CaseRecord =>
       eachRun(record, (run) => withMeasures(run, { "loop.lag.mean": { value: lag, unit: "ms" }, "loop.lag.max": { value: 2 * lag, unit: "ms" }, "loop.busy": { value: 50, unit: "%" } }));
     const records = plan().map((record, index) => withLoop(record, index % 2 === 0 ? 1 : 1001 + index));
     const { values, problems } = floorCheck(records);
-    expect(problems).toEqual([]);
+    expect(problems.map((each) => `${each.code} ${each.path}`)).toEqual(["limit loop.lag.mean.floor", "limit loop.lag.max.floor"]);
     expect(values["loop.lag.mean.floor"]).toBeCloseTo(twoSd([1001, 1003, 1005, 1007, 1009]), 9);
     expect(values["loop.lag.mean.bias"]).toBeCloseTo(1005, 9);
     expect(values["loop.busy.floor"]).toBe(0);
     expect(values["loop.busy.level"]).toBe(50);
-    expect(Object.keys(values)).toHaveLength(3 * (FLOOR_MEASURES.length + LOOP_FLOOR_MEASURES.length) + 1);
+    expect(Object.keys(values)).toHaveLength(3 * FLOOR_MEASURES.length + 1);
     // the fixture is of a lab before CAP-68: no loop value, and no problem
     expect(Object.keys(floorCheck(plan()).values).filter((name) => name.startsWith("loop."))).toEqual([]);
+  });
+
+  it("accepts loop floors inside their limits", () => {
+    // the lag of the case b of the pair p is larger by 0.01 times p ms: a floor of 0.0316 ms, inside the limit of 0.399 ms
+    const withLoop = (record: CaseRecord, lag: number): CaseRecord =>
+      eachRun(record, (run) => withMeasures(run, { "loop.lag.mean": { value: lag, unit: "ms" }, "loop.lag.max": { value: 2 + lag, unit: "ms" }, "loop.busy": { value: 2, unit: "%" } }));
+    const records = plan().map((record, index) => withLoop(record, 0.02 + (index % 2) * 0.01 * Math.ceil(index / 2)));
+    const { values, problems } = floorCheck(records);
+    expect(problems).toEqual([]);
+    expect(values["loop.lag.mean.floor"]).toBeCloseTo(twoSd([0.01, 0.02, 0.03, 0.04, 0.05]), 9);
+    expect(values["loop.lag.mean.floor"]).toBeLessThan(FLOOR_LIMITS["loop.lag.mean"]);
   });
 
   it("is the check floor of the plans", () => {

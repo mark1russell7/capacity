@@ -71,10 +71,12 @@ on:
 permissions:
   contents: read
 
-# A pull request shares a group with the later workflows of its ref. A later one cancels an earlier one. Each other run
-# has its own group: a dispatch, a schedule and a push to main cancel nothing.
+# A pull request shares a group with the later workflows of its ref. A later one cancels an earlier one. Each push to
+# main shares the group lab-push and cancels nothing: GitHub keeps the run in progress and the newest run that waits. The
+# newest push holds the changes of the pushes before it, thus a burst of merges starts one run. A dispatch and a schedule
+# have their own group. The lab README tells the share of the runners ("The share of the runners").
 concurrency:
-  group: lab-${{ github.event_name }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  group: ${{ github.event_name == 'push' && 'lab-push' || format('lab-{0}-{1}', github.event_name, github.event_name == 'pull_request' && github.ref || github.run_id) }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
@@ -89,7 +91,7 @@ jobs:
       gate: ${{ steps.gate.outputs.match }}
     steps:
       - id: changes
-        uses: mark1russell7/template/.github/actions/changes@b00e6c77be906feac2a505888bab26be99d5c4c5 # main
+        uses: mark1russell7/template/.github/actions/changes@9663f978520a3cd55fe3d5823edb673753d0025a # main
         with:
           paths: |
             .github/workflows/lab.yml
@@ -101,7 +103,7 @@ jobs:
       # lockfile and in the package file of the lab), the laws and their plans, and the gate of the model. Each path is
       # also a path of the step changes. A schedule, a push and a dispatch give a match.
       - id: gate
-        uses: mark1russell7/template/.github/actions/changes@b00e6c77be906feac2a505888bab26be99d5c4c5 # main
+        uses: mark1russell7/template/.github/actions/changes@9663f978520a3cd55fe3d5823edb673753d0025a # main
         with:
           paths: |
             .github/workflows/lab.yml
@@ -338,6 +340,7 @@ jobs:
     if: ${{ !cancelled() && needs.bench-gate.result == 'success' && needs.bench-gate.outputs.again != '' && needs.bench-gate.outputs.again != '[]' }}
     strategy:
       fail-fast: false
+      # the convention of the shared runners: at most 3 jobs of a matrix at once
       max-parallel: 3
       matrix:
         include: ${{ fromJSON(needs.bench-gate.outputs.again) }}
@@ -411,7 +414,7 @@ jobs:
     timeout-minutes: 2
     permissions: {}
     steps:
-      - uses: mark1russell7/template/.github/actions/gate-summary@b00e6c77be906feac2a505888bab26be99d5c4c5 # main
+      - uses: mark1russell7/template/.github/actions/gate-summary@9663f978520a3cd55fe3d5823edb673753d0025a # main
         with:
           needs: ${{ toJSON(needs) }}
           # The job gate starts only for a selection with a gate plan. The job lab skips a dispatch of the bench only, and the

@@ -183,7 +183,7 @@ The plan `floor` has 5 A/A pairs. The two cases of a pair are equal: each one is
 
 - Each run must answer each planned request, with no failure and no unfinished request. The driver of each run must have a lag of `LAG_LIMIT` or less.
 - Each floor must be `FLOOR_LIMITS` or less. A larger floor tells that the runners became noisier.
-- The loop measures (`LOOP_FLOOR_MEASURES`) get a floor, a level and a bias, but no limit. The part 2 of CAP-68 gives their limits from 5 runs.
+- The loop measures of the subject (`loop.lag.mean`, `loop.lag.max` and `loop.busy`) get their limits from the 5 runs of the Lab run 45467258929. A record of a lab before CAP-68 has no loop measures, thus they get no floor.
 - The bias is information, not a limit.
 - A law keeps the floor of its measure in its field `noise`, with the CPU model and the runs. A difference below the floor is not a result.
 
@@ -262,7 +262,7 @@ The check `overhead` (`overheadCheck`) gives each value and each problem of the 
 - The measures are the measures of `OVERHEAD_MEASURES`: `cpu.request`, `memory`, `memory.high`, `network.rx.request`, `network.tx.request`, `latency.p50`, `latency.p90`, `latency.p99`, `loop.lag.mean`, `loop.lag.max` and `loop.busy`.
 - A pair has the cases `<pair>/bare` and `<pair>/service`, with the subjects of `OVERHEAD_SIDES` and one load. A case with no partner, another subject or another load is a problem.
 - The reply of the service subject has one more header, `content-type`. Thus `network.tx.request` has an overhead of approximately the size of that header.
-- Each subject measures the lag of its event loop (CAP-68). Thus `loop.lag.mean.overhead` is the lag that the runner adds. The law of that lag is the part 2 of CAP-68.
+- Each subject measures the lag of its event loop (CAP-68). Thus `loop.lag.mean.overhead` is the lag that the runner adds. The package `capacity` has the three loop laws on the Intel Xeon 6975P-C.
 - The plan has no trigger: a person starts it. Its time limit is 55 minutes.
 
 #### The laws of the overhead
@@ -340,6 +340,21 @@ The workflow has three steps:
 3. Each job uploads its folder as the artifact `lab-<plan>-<run>-<attempt>`.
 
 A rerun of the failed jobs of a run uploads only the artifacts of those jobs, with the next try. The other artifacts keep their first try. Thus the gates download the artifacts of all tries. With `--latest`, `gate.main.ts` and the bench gate read only the latest try of each artifact (`latestAttempts`).
+
+### The share of the runners
+
+The runners of the owner of the repository are a pool of 60 jobs, and the repositories of the owner share it. This repository uses at most 60 % of the pool: 36 jobs at one time.
+
+| Event | The group of the run | A newer run of the group |
+| --- | --- | --- |
+| A pull request | `lab-pull_request-<ref>` | It cancels the run in progress. |
+| A push to `main` | `lab-push` | It waits. GitHub keeps the run in progress and the newest run that waits. |
+| The schedule | `lab-schedule-<run>` | It cancels nothing. |
+| A dispatch | `lab-workflow_dispatch-<run>` | It cancels nothing. |
+
+- **A burst of merges.** The newest push holds the changes of each push that GitHub cancelled. Thus a burst of merges starts one run, not one run for each merge.
+- **The peak of a run.** Each matrix starts at most 3 jobs at one time (the rule `runner-budget` of `@mark1russell7/conventions`). The matrices `lab` and `bench` start together, and a gate job can run next to one of them. Thus a run has at most 7 jobs at one time.
+- **The rule.** Keep at most 3 runs of pull requests and dispatches at one time. With the run of a push, the peak is then 28 jobs, and 8 jobs stay for the other workflows. The schedule starts at 06:37 UTC, when the other runs are few.
 
 ### The folder of a run
 
@@ -556,6 +571,7 @@ The lines of the run in the contract give the passes and the writes of the snaps
 - `passes` is the count of the lines `pass` from ready to the end of the watch.
 - `writes` is each line `write` to the end of the watch, with its times. The measures `writes` to `writeCpu` read them.
 - `readings` is each line `readings` to the end of the watch, with its time and its readings. Each reading of the record keeps them in `metrics`.
+- `amounts` comes from the last line `amounts` to the end of the watch. Each reading of the record keeps the run variables in `amounts`, with their units.
 - A run with no line of a kind gives null for its field. The recorder keeps at most 100,000 lines of each kind.
 
 The lab examines the contract of each tree before the seed, with `appCaseProblems`:
@@ -626,14 +642,35 @@ The second run is the Lab run [45351701555](https://github.com/metrograph-labs/c
 - The memory binds first, not the CPU. At 48 events each second, the law of the cores gives 0.28 cores of the 2 CPUs of the target.
 - The two limits of the memory are at 48 and 52 events each second, and their intervals overlap. Thus the lab cannot tell which limit comes first.
 - The two reaches are outside the range of the fit. The failures at 100 events each second agree with them: each child reached the heap limit of V8.
-- CAP-86 replaces the rung 100 with the rungs 40, 45, 50, 55, 60 and 70. The rungs near 48 and 52 tell which limit comes first.
-- The plan then has 5 jobs of 263 minutes. The fit pools the new runs with the two runs above, because each record holds its own case.
+- CAP-86 replaces the rung 100 with the rungs 40, 45, 50, 55, 60 and 70. The rungs near 48 and 52 tell which limit comes first. The text after this list gives the result.
 - At 30 events each second, two jobs give 0.31 and 0.33 cores, two times the median of 0.155. The line still has the smallest error on the held-out jobs.
 - The rule `floor` with the share 1 gives the knees in events each second:
   - `watchCores` at 2.4 [1.4, 3.5]
   - `watchHeapPeak` at 23.0 [19.2, 25.4]
   - `watchPeak` at 33.2 [32.0, 34.3].
 - The CPU time of one event is less than the 7 ms of the first run. That value was a median over 3 CPU models.
+
+The third run is the Lab run [45449194236](https://github.com/metrograph-labs/capacity/actions/runs/45449194236), with the rungs from 40 to 70 and 5 jobs of 263 minutes (CAP-86). The run [45479208486](https://github.com/metrograph-labs/capacity/actions/runs/45479208486) of `laws.yml` fits the laws over the three runs. Each record holds its own case, thus the fit pools the runs.
+
+- Each of the 5 jobs reached the heap limit of V8 (556 MB) at the rung 60. The jobs were on three CPU models: Intel Xeon 6975P-C, AMD EPYC 9V74 and AMD EPYC 7763.
+- At the rung 55, the used heap was 451 to 465 MiB, and the peak RSS was 346 to 393 MiB. Thus no rung reached the memory limit of the target.
+- Thus the heap limit is the first limit of alerts under events, between 55 and 60 events each second.
+- The jobs on the Intel Xeon 6975P-C give 4 laws, with 93 points from 0 to 55 events each second. The other CPU models have too few jobs.
+
+| The measure | The law | The limit that it reaches |
+| --- | --- | --- |
+| `watchCores` | A hinge: 0.0116 [0.0097, 0.0159] cores, and 5.66 ms [4.35, 6.28] of CPU time for each event to the bend at 47.8 [10.0, 49.0] events each second. After the bend, 70.8 ms. | 1 core at 58.0 [57.5, 187] events each second |
+| `watchHeapPeak` | A hinge: 205.5 MB [199.1, 215.5], and 20.8 MB [13.0, 24.9] for each event each second to the bend at 6.7 [5.6, 16.8] events each second. After the bend, 3.7 MB. | The heap limit of V8 at 64 [50, 110] events each second |
+| `watchPeak` | A hinge: 400.8 MB [396.4, 405.1], and 17.8 MB [16.0, 19.7] for each event each second to the bend at 18.2 [11.7, 20.8] events each second. After the bend, 3.0 MB. | The memory limit of the target at 115 [60, 133] events each second |
+| `ready` | A hinge: 5.38 s [4.92, 5.68]. The interval of its slope holds 0. | None. The rate of events does not change the time to ready. |
+
+- The heap limit comes first. Its reach of 64 [50, 110] events each second holds the rung 60, where each job reached the limit.
+- The line of the memory of the second run was an extrapolation. The rungs past 30 show that the memory bends, and its reach moves from 48 to 115 events each second.
+- After the bend at 48 events each second, each event costs 12 times more CPU time. The GC works hard near the heap limit.
+- The rule `floor` with the share 1 gives the knees in events each second:
+  - `watchCores` at 2.1 [1.6, 3.6]
+  - `watchHeapPeak` at 24.7 [15.9, 27.7]
+  - `watchPeak` at 44.2 [35.0, 48.5].
 
 #### The load ladder of updates
 
@@ -684,10 +721,36 @@ The plans `alerts-start-feeds`, `alerts-start-persons` and `alerts-start-inciden
 
 - The target is the target of the plan `alerts-start-app`.
 - A start law set refuses a case with points that move a second variable. Otherwise a law of one variable also holds the effect of another variable.
-- The routes of alerts are the persons times the incidents and the system incidents. The ladders move one level at a time. Thus their laws do not give the interaction of the two levels (CAP-67).
+- The routes of alerts are the persons times the incidents and the system incidents. The ladders move one level at a time. Thus their laws do not give the interaction of the two levels. The grid of the routes gives it (CAP-67).
 - The plans have no trigger: a person starts them. The time limit of each plan is 151 minutes.
 - The contract accepts a log from 2,000,000 B to 400,000,000 B. Thus the log ladder stops at 400,000,000 B, and not at 512 MiB as the old plan `alerts-start`.
 - The jobs of one run can land on more than one CPU model. A law needs 5 jobs on one CPU model. Thus a ladder can need a second run of the same plan.
+
+#### The laws of the persons and the feeds
+
+The two Lab runs [45434176798](https://github.com/metrograph-labs/capacity/actions/runs/45434176798) and [45467228308](https://github.com/metrograph-labs/capacity/actions/runs/45467228308) start the ladders of the persons and the feeds, with 11 jobs for each plan (CAP-36). The run [45485195729](https://github.com/metrograph-labs/capacity/actions/runs/45485195729) of `laws.yml` fits the laws over the two runs.
+
+- **No start with 10000 persons.** Each of the 11 jobs of the plan `alerts-start-persons` reached the heap limit of V8 (556 MB) at the rung 10000. The jobs were on 5 CPU models, and the two arms failed the same way.
+- Thus alerts cannot start with 10000 persons on the 1 GB target. The persons laws stop at 3000 persons.
+- On the Intel Xeon 6975P-C, the persons give 5 jobs and 40 points, and the feeds give 7 jobs and 63 points. The other CPU models have too few jobs.
+
+| The measure | The persons, from 1 to 3000 | The feeds, from 1 to 10000 |
+| --- | --- | --- |
+| `ready` | A line: 5.25 s [5.14, 5.37], and 3.30 ms [3.24, 3.39] for each person. At 3000, 15.2 s [15.0, 15.5]. | A hinge: 5.25 s [5.06, 5.56] at 1 feed, and 21.6 s [20.2, 24.3] at 10000. |
+| `peak` | A power law with the exponent 0.68 [0.48, 1.10]: 386 MB at 1 person, and 597 MB [579, 623] at 3000. | A power law with the exponent 0.67 [0.65, 0.69]: 384 MB at 1 feed, and 702 MB [691, 714] at 10000. |
+| `heap` | A hinge: 229 MB at 1 person, and 363 MB [336, 386] at 3000. | A power law with the exponent 0.77 [0.70, 0.83]: 189 MB at 1 feed, and 391 MB [384, 398] at 10000. |
+| `heapPeak` | A hinge: 229 MB at 1 person, and 394 MB [375, 418] at 3000. | A line: 244 MB [243, 246], and 27.4 kB [26.9, 28.1] for each feed. At 10000, 519 MB [513, 525]. |
+| `watchPeak` | A power law with the exponent 0.47 [0.37, 0.64]: 382 MB at 1 person, and 696 MB [689, 711] at 3000. | A power law with the exponent 0.67 [0.64, 0.68]: 395 MB at 1 feed, and 707 MB [696, 718] at 10000. |
+| `watchHeapPeak` | A power law with the exponent 0.46 [0.36, 0.57]: 182 MB at 1 person, and 469 MB [460, 486] at 3000. | A power law with the exponent 0.76: 192 MB at 1 feed, and 439 MB [433, 447] at 10000. |
+| `watchCores` | A power law with the exponent 0.63 [0.53, 0.77]: 0.003 core at 1 person, and 0.575 core [0.52, 0.665] at 3000. | A hinge: 0.017 core at 1 feed, and 0.198 core [0.175, 0.221] at 10000. |
+
+- The law `heapPeak` of the persons reaches the heap limit at 6255 persons, outside the range of the fit. The low end of its interval is 4734 persons, and the search found no high end. The failures at 10000 agree with it.
+- The laws of the heap of the persons have wide intervals: 40 points is the least count for a law.
+- The law `heapPeak` of the feeds reaches the heap limit at 11370 [11120, 11610] feeds, a little past the top rung.
+- The law `watchPeak` reaches 676 MB at 2617 [2275, 2773] persons and at 8562 [8147, 9020] feeds. 676 MB is the memory of the small cloud machine with no headroom.
+- Each ladder holds the other levels at the base point: 10 feeds or 10 persons, 10 incidents and 16 MiB of log.
+- The Laws run [45493330469](https://github.com/metrograph-labs/capacity/actions/runs/45493330469) adds the measures `watchHeapPeak` and `watchCores` over the same two runs (CAP-37). The compositions of alerts read them.
+- The CPU of the watch grows faster with the persons than with the feeds: 0.575 core at 3000 persons, and 0.198 core at 10000 feeds.
 
 #### The start gate of alerts
 
@@ -729,6 +792,20 @@ The limits file has the format `capacity-start-limits/1`. `readStartLimits` read
 | `points[].derivations` | The result of `runLimit` for each measure: `limit`, `worst`, `spread`, the `values` of the runs, and the `unit` |
 
 A gate reads `points[].limits` with `readLimits` of `@mark1russell7/capacity`. A start passes when each measure is at its ceiling or below it.
+
+#### The grid of the routes
+
+The plan `alerts-start-routes` starts alerts on a grid of the persons and the open incidents (CAP-67). Its start law set reads the routes from the line `amounts` of the run, with `from: "run"`.
+
+| Part | The value | Why |
+| --- | --- | --- |
+| The grid | `persons`: 1, 10, 100 and 1000. `incidents`: 0, 10, 100 and 1000. The point with 1000 persons and 1000 incidents is not in the grid. | A route is one person and one open incident or the system incident. Thus the routes are `persons × (incidents + 1)`, from 1 to 101,000. |
+| The paths | 4 points give approximately 1000 routes, and 3 points give approximately 100 or 10,000 routes. | Points with the same routes and different levels tell if the routes alone give the cost of a start. |
+| The upper limit | 110,000 routes | A start of alerts with 100,100 routes has a peak memory of 868 MB. The target has 1011 MB. |
+| The other parts | The base point, the arm, the limit, the measures and the target of the ladders | The grid and the ladders meet at the base point. |
+
+- A start law set from the run accepts points that move more than one variable. No point sets the routes.
+- The job of the plan has a time limit of 224 minutes.
 
 ### The machine model
 
@@ -872,6 +949,7 @@ At each point, the ranges of the two cases overlap. At `cut-1030`, the ratio of 
 - After the heap limit, the memory limit of the target comes next. The law of `watchPeak` reaches it at 6304 [5828, 6876] persons.
 - Thus at the base point of the other levels, one instance of alerts on the target starts with at most approximately 4800 persons.
 - The rung of 10000 feeds sets the exponent of `feeds`. A fit without that rung does not predict the cliff: its held-out residuals are near 1.4.
+- The run [45507817272](https://github.com/metrograph-labs/capacity/actions/runs/45507817272) of `laws.yml` fits the two runs of the log again, with the measure `watchHeapPeak` (CAP-49). It is a logarithm: 188 MB at 16 MiB and 206 MB at the largest log.
 - The ladders move one level at a time. The laws of two levels together come with CAP-67.
 
 A person starts a plan by hand, for example with 5 runs:
@@ -886,7 +964,8 @@ The field `startLaws` of a plan tells the laws that its start records give. `sta
 
 | Field | What it is |
 | --- | --- |
-| `variable` | A variable of the subject, for example `log` in MiB. The size of its file in the seeded store of a point is the value of the variable. |
+| `variable` | A variable of the subject, for example `log` in MiB. |
+| `from` | The source of the value of the variable at each point. With `seed` (the default), the seed of the store gives it. With `run`, the line `amounts` of the run gives it. |
 | `measures` | The measures of the readings that get a law, each with its law slug, its title, its residual, its forms and its knee rule. |
 | `conditions` | The facts that the records do not hold. A name of `START_CONDITIONS` comes from the records. |
 
@@ -896,6 +975,7 @@ The field `startLaws` of a plan tells the laws that its start records give. `sta
 - The A/A pairs of the base on the CPU model and the kind of start give the noise floor of each measure.
 - A start that passed a limit of the target has no reading. The result tells it in `skipped`.
 - A plan has a law set or a start law set, not the two. A plan with a start law set has only start cases.
+- A variable from the run is a `run` variable of the contract, for example the routes of alerts. No point sets it. The other variables of the points make it move.
 
 The command `fit` of `laws.main.ts` fits the start laws of each plan with a start law set.
 
