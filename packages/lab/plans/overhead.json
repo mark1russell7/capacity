@@ -66,11 +66,7 @@
           "queue"
         ],
         "served": 0.97,
-        "tail": 10,
-        "known": {
-          "item": "CAP-57",
-          "code": "flat"
-        }
+        "tail": 10
       },
       {
         "id": "latency.p90",
