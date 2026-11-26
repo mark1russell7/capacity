@@ -255,8 +255,10 @@ jobs:
   # round starts a fresh child for the base commit, the head and a second base child, the A/A pair. The job uploads its
   # record as bench-<index>-<attempt>.
   bench:
-    needs: plan
-    if: needs.plan.outputs.bench != '[]'
+    # the bench starts after the lab and its gate: the run then takes at most 3 runner slots at once, and the lane of an
+    # open item can dispatch it while the pool is full
+    needs: [plan, lab, gate]
+    if: ${{ !cancelled() && needs.plan.result == 'success' && needs.plan.outputs.bench != '[]' }}
     strategy:
       fail-fast: false
       # the convention of the shared runners: at most 3 jobs of a matrix at once
