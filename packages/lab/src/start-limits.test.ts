@@ -10,19 +10,21 @@ import { mean, sd, tQuantile } from "@mark1russell7/rigor-statistics";
 import { describe, expect, it } from "vitest";
 import { EPYC, runOf } from "./law-fixtures.ts";
 import { planMinutes } from "./plan.ts";
-import { START_GATE_CASE as CASE, START_GATE_PLAN as PLAN, startJobsOf as jobsOf, startRecordOf as recordOf, writeStartJobs } from "./start-fixtures.ts";
+import { START_GATE_CASE as CASE, START_GATE_PLAN as PLAN, startJobsOf as jobsOf, startLimitJobsOf as limitJobsOf, startRecordOf as recordOf, writeStartJobs } from "./start-fixtures.ts";
 import { START_LIMITS_FORMAT, START_LIMIT_RUNS, readStartLimits, startLimitsOf, startLimitsSummaryOf } from "./start-limits.ts";
 import { startRecordProblems } from "./start-measure.ts";
 
 // The jobs of the tests are 5 jobs of one CI run of the plan alerts-start-gate, from `start-fixtures.ts`.
 
 const COMMAND = fileURLToPath(new URL("./start-limits.main.ts", import.meta.url));
+const ARM = CASE.arms[0]!.commit;
 
 describe("the plan of the start gate of alerts", () => {
   it("starts alerts main from its contract at the live log and at the knee, on the 1 GB target, in 5 jobs", () => {
     expect(PLAN.jobs).toBe(5);
     expect(CASE.app).toBe("https://github.com/metrograph-labs/alerts.git");
-    expect(CASE.arms).toEqual([{ id: "main", commit: CASE.seeder }]);
+    expect(CASE.arms).toEqual([{ id: "main", commit: "bfb3dae8b119b0f815e342a50a4592830263b098" }]);
+    expect(ARM).not.toBe(CASE.seeder);
     expect(CASE.points.map((each) => [each.id, each.at["log"]?.value])).toEqual([["live-1844", 197_156_864], ["knee-192", 192 * 2 ** 20]]);
     expect(CASE.target.memory).toEqual({ value: 1_011_425_280, unit: "B" });
     expect(planMinutes(PLAN)).toBeLessThanOrEqual(180);
@@ -32,9 +34,9 @@ describe("the plan of the start gate of alerts", () => {
 describe("the limits of a start gate", () => {
   it("gives the worst value of the runs plus their spread for each measure at each point, as a limit set of each point", () => {
     expect(startRecordProblems(recordOf(0))).toEqual([]);
-    const limits = startLimitsOf(PLAN, jobsOf());
-    expect(limits).toMatchObject({ format: START_LIMITS_FORMAT, plan: PLAN.id, case: CASE.id, subject: "alerts-runtime", app: CASE.app, arm: "main", commit: CASE.seeder });
-    expect(limits.runs.map((each) => each.id)).toEqual(["50/1/1", "50/2/1", "50/3/1", "50/4/1", "50/5/1"]);
+    const limits = startLimitsOf(PLAN, limitJobsOf());
+    expect(limits).toMatchObject({ format: START_LIMITS_FORMAT, plan: PLAN.id, case: CASE.id, subject: "alerts-runtime", app: CASE.app, arm: "main", commit: ARM });
+    expect(limits.runs.map((each) => each.id)).toEqual(["50/1/1", "50/2/1", "50/3/1", "51/4/1", "51/5/1"]);
     expect(limits.runs[0]).toEqual({ id: "50/1/1", url: runOf(50).url, job: "1", attempt: 1, cpu: EPYC });
     const [live, knee] = limits.points;
     expect(live?.derivations["start.live"]).toEqual({ limit: 108_002_500, worst: 104_002_500, spread: 4_000_000, values: [100_002_500, 101_002_500, 102_002_500, 103_002_500, 104_002_500], unit: "B" });
@@ -54,11 +56,12 @@ describe("the limits of a start gate", () => {
     expect(startLimitsSummaryOf(limits)).toContain("- live-1844 start.live: 108002500 B, the worst value 104002500 plus the spread 4000000.");
   });
 
-  it("reads only the jobs of the plan, and refuses fewer than 5 runs or one run two times", () => {
+  it("reads only the jobs of the plan, and refuses fewer than 5 runs, jobs of one CI run, or one run two times", () => {
     const other = { ...jobsOf(1)[0]!, timed: { ...jobsOf(1)[0]!.timed, plan: "alerts-start-log" } };
     expect(() => startLimitsOf(PLAN, [...jobsOf(4), other])).toThrow('The limits need the records of 5 or more CI runs, and 4 runs have a record of "alerts-start-gate/main".');
     expect(startLimitsOf(PLAN, [...jobsOf(4), ...jobsOf(2, 51)]).runs.map((each) => each.id)).toEqual(["50/1/1", "50/2/1", "50/3/1", "50/4/1", "51/1/1", "51/2/1"]);
     expect(() => startLimitsOf(PLAN, [...jobsOf(), ...jobsOf(1)])).toThrow("The run 50/1/1 is in the records two times.");
+    expect(() => startLimitsOf(PLAN, jobsOf())).toThrow("The limits need jobs of 2 or more CI runs, and the 5 jobs come from 1. The runners of one CI run can be quieter than usual.");
   });
 
   it("refuses a child that did not fit the target, a record of another case and a record with a problem", () => {
@@ -81,7 +84,7 @@ describe("the limits file of the start gate of alerts", () => {
     const limits = readStartLimits(LIMITS);
     expect(limits).toBeDefined();
     if (limits === undefined) return;
-    expect([limits.plan, limits.case, limits.arm, limits.commit]).toEqual([PLAN.id, CASE.id, "main", CASE.seeder]);
+    expect([limits.plan, limits.case, limits.arm, limits.commit]).toEqual([PLAN.id, CASE.id, "main", ARM]);
     expect(new Set(limits.runs.map((each) => each.id)).size).toBeGreaterThanOrEqual(START_LIMIT_RUNS);
     expect(limits.points.map((each) => each.id)).toEqual(CASE.points.map((each) => each.id));
     for (const point of limits.points) {
@@ -114,14 +117,14 @@ describe("the command of the start limits", () => {
   it("writes the limits file of the runs of a folder and reads it again", () => {
     const folder = mkdtempSync(join(tmpdir(), "capacity-start-limits-"));
     try {
-      writeStartJobs(join(folder, "runs"), jobsOf());
+      writeStartJobs(join(folder, "runs"), limitJobsOf());
       const out = join(folder, "out", "alerts-start-gate.limits.json");
       const result = spawnSync(process.execPath, [COMMAND, "limits", "--runs", join(folder, "runs"), "--out", out], { encoding: "utf8", env: { ...process.env, GITHUB_STEP_SUMMARY: "" } });
       expect(result.stderr).toBe("");
       expect(result.status).toBe(0);
-      expect(result.stdout).toContain("The limits of alerts-start-gate/main on d23377d come from 5 runs.");
+      expect(result.stdout).toContain("The limits of alerts-start-gate/main on bfb3dae come from 5 runs.");
       const written = readStartLimits(out);
-      expect(written).toEqual(JSON.parse(JSON.stringify(startLimitsOf(PLAN, jobsOf()))));
+      expect(written).toEqual(JSON.parse(JSON.stringify(startLimitsOf(PLAN, limitJobsOf()))));
       expect(readStartLimits(join(folder, "none.json"))).toBeUndefined();
       writeFileSync(join(folder, "bad.json"), JSON.stringify({ ...written, points: [{ ...written!.points[0], limits: { ...written!.points[0]!.limits, format: "other" } }] }));
       expect(() => readStartLimits(join(folder, "bad.json"))).toThrow("has a limit set with problems");

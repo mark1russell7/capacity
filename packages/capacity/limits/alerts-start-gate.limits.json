@@ -5,7 +5,7 @@
   "subject": "alerts-runtime",
   "app": "https://github.com/metrograph-labs/alerts.git",
   "arm": "main",
-  "commit": "d23377dd00cca6b70fae23ef6dd6fd06f2d52b91",
+  "commit": "bfb3dae8b119b0f815e342a50a4592830263b098",
   "seeder": "d23377dd00cca6b70fae23ef6dd6fd06f2d52b91",
   "target": {
     "image": "node:24.21.0-bookworm-slim",
@@ -26,74 +26,214 @@
   },
   "runs": [
     {
-      "id": "45362248855/1/1",
-      "url": "https://github.com/mark1russell7/capacity/actions/runs/45362248855",
+      "id": "45708635997/1/1",
+      "url": "https://github.com/metrograph-labs/capacity/actions/runs/45708635997",
       "job": "1",
       "attempt": 1,
-      "cpu": "AMD EPYC 7763 64-Core Processor"
+      "cpu": "AMD EPYC 9V45 96-Core Processor"
     },
     {
-      "id": "45362248855/2/1",
-      "url": "https://github.com/mark1russell7/capacity/actions/runs/45362248855",
+      "id": "45708635997/10/1",
+      "url": "https://github.com/metrograph-labs/capacity/actions/runs/45708635997",
+      "job": "10",
+      "attempt": 1,
+      "cpu": "Intel(R) Xeon(R) 6975P-C"
+    },
+    {
+      "id": "45708635997/2/1",
+      "url": "https://github.com/metrograph-labs/capacity/actions/runs/45708635997",
       "job": "2",
       "attempt": 1,
       "cpu": "Intel(R) Xeon(R) 6975P-C"
     },
     {
-      "id": "45362248855/3/1",
-      "url": "https://github.com/mark1russell7/capacity/actions/runs/45362248855",
+      "id": "45708635997/3/1",
+      "url": "https://github.com/metrograph-labs/capacity/actions/runs/45708635997",
       "job": "3",
       "attempt": 1,
-      "cpu": "AMD EPYC 9V74 80-Core Processor"
+      "cpu": "Intel(R) Xeon(R) 6975P-C"
     },
     {
-      "id": "45362248855/4/1",
-      "url": "https://github.com/mark1russell7/capacity/actions/runs/45362248855",
+      "id": "45708635997/4/1",
+      "url": "https://github.com/metrograph-labs/capacity/actions/runs/45708635997",
       "job": "4",
       "attempt": 1,
       "cpu": "Intel(R) Xeon(R) 6975P-C"
     },
     {
-      "id": "45362248855/5/1",
-      "url": "https://github.com/mark1russell7/capacity/actions/runs/45362248855",
+      "id": "45708635997/5/1",
+      "url": "https://github.com/metrograph-labs/capacity/actions/runs/45708635997",
       "job": "5",
       "attempt": 1,
-      "cpu": "AMD EPYC 9V74 80-Core Processor"
+      "cpu": "Intel(R) Xeon(R) 6975P-C"
     },
     {
-      "id": "45641649435/1/1",
-      "url": "https://github.com/metrograph-labs/capacity/actions/runs/45641649435",
+      "id": "45708635997/6/1",
+      "url": "https://github.com/metrograph-labs/capacity/actions/runs/45708635997",
+      "job": "6",
+      "attempt": 1,
+      "cpu": "AMD EPYC 9V45 96-Core Processor"
+    },
+    {
+      "id": "45708635997/7/1",
+      "url": "https://github.com/metrograph-labs/capacity/actions/runs/45708635997",
+      "job": "7",
+      "attempt": 1,
+      "cpu": "Intel(R) Xeon(R) 6975P-C"
+    },
+    {
+      "id": "45708635997/8/1",
+      "url": "https://github.com/metrograph-labs/capacity/actions/runs/45708635997",
+      "job": "8",
+      "attempt": 1,
+      "cpu": "Intel(R) Xeon(R) 6975P-C"
+    },
+    {
+      "id": "45708635997/9/1",
+      "url": "https://github.com/metrograph-labs/capacity/actions/runs/45708635997",
+      "job": "9",
+      "attempt": 1,
+      "cpu": "Intel(R) Xeon(R) 6975P-C"
+    },
+    {
+      "id": "45719485999/1/1",
+      "url": "https://github.com/metrograph-labs/capacity/actions/runs/45719485999",
       "job": "1",
       "attempt": 1,
       "cpu": "Intel(R) Xeon(R) 6975P-C"
     },
     {
-      "id": "45641649435/2/1",
-      "url": "https://github.com/metrograph-labs/capacity/actions/runs/45641649435",
-      "job": "2",
+      "id": "45719485999/10/1",
+      "url": "https://github.com/metrograph-labs/capacity/actions/runs/45719485999",
+      "job": "10",
       "attempt": 1,
-      "cpu": "AMD EPYC 7763 64-Core Processor"
+      "cpu": "AMD EPYC 9V45 96-Core Processor"
     },
     {
-      "id": "45641649435/3/1",
-      "url": "https://github.com/metrograph-labs/capacity/actions/runs/45641649435",
+      "id": "45719485999/2/1",
+      "url": "https://github.com/metrograph-labs/capacity/actions/runs/45719485999",
+      "job": "2",
+      "attempt": 1,
+      "cpu": "Intel(R) Xeon(R) 6975P-C"
+    },
+    {
+      "id": "45719485999/3/1",
+      "url": "https://github.com/metrograph-labs/capacity/actions/runs/45719485999",
       "job": "3",
+      "attempt": 1,
+      "cpu": "AMD EPYC 9V74 80-Core Processor"
+    },
+    {
+      "id": "45719485999/4/1",
+      "url": "https://github.com/metrograph-labs/capacity/actions/runs/45719485999",
+      "job": "4",
+      "attempt": 1,
+      "cpu": "AMD EPYC 9V74 80-Core Processor"
+    },
+    {
+      "id": "45719485999/5/1",
+      "url": "https://github.com/metrograph-labs/capacity/actions/runs/45719485999",
+      "job": "5",
+      "attempt": 1,
+      "cpu": "Intel(R) Xeon(R) 6975P-C"
+    },
+    {
+      "id": "45719485999/6/1",
+      "url": "https://github.com/metrograph-labs/capacity/actions/runs/45719485999",
+      "job": "6",
+      "attempt": 1,
+      "cpu": "Intel(R) Xeon(R) 6975P-C"
+    },
+    {
+      "id": "45719485999/7/1",
+      "url": "https://github.com/metrograph-labs/capacity/actions/runs/45719485999",
+      "job": "7",
+      "attempt": 1,
+      "cpu": "Intel(R) Xeon(R) 6975P-C"
+    },
+    {
+      "id": "45719485999/8/1",
+      "url": "https://github.com/metrograph-labs/capacity/actions/runs/45719485999",
+      "job": "8",
+      "attempt": 1,
+      "cpu": "Intel(R) Xeon(R) 6975P-C"
+    },
+    {
+      "id": "45719485999/9/1",
+      "url": "https://github.com/metrograph-labs/capacity/actions/runs/45719485999",
+      "job": "9",
+      "attempt": 1,
+      "cpu": "Intel(R) Xeon(R) 6975P-C"
+    },
+    {
+      "id": "45749050757/1/1",
+      "url": "https://github.com/metrograph-labs/capacity/actions/runs/45749050757",
+      "job": "1",
+      "attempt": 1,
+      "cpu": "AMD EPYC 9V45 96-Core Processor"
+    },
+    {
+      "id": "45749050757/10/1",
+      "url": "https://github.com/metrograph-labs/capacity/actions/runs/45749050757",
+      "job": "10",
+      "attempt": 1,
+      "cpu": "Intel(R) Xeon(R) Platinum 8370C CPU @ 2.80GHz"
+    },
+    {
+      "id": "45749050757/2/1",
+      "url": "https://github.com/metrograph-labs/capacity/actions/runs/45749050757",
+      "job": "2",
       "attempt": 1,
       "cpu": "INTEL(R) XEON(R) PLATINUM 8573C"
     },
     {
-      "id": "45641649435/4/1",
-      "url": "https://github.com/metrograph-labs/capacity/actions/runs/45641649435",
-      "job": "4",
+      "id": "45749050757/3/1",
+      "url": "https://github.com/metrograph-labs/capacity/actions/runs/45749050757",
+      "job": "3",
       "attempt": 1,
       "cpu": "Intel(R) Xeon(R) 6975P-C"
     },
     {
-      "id": "45641649435/5/1",
-      "url": "https://github.com/metrograph-labs/capacity/actions/runs/45641649435",
-      "job": "5",
+      "id": "45749050757/4/1",
+      "url": "https://github.com/metrograph-labs/capacity/actions/runs/45749050757",
+      "job": "4",
       "attempt": 1,
       "cpu": "AMD EPYC 9V74 80-Core Processor"
+    },
+    {
+      "id": "45749050757/5/1",
+      "url": "https://github.com/metrograph-labs/capacity/actions/runs/45749050757",
+      "job": "5",
+      "attempt": 1,
+      "cpu": "Intel(R) Xeon(R) 6975P-C"
+    },
+    {
+      "id": "45749050757/6/1",
+      "url": "https://github.com/metrograph-labs/capacity/actions/runs/45749050757",
+      "job": "6",
+      "attempt": 1,
+      "cpu": "INTEL(R) XEON(R) PLATINUM 8573C"
+    },
+    {
+      "id": "45749050757/7/1",
+      "url": "https://github.com/metrograph-labs/capacity/actions/runs/45749050757",
+      "job": "7",
+      "attempt": 1,
+      "cpu": "Intel(R) Xeon(R) 6975P-C"
+    },
+    {
+      "id": "45749050757/8/1",
+      "url": "https://github.com/metrograph-labs/capacity/actions/runs/45749050757",
+      "job": "8",
+      "attempt": 1,
+      "cpu": "Intel(R) Xeon(R) 6975P-C"
+    },
+    {
+      "id": "45749050757/9/1",
+      "url": "https://github.com/metrograph-labs/capacity/actions/runs/45749050757",
+      "job": "9",
+      "attempt": 1,
+      "cpu": "Intel(R) Xeon(R) 6975P-C"
     }
   ],
   "measures": [
@@ -135,6 +275,18 @@
         "incidents": {
           "value": 10,
           "unit": "{incident}"
+        },
+        "gdelt": {
+          "value": 0,
+          "unit": "{place}"
+        },
+        "score": {
+          "value": 0,
+          "unit": "{person}"
+        },
+        "chain": {
+          "value": 0,
+          "unit": "{stack}"
         }
       },
       "limits": {
@@ -148,7 +300,7 @@
             "ceiling": {
               "kind": "amount",
               "amount": {
-                "value": 179046352,
+                "value": 84081328,
                 "unit": "B"
               }
             },
@@ -160,7 +312,7 @@
             "ceiling": {
               "kind": "amount",
               "amount": {
-                "value": 636489728,
+                "value": 506028032,
                 "unit": "B"
               }
             },
@@ -172,7 +324,7 @@
             "ceiling": {
               "kind": "amount",
               "amount": {
-                "value": 18285,
+                "value": 18359,
                 "unit": "ms"
               }
             },
@@ -182,56 +334,116 @@
       },
       "derivations": {
         "start.live": {
-          "limit": 179046352,
-          "worst": 177476192,
-          "spread": 1570160,
+          "limit": 84081328,
+          "worst": 82188656,
+          "spread": 1892672,
           "values": [
-            177376168,
-            177290712,
-            176060160,
-            177117416,
-            177476192,
-            176593240,
-            177126400,
-            177376952,
-            176893408,
-            175906032
+            81690184,
+            80945640,
+            80403120,
+            80571112,
+            81038264,
+            80436736,
+            80593744,
+            81511384,
+            81236680,
+            80972648,
+            80472608,
+            81120320,
+            80295984,
+            80533152,
+            80986480,
+            80556656,
+            80928112,
+            80950520,
+            80994928,
+            80846392,
+            82188656,
+            80582312,
+            81879800,
+            80698712,
+            80518520,
+            81122576,
+            81011936,
+            80420976,
+            80486968,
+            81082200
           ],
           "unit": "B"
         },
         "start.peak": {
-          "limit": 636489728,
-          "worst": 582225920,
-          "spread": 54263808,
+          "limit": 506028032,
+          "worst": 417566720,
+          "spread": 88461312,
           "values": [
-            536932352,
-            527962112,
-            550502400,
-            577703936,
-            582225920,
-            543596544,
-            554516480,
-            549777408,
-            574562304,
-            564400128
+            396587008,
+            345755648,
+            342081536,
+            335585280,
+            343638016,
+            333754368,
+            396169216,
+            364089344,
+            363544576,
+            348418048,
+            342093824,
+            377024512,
+            329105408,
+            380751872,
+            402776064,
+            345935872,
+            358215680,
+            339656704,
+            344530944,
+            353509376,
+            417566720,
+            358584320,
+            407482368,
+            347082752,
+            379715584,
+            348327936,
+            375525376,
+            350633984,
+            341241856,
+            361037824
           ],
           "unit": "B"
         },
         "start.readiness": {
-          "limit": 18285,
-          "worst": 14342.272321,
-          "spread": 3942.596964999999,
+          "limit": 18359,
+          "worst": 14036.359652,
+          "spread": 4322.402726,
           "values": [
-            14342.272321,
-            10399.675356000002,
-            12464.981362,
-            10730.57701,
-            12371.428625999999,
-            10430.60958,
-            14053.994897,
-            13179.557719,
-            10517.197196000001,
-            11836.617647000001
+            11153.940750000002,
+            9829.701077,
+            10446.219791,
+            9838.154427000001,
+            10115.675233999998,
+            10191.691515999999,
+            10387.980966,
+            10335.954075,
+            9954.713799,
+            10557.602730999999,
+            9963.955335999999,
+            11412.383804,
+            10097.746132,
+            12152.471067,
+            12115.826167000001,
+            10575.130867,
+            10560.10957,
+            10009.305867000001,
+            10257.836786000002,
+            9713.956925999999,
+            11474.932762,
+            14036.359652,
+            13218.891036,
+            10521.288765,
+            12851.770216,
+            9979.732241,
+            11975.166435,
+            10366.849594000001,
+            10386.662076999999,
+            10074.638392
           ],
           "unit": "ms"
         }
@@ -255,6 +467,18 @@
         "incidents": {
           "value": 10,
           "unit": "{incident}"
+        },
+        "gdelt": {
+          "value": 0,
+          "unit": "{place}"
+        },
+        "score": {
+          "value": 0,
+          "unit": "{person}"
+        },
+        "chain": {
+          "value": 0,
+          "unit": "{stack}"
         }
       },
       "limits": {
@@ -268,7 +492,7 @@
             "ceiling": {
               "kind": "amount",
               "amount": {
-                "value": 179055352,
+                "value": 83816208,
                 "unit": "B"
               }
             },
@@ -280,7 +504,7 @@
             "ceiling": {
               "kind": "amount",
               "amount": {
-                "value": 641122304,
+                "value": 453791744,
                 "unit": "B"
               }
             },
@@ -292,7 +516,7 @@
             "ceiling": {
               "kind": "amount",
               "amount": {
-                "value": 16694,
+                "value": 17684,
                 "unit": "ms"
               }
             },
@@ -302,56 +526,116 @@
       },
       "derivations": {
         "start.live": {
-          "limit": 179055352,
-          "worst": 177169456,
-          "spread": 1885896,
+          "limit": 83816208,
+          "worst": 81993168,
+          "spread": 1823040,
           "values": [
-            175986896,
-            177169456,
-            176673096,
-            176843728,
-            177075584,
-            177079896,
-            177056776,
-            175283560,
-            175486152,
-            176706336
+            80952696,
+            80891088,
+            81196976,
+            80210688,
+            80170128,
+            80928024,
+            80905760,
+            80881952,
+            80862512,
+            80229912,
+            80464680,
+            80391048,
+            80259136,
+            80926824,
+            80426808,
+            80827792,
+            80367064,
+            80982360,
+            80356728,
+            80945960,
+            80965880,
+            80992160,
+            81993168,
+            80312064,
+            80917192,
+            80432696,
+            81021568,
+            81049648,
+            80522552,
+            80919912
           ],
           "unit": "B"
         },
         "start.peak": {
-          "limit": 641122304,
-          "worst": 583118848,
-          "spread": 58003456,
+          "limit": 453791744,
+          "worst": 393715712,
+          "spread": 60076032,
           "values": [
-            525115392,
-            548483072,
-            546807808,
-            560148480,
-            583118848,
-            566521856,
-            560766976,
-            559296512,
-            535613440,
-            575045632
+            393715712,
+            362401792,
+            373977088,
+            338993152,
+            342323200,
+            345481216,
+            391258112,
+            356900864,
+            356241408,
+            343855104,
+            352866304,
+            372178944,
+            346689536,
+            375197696,
+            367636480,
+            333639680,
+            344649728,
+            349560832,
+            379613184,
+            366424064,
+            388128768,
+            363720704,
+            392069120,
+            349745152,
+            361730048,
+            341442560,
+            381407232,
+            348053504,
+            345272320,
+            355397632
           ],
           "unit": "B"
         },
         "start.readiness": {
-          "limit": 16694,
-          "worst": 13983.279086,
-          "spread": 2710.070812,
+          "limit": 17684,
+          "worst": 14140.119885,
+          "spread": 3543.2548669999996,
           "values": [
-            13636.003485000001,
-            11682.243943,
-            12933.575283999999,
-            11898.999413000001,
-            12639.630884,
-            12021.434884999999,
-            13983.279086,
-            12513.568278,
-            11273.208274,
-            12256.036379
+            11762.912035000001,
+            11393.035475,
+            11808.82694,
+            10914.482202,
+            11365.552047000001,
+            11361.506723,
+            12363.203329000002,
+            11198.26699,
+            12205.579825,
+            11731.567691,
+            11421.060312999998,
+            11663.063423,
+            11984.317041,
+            12323.521835999998,
+            12724.19867,
+            11535.363576,
+            12357.819393999998,
+            11513.175041999999,
+            11542.953677,
+            11425.333116000002,
+            11665.621155,
+            14140.119885,
+            13120.436552,
+            12298.306402,
+            13035.837587,
+            11124.158681,
+            12310.621389,
+            11539.871654,
+            11039.966868999998,
+            10596.865018
           ],
           "unit": "ms"
         }

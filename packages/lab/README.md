@@ -786,6 +786,7 @@ node src/start-limits.main.ts limits --runs runs --out ../capacity/limits/alerts
 - **The value of a run.** At a point, it is the largest reading of `main` and `main~aa`, over the rounds of the run.
 - **The limit.** It is `runLimit` of `@mark1russell7/rigor-bench`: the worst value of the runs plus their spread, rounded up to a whole unit.
 - **The refusals.** The command refuses fewer than 5 runs, a record of another version of the case, and a record with a problem.
+- **Two CI runs or more.** The command also refuses runs that all come from one CI run. The runners of one CI run can be quieter than usual. On 2026-11-25, one CI run of 10 runs gave a readiness SD of 0.4 s, and three others gave 0.8 to 1.6 s.
 - **No start that does not fit.** The command refuses a run with a child that passed a limit of the target. A gate holds a start that fits.
 
 #### The false fails of the start gate
@@ -794,21 +795,24 @@ A false fail is a block of the gate when the app did not change (CAP-100). The g
 
 The estimate uses the t law of the runs at one commit. The chance that one more run is above the limit comes from the mean, the standard deviation and the count of the runs.
 
-| Point | Measure | Chance of a block in a gate, limits from 5 runs | Chance of a block in a gate, limits from 10 runs |
-| --- | --- | --- | --- |
-| `live-1844` | `start.live` | 2.1 % | 1.4 % |
-| `live-1844` | `start.peak` | 0.6 % | 0.6 % |
-| `live-1844` | `start.readiness` | 0.8 % | 0.8 % |
-| `knee-192` | `start.live` | 8.4 % | 1.8 % |
-| `knee-192` | `start.peak` | 0.3 % | 0.3 % |
-| `knee-192` | `start.readiness` | 1.7 % | 0.3 % |
-| All | All | 13 % | 5 % |
+| Point | Measure | Limits from 5 runs | Limits from 10 runs (before AL-172) | Limits from 30 runs in 3 CI runs |
+| --- | --- | --- | --- | --- |
+| `live-1844` | `start.live` | 2.1 % | 1.4 % | below 0.01 % |
+| `live-1844` | `start.peak` | 0.6 % | 0.6 % | below 0.01 % |
+| `live-1844` | `start.readiness` | 0.8 % | 0.8 % | below 0.01 % |
+| `knee-192` | `start.live` | 8.4 % | 1.8 % | below 0.01 % |
+| `knee-192` | `start.peak` | 0.3 % | 0.3 % | below 0.01 % |
+| `knee-192` | `start.readiness` | 1.7 % | 0.3 % | below 0.01 % |
+| All | All | 13 % | 5 % | below 0.01 % |
 
-- **The cause.** The spread of `start.live` is small: 0.6 to 0.7 MB on 177 MB. Thus 5 runs give a limit only 2.5 standard deviations above the mean.
-- **The 10 runs.** The limits file comes from the 5 runs of the Lab run 45362248855 and the 5 runs of the proof run 45641649435. All 10 runs measure alerts at `d23377d`.
-- **The case of the runs.** The records measure the case before the levels of AL-160. Thus the command ran at the commit `42b61e2`, before PR 136.
+- **The cause.** The spread of `start.live` is small: 0.4 to 0.7 MB. Thus 5 runs give a limit only 2.5 standard deviations above the mean.
+- **The change of the app.** AL-172 of alerts decreased `start.live` from 177 MB to 81 MB. The old limits (179 MB) did not hold the gain. Thus the limits come again from runs at alerts `bfb3dae`, after AL-172.
+- **The limits.** `start.live` is 84.1 MB at `live-1844` and 83.8 MB at `knee-192`. A growth of 2 MB or more blocks the gate.
+- **The 30 runs.** The runs come from 3 CI runs of 10 runs each (45708635997, 45719485999 and 45749050757), at different times of the day.
+- **The runners of one CI run.** The spread of `start.readiness` changes between the CI runs: 0.4 s, 0.9 s and 1.5 s at `live-1844`. A limit from the quiet CI run alone blocks 4 of 16 PR gates of alerts. Thus the limits command refuses runs of fewer than 2 CI runs.
+- **The direct count.** The 16 PR gates of alerts at the commits from `8230423` to `18f3086` reached 15.5 s and 82.2 MB at most. Each one is below the new limits.
 - **The gate of the margin.** A test puts each limit above the t bound of one more run, at the tail 0.005. A limit from 5 runs does not pass it.
-- **What the estimate does not tell.** A normal law gives a rate of 2.5 % for the limits from 5 runs. More proof runs at the same commit give a direct count.
+- **What the estimate does not tell.** The t law takes the 30 runs as one law. The runners of a CI run change the law, thus the real rate is higher. The direct count of the PR gates is the better measure.
 - **The time.** The limit of the time uses `readiness`, and not `ready`. The ready probe of a live start measures from the start of the process.
 
 The limits file has the format `capacity-start-limits/1`. `readStartLimits` reads it.

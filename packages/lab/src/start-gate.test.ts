@@ -7,16 +7,17 @@ import { quantity } from "@mark1russell7/quantity";
 import { escapeMarkdown } from "@mark1russell7/text";
 import { describe, expect, it } from "vitest";
 import { armCommitOf, matrixOf, planMinutes, withArmCommit } from "./plan.ts";
-import { START_GATE_CASE as CASE, START_GATE_PLAN as PLAN, startJobsOf, writeStartJobs } from "./start-fixtures.ts";
+import { START_GATE_CASE as CASE, START_GATE_PLAN as PLAN, startJobsOf, startLimitJobsOf, writeStartJobs } from "./start-fixtures.ts";
 import { startGateOf, startGateSummaryOf } from "./start-gate.ts";
 import { START_LIMIT_MEASURES, startCaseOf, startLimitsOf } from "./start-limits.ts";
 import type { StartRecord } from "./start-measure.ts";
 
-// The limits come from 5 jobs of the CI run 50 at the commit of the seeder. The gate reads jobs of the CI run 60, with
+// The limits come from 5 jobs of the CI runs 50 and 51 at the commit of the arm of the plan. The gate reads jobs of the CI run 60, with
 // the arm main at the commit HEAD. The jobs of the run 60 have the values of the run 50, thus each value holds its limit.
 
 const HEAD = "a".repeat(40);
-const LIMITS = startLimitsOf(PLAN, startJobsOf());
+const ARM = CASE.arms[0]!.commit;
+const LIMITS = startLimitsOf(PLAN, startLimitJobsOf());
 const ARMED = startCaseOf(withArmCommit(PLAN, { arm: "main", commit: HEAD }), CASE.id);
 const COMMAND = fileURLToPath(new URL("./start-gate.main.ts", import.meta.url));
 
@@ -42,9 +43,9 @@ describe("the arm commit of a plan", () => {
     expect(value.arms).toEqual([{ id: "main", commit: HEAD }]);
     expect(value.seeder).toBe(CASE.seeder);
     expect(PLAN.cases[0]).toBe(CASE);
-    expect(planMinutes(armed)).toBeGreaterThan(planMinutes(PLAN));
+    expect(planMinutes(armed)).toBeGreaterThan(planMinutes(withArmCommit(PLAN, { arm: "main", commit: CASE.seeder })));
     expect(matrixOf([armed]).include.map((each) => each.minutes)).toEqual(Array.from({ length: 5 }, () => planMinutes(armed)));
-    expect(withArmCommit(PLAN, { arm: "main", commit: CASE.seeder })).toEqual(PLAN);
+    expect(withArmCommit(PLAN, { arm: "main", commit: ARM })).toEqual(PLAN);
     expect(() => withArmCommit(PLAN, { arm: "other", commit: HEAD })).toThrow('The plan "alerts-start-gate" has no start case with the arm "other".');
   });
 });
@@ -52,14 +53,14 @@ describe("the arm commit of a plan", () => {
 describe("the start gate", () => {
   it("passes when each run holds each limit at each point, with the use of each limit", () => {
     const gate = startGateOf(LIMITS, PLAN, headJobsOf(), { commit: HEAD });
-    expect(gate).toMatchObject({ case: CASE.id, arm: "main", commit: HEAD, limitsCommit: CASE.seeder, outcome: "pass", findings: [] });
+    expect(gate).toMatchObject({ case: CASE.id, arm: "main", commit: HEAD, limitsCommit: ARM, outcome: "pass", findings: [] });
     expect(gate.runs.map((each) => each.id)).toEqual(["60/1/1", "60/2/1", "60/3/1", "60/4/1", "60/5/1"]);
     expect(gate.uses).toHaveLength(5 * CASE.points.length * START_LIMIT_MEASURES.length);
     expect(gate.uses.every((each) => each.use.holds)).toBe(true);
     const worst = gate.uses.find((each) => each.run === "60/5/1" && each.point === "live-1844" && each.use.measure === "start.live");
     expect(worst?.use).toMatchObject({ value: quantity(104_002_500, "B"), amount: quantity(108_002_500, "B") });
     const summary = startGateSummaryOf(gate);
-    expect(summary).toContain("The arm main at aaaaaaa, against the limits of d23377d, in 5 runs: pass: each run holds each limit at each point.");
+    expect(summary).toContain("The arm main at aaaaaaa, against the limits of bfb3dae, in 5 runs: pass: each run holds each limit at each point.");
     expect(summary).toContain(`| ${escapeMarkdown("60/5/1")} | ${escapeMarkdown("live-1844")} | ${escapeMarkdown("start.live")} | 104002500 B | 108002500 B | 0.963 |`);
   });
 
