@@ -772,9 +772,9 @@ The plan `alerts-start-gate` gives the limits of the start of alerts (CAP-49). T
 | Part | The value | Why |
 | --- | --- | --- |
 | The arm | One arm `main`: alerts main at one commit, with its A/A copy | The gate holds the start of the current build. The A/A copy adds readings of the same build. |
-| The points | `live-1844` at 197,156,864 B of log, and `knee-192` at 192 MiB of log. Each point has 10 feeds, 10 persons and 10 incidents. | `live-1844` is the log of the live store when its starts stopped. `knee-192` is the knee of `ready` over the log. |
+| The points | `live-1844` at 197,156,864 B of log, and `knee-192` at 192 MiB of log. Each of the two has 10 feeds, 10 persons and 10 incidents. `routes-40000` has 16 MiB of log, 10 feeds, 1000 persons and 40 open incidents. | `live-1844` is the log of the live store when its starts stopped. `knee-192` is the knee of `ready` over the log. `routes-40000` is the limit of the routes (CAP-99). |
 | The target | The 1 GB target of the plan `alerts-start-app` | This is the machine of the observations. |
-| The rounds | 3 rounds, in 5 jobs | Each job starts 12 children. The time limit of each job is 119 minutes. |
+| The rounds | 3 rounds, in 5 jobs | Each job starts 18 children. The time limit of each job is 160 minutes. |
 
 `startLimitsOf(plan, jobs)` gives the limits from the jobs of 5 or more CI runs. Each job is one run. The command writes them:
 
@@ -795,20 +795,24 @@ A false fail is a block of the gate when the app did not change (CAP-100). The g
 
 The estimate uses the t law of the runs at one commit. The chance that one more run is above the limit comes from the mean, the standard deviation and the count of the runs.
 
-| Point | Measure | Limits from 5 runs | Limits from 10 runs (before AL-172) | Limits from 30 runs in 3 CI runs |
-| --- | --- | --- | --- | --- |
-| `live-1844` | `start.live` | 2.1 % | 1.4 % | below 0.01 % |
-| `live-1844` | `start.peak` | 0.6 % | 0.6 % | below 0.01 % |
-| `live-1844` | `start.readiness` | 0.8 % | 0.8 % | below 0.01 % |
-| `knee-192` | `start.live` | 8.4 % | 1.8 % | below 0.01 % |
-| `knee-192` | `start.peak` | 0.3 % | 0.3 % | below 0.01 % |
-| `knee-192` | `start.readiness` | 1.7 % | 0.3 % | below 0.01 % |
-| All | All | 13 % | 5 % | below 0.01 % |
+| Point | Measure | Limits from 5 runs | Limits from 10 runs (before AL-172) | Limits from 30 runs in 3 CI runs | Limits with `routes-40000` (CAP-99) |
+| --- | --- | --- | --- | --- | --- |
+| `live-1844` | `start.live` | 2.1 % | 1.4 % | below 0.01 % | below 0.01 % |
+| `live-1844` | `start.peak` | 0.6 % | 0.6 % | below 0.01 % | below 0.01 % |
+| `live-1844` | `start.readiness` | 0.8 % | 0.8 % | below 0.01 % | below 0.01 % |
+| `knee-192` | `start.live` | 8.4 % | 1.8 % | below 0.01 % | below 0.01 % |
+| `knee-192` | `start.peak` | 0.3 % | 0.3 % | below 0.01 % | 0.04 % |
+| `knee-192` | `start.readiness` | 1.7 % | 0.3 % | below 0.01 % | below 0.01 % |
+| `routes-40000` | `start.live` | | | | below 0.01 % |
+| `routes-40000` | `start.peak` | | | | below 0.01 % |
+| `routes-40000` | `start.readiness` | | | | below 0.01 % |
+| All | All | 13 % | 5 % | below 0.01 % | 0.04 % |
 
 - **The cause.** The spread of `start.live` is small: 0.4 to 0.7 MB. Thus 5 runs give a limit only 2.5 standard deviations above the mean.
-- **The change of the app.** AL-172 of alerts decreased `start.live` from 177 MB to 81 MB. The old limits (179 MB) did not hold the gain. Thus the limits come again from runs at alerts `bfb3dae`, after AL-172.
-- **The limits.** `start.live` is 84.1 MB at `live-1844` and 83.8 MB at `knee-192`. A growth of 2 MB or more blocks the gate.
-- **The 30 runs.** The runs come from 3 CI runs of 10 runs each (45708635997, 45719485999 and 45749050757), at different times of the day.
+- **The change of the app.** AL-172 of alerts decreased `start.live` from 177 MB to 81 MB. The old limits (179 MB) did not hold the gain. Thus the limits came again from runs at alerts `bfb3dae`, after AL-172.
+- **The limits.** `start.live` is 84.9 MB at `live-1844`, 84.2 MB at `knee-192` and 146.6 MB at `routes-40000`. A growth of 2 MB or more blocks the gate.
+- **The 30 runs.** The limits of CAP-99 come from 3 CI runs of 10 runs each (45826996960, 45843984727 and 45861568833), at alerts `a1709b9` with the seeder `3195eba`. Each of the 540 starts was ready. The limits before them came from the CI runs 45708635997, 45719485999 and 45749050757, at alerts `bfb3dae`.
+- **The step of AL-184.** The 11 gate runs of alerts on 2026-11-26 show a step of `start.live`. The heads before AL-184 have a job mean of 81.2 to 81.5 MB, and the heads after it have 82.1 to 82.4 MB. The heads of alerts main after AL-184 use 0.987 of a limit at most. The run 45866774641 of a branch with more growth uses 1.002, thus the new limits block it too.
 - **The runners of one CI run.** The spread of `start.readiness` changes between the CI runs: 0.4 s, 0.9 s and 1.5 s at `live-1844`. A limit from the quiet CI run alone blocks 4 of 16 PR gates of alerts. Thus the limits command refuses runs of fewer than 2 CI runs.
 - **The direct count.** The 16 PR gates of alerts at the commits from `8230423` to `18f3086` reached 15.5 s and 82.2 MB at most. Each one is below the new limits.
 - **The gate of the margin.** A test puts each limit above the t bound of one more run, at the tail 0.005. A limit from 5 runs does not pass it.

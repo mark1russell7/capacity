@@ -835,7 +835,7 @@ The folder `limits` holds the limits files that the lab gives from CI runs. The 
 
 | File | The gate | How the lab gives it |
 | --- | --- | --- |
-| `limits/alerts-start-gate.limits.json` | The start of alerts: the used heap, the peak of the resident set and the time to ready, at two sizes of the log | The plan `alerts-start-gate` and the command `start-limits.main.ts`. The README of the lab tells them. |
+| `limits/alerts-start-gate.limits.json` | The start of alerts: the used heap, the peak of the resident set and the time to ready, at two sizes of the log and at 40000 routes | The plan `alerts-start-gate` and the command `start-limits.main.ts`. The README of the lab tells them. |
 
 Each point of a start limits file holds one limit set of the format `capacity-limits/1`. A test of the lab reads the file.
 
