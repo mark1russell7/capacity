@@ -211,9 +211,12 @@ describe("the plans of the levels of alerts", () => {
       expect(plan?.startLaws?.variable.id).toBe(level);
       expect(plan?.cases).toHaveLength(1);
       const value = plan?.cases[0] as StartCase;
-      expect(value.points).toHaveLength(9);
-      expect(new Set(value.points.map((each) => valueIn(each.at[level]!, plan!.startLaws!.variable.unit))).size).toBe(9);
-      return value.points.find((each) => each.id === base);
+      // A rung is a first start. The log ladder also has a second start after each rung (CAP-107).
+      const rungs = value.points.filter((each) => each.after === undefined);
+      expect(rungs).toHaveLength(9);
+      expect(value.points.length - rungs.length).toBe(level === "log" ? 9 : 0);
+      expect(new Set(rungs.map((each) => valueIn(each.at[level]!, plan!.startLaws!.variable.unit))).size).toBe(9);
+      return rungs.find((each) => each.id === base);
     });
     // the four ladders meet at one base point, thus their readings there can be compared
     expect(bases.every((each) => each !== undefined)).toBe(true);
