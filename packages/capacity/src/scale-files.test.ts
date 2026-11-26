@@ -80,24 +80,20 @@ describe("the scale rule of alerts", () => {
     expect(ALERTS.map((composition) => composition.measure.id).sort()).toEqual(limits.limits.map((limit) => limit.measure).sort());
   });
 
-  it("gives the reach of the README on the lab target with no headroom: the heap at 64 events each second", () => {
-    // The laws reach the heap limit of V8 at 64 [50, 109] events each second. Each job of the lab reached it at the rung 60.
+  it("gives no reach on the lab target with no headroom inside the event laws, which end at 70 events each second", () => {
+    // A start that reaches the heap limit of V8 gives no reading. 5 starts of 2 Lab runs did at the rungs 60 and 70, thus the
+    // heap laws of the events see only the starts that fit. The reach of the laws is past 70: it is no value (CAP-103).
     const reach = reachOf(alertsOn("lab-target-1gb", limits.limits.map((limit) => ({ ...limit, headroom: 0 }))));
-    expect(reach.binding).toBe("heap");
-    expect(factorOf(reach.factor)).toBeCloseTo(64.0, 1);
-    expect(reach.factor.interval.low).toBeLessThan(60);
-    expect(reach.factor.interval.high).toBeGreaterThan(60);
-    const memory = reach.limits.find((each) => each.limit === "memory")!;
-    expect(factorOf(memory.factor)).toBeGreaterThan(factorOf(reach.factor));
+    expect(reach.factor.interval.low).toBeGreaterThan(70);
   }, QUERY_TIME);
 
-  it("gives the memory as the first limit of one copy on the small cloud machine, at 7.9 events each second", () => {
-    // 676 MB free for the app, less 20 % of headroom, is 541 MB. The memory law gives 401 MB and 17.8 MB for each event each second.
+  it("gives the memory as the first limit of one copy on the small cloud machine, at 18.4 events each second", () => {
+    // 676 MB free for the app, less 20 % of headroom, is 541 MB. The memory law gives 289 MB and 13.7 MB for each event each second.
     const reach = reachOf(alertsOn("small-cloud-1gb"));
     expect(reach.binding).toBe("memory");
-    expect(factorOf(reach.factor)).toBeCloseTo(7.86, 1);
-    expect(reach.factor.interval.low).toBeGreaterThan(7.1);
-    expect(reach.factor.interval.high).toBeLessThan(8.7);
+    expect(factorOf(reach.factor)).toBeCloseTo(18.36, 1);
+    expect(reach.factor.interval.low).toBeGreaterThan(15.9);
+    expect(reach.factor.interval.high).toBeLessThan(21.6);
     // The CPU of 0.25 core binds much later. That law is of the lab CPU, thus the value is an extrapolation.
     const cpu = reach.limits.find((each) => each.limit === "cpu")!;
     expect(factorOf(cpu.factor)).toBeGreaterThan(2 * factorOf(reach.factor));
@@ -108,23 +104,23 @@ describe("the scale rule of alerts", () => {
     // A level that does not grow with the load is a state of the instance, thus it is in given.
     const reach = reachOf(alertsOn("small-cloud-1gb"), ONE_EVENT, { persons: { value: 2, unit: "{person}" }, feeds: { value: 5, unit: "{feed}" } });
     expect(reach.binding).toBe("memory");
-    expect(factorOf(reach.factor)).toBeCloseTo(8.57, 1);
+    expect(factorOf(reach.factor)).toBeCloseTo(18.91, 1);
     expect(factorOf(reach.factor)).toBeGreaterThan(factorOf(reachOf(alertsOn("small-cloud-1gb")).factor));
   }, 2 * QUERY_TIME);
 
   it("gives fewer events at the log of the live store, 197,156,864 B, than at the base log of 16 MiB", () => {
-    // The memory of the watch grows with the log: 371 MB at 16 MiB, and approximately 455 MB at 188 MiB.
+    // The memory of the watch grows as the logarithm of the log: 43 MB more at 188 MiB than at 16 MiB, thus 3.1 events each second less.
     const live = { persons: { value: 2, unit: "{person}" }, feeds: { value: 5, unit: "{feed}" } };
     const reach = reachOf(alertsOn("small-cloud-1gb"), ONE_EVENT, { ...live, log: { value: 197_156_864, unit: "B" } });
     expect(reach.binding).toBe("memory");
-    expect(factorOf(reach.factor)).toBeCloseTo(3.82, 1);
-    expect(reach.factor.interval.low).toBeGreaterThan(3.1);
-    expect(reach.factor.interval.high).toBeLessThan(4.7);
-    expect(factorOf(reach.factor)).toBeLessThan(factorOf(reachOf(alertsOn("small-cloud-1gb"), ONE_EVENT, live).factor) / 2);
+    expect(factorOf(reach.factor)).toBeCloseTo(15.81, 1);
+    expect(reach.factor.interval.low).toBeGreaterThan(13.6);
+    expect(reach.factor.interval.high).toBeLessThan(18.6);
+    expect(factorOf(reach.factor)).toBeLessThan(factorOf(reachOf(alertsOn("small-cloud-1gb"), ONE_EVENT, live).factor) - 2.5);
   }, 2 * QUERY_TIME);
 
-  it("gives 473 MB of memory and 203 MB of used heap to the live setup at 0.01 event each second", () => {
-    // These values are the prediction of the rule for the cloud copy. The 24 h series of the cloud memory tests them.
+  it("gives 324 MB of memory and 122 MB of used heap to the live setup at 0.01 event each second", () => {
+    // The cloud copy on a build after AL-172 had a resident set of 312 to 406 MB in 12 h of the 24 h series (AL-190).
     const live: Amounts = { persons: { value: 2, unit: "{person}" }, feeds: { value: 5, unit: "{feed}" }, log: { value: 197_156_864, unit: "B" } };
     const demand: Demand = { classes: [], levels: { event: { value: 0.01, unit: "{event}/s" } } };
     const valueOf = (measure: string) => {
@@ -133,28 +129,37 @@ describe("the scale rule of alerts", () => {
       return value.value;
     };
     const memory = valueOf("memory");
-    expect(Math.round(memory.value / 1e6)).toBe(473);
-    expect(memory.interval.low / 1e6).toBeGreaterThan(461);
-    expect(memory.interval.high / 1e6).toBeLessThan(485);
+    expect(Math.round(memory.value / 1e6)).toBe(324);
+    expect(memory.interval.low / 1e6).toBeGreaterThan(315);
+    expect(memory.interval.high / 1e6).toBeLessThan(332);
     expect(memory.extrapolated).toBe(false);
-    expect(Math.round(valueOf("heap").value / 1e6)).toBe(203);
+    expect(Math.round(valueOf("heap").value / 1e6)).toBe(122);
   }, QUERY_TIME);
 
   it("holds each log of the contract with no events on the small cloud machine", () => {
-    // The log law ends at 382 MiB, the largest log of the contract. The reach is past it, thus each log of the range fits.
-    const reach = reachOf(alertsOn("small-cloud-1gb"), { classes: [], levels: { log: { value: 1, unit: "MiB" } } }, { event: { value: 0, unit: "{event}/s" }, persons: { value: 2, unit: "{person}" }, feeds: { value: 5, unit: "{feed}" } });
-    expect(reach.binding).toBe("memory");
-    expect(reach.factor.interval.low).toBeGreaterThan(382.1875);
+    // The log law ends at 382 MiB, the largest log of the contract. The memory there is 336 MB, below the limit of 541 MB.
+    const given: Amounts = { persons: { value: 2, unit: "{person}" }, feeds: { value: 5, unit: "{feed}" }, log: { value: 382.1875, unit: "MiB" } };
+    const memory = compositionValue(ALERTS.find((each) => each.measure.id === "memory")!, { laws, compositions }, { classes: [], levels: { event: { value: 0, unit: "{event}/s" } } }, { given });
+    if (memory.tag !== "ok") throw new Error(memory.error.message);
+    expect(memory.value.extrapolated).toBe(false);
+    expect(memory.value.interval.high / 1e6).toBeLessThan(345);
   }, QUERY_TIME);
 
-  it("gives the CPU as the first limit of the persons on the small cloud machine, at 469 persons with no events", () => {
-    // The CPU of the watch grows as a power of the persons: 0.57 core at 3000 persons. 0.25 core, less 30 % of headroom, is 0.175 core.
+  it("holds 1000 open incidents at the live setup with no events on the small cloud machine", () => {
+    // The incidents law ends at 1000. The memory there is 408 MB. The CPU of the watch binds first, past the end of the law.
+    const live: Amounts = { persons: { value: 2, unit: "{person}" }, feeds: { value: 5, unit: "{feed}" }, log: { value: 197_156_864, unit: "B" }, event: { value: 0, unit: "{event}/s" } };
+    const reach = reachOf(alertsOn("small-cloud-1gb"), { classes: [], levels: { incidents: { value: 1, unit: "{incident}" } } }, live, 100_000);
+    expect(reach.factor.interval.low).toBeGreaterThan(1000);
+  }, QUERY_TIME);
+
+  it("gives the CPU as the first limit of the persons on the small cloud machine, at 287 persons with no events", () => {
+    // The CPU of the watch grows with the persons: 0.96 core at 3000 persons. 0.25 core, less 30 % of headroom, is 0.175 core.
     const reach = reachOf(alertsOn("small-cloud-1gb"), { classes: [], levels: { persons: { value: 1, unit: "{person}" } } }, { event: { value: 0, unit: "{event}/s" } }, 100_000);
     expect(reach.binding).toBe("cpu");
-    expect(factorOf(reach.factor)).toBeGreaterThan(460);
-    expect(factorOf(reach.factor)).toBeLessThan(480);
-    expect(reach.factor.interval.low).toBeGreaterThan(380);
-    expect(reach.factor.interval.high).toBeLessThan(580);
+    expect(factorOf(reach.factor)).toBeGreaterThan(280);
+    expect(factorOf(reach.factor)).toBeLessThan(295);
+    expect(reach.factor.interval.low).toBeGreaterThan(275);
+    expect(reach.factor.interval.high).toBeLessThan(300);
   }, QUERY_TIME);
 
   it("holds 3000 persons and not 10000 on the lab target with no headroom, as the lab found", () => {
