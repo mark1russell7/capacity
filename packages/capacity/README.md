@@ -1018,11 +1018,26 @@ The live setup has 2 persons, 5 feeds and the live log. At 0.01 event each secon
 - The two values are not the same measure. The free memory of the host includes each process and the page cache.
 - The 24 h series of the cloud memory tells which value is correct. The laws come from the lab target, not from the cloud machine.
 
+#### The start of the new config
+
+The plan `alerts-start-config` measures the start of alerts at the live log, at the commit `621d741`. The point `old` has the old config. Each other point adds one level of the new config, and the point `all` adds the three levels. The first Lab run (2026-11-26, 5 jobs, 30 children at each point) gave these means.
+
+| Point | The live heap at ready | The peak of the resident set at ready | Readiness |
+| --- | --- | --- | --- |
+| `old` | 79.65 MB | 335.7 MB | 10.80 s |
+| `gdelt` | 79.82 MB | 338.7 MB | 10.58 s |
+| `score` | 79.82 MB | 342.1 MB | 10.49 s |
+| `chain` | 79.96 MB | 341.5 MB | 10.73 s |
+| `all` | 80.15 MB | 345.8 MB | 10.48 s |
+
+- **The levels.** The three levels add 0.5 MB of live heap and approximately 10 MB of resident set at the start. They do not change the readiness.
+- **The heap of the start.** AL-172 of alerts decreased the live heap at ready from 177 MB to 80 MB. The runs of the laws of alerts are older than AL-172. Thus the values of the compositions are too high. New runs of the laws give the new values.
+
 The rule does not tell these parts yet. CAP-37 adds them:
 
 - The test that the levels add: the events, the persons and the feeds together (CAP-67).
 - The laws of the polls, the routes, the incidents and the bursts, and the lag of the event loop (CAP-36 and CAP-68).
-- The new shared config of alerts: more sources, a score rule and a chain report. The contract of alerts names them.
+- The laws of alerts after AL-172.
 - The live load of the cloud copy, and the smallest instance type that holds it.
 - What stops a second copy of alerts. Until then, the count of copies is 1.
 
