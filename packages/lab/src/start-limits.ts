@@ -16,6 +16,12 @@ export const START_LIMITS_FORMAT = "capacity-start-limits/1";
 /** This count is the fewest CI jobs that give the limits of a start gate. Each job is one CI run of the plan. */
 export const START_LIMIT_RUNS = 5;
 
+/**
+ * This count is the fewest CI runs of the workflow that give the jobs of the limits. The runners of one workflow run can be
+ * quieter than usual (CAP-100). On 2026-11-25, one run of 10 jobs gave a readiness SD of 0.4 s, and three others gave 0.8 to 1.6 s.
+ */
+export const START_LIMIT_BATCHES = 2;
+
 /** A start limit measure is a measure of a start record that gets a limit, with the id of its limit and its title. */
 export interface StartLimitMeasure {
   /** This id is the measure of the limit in each limit set of the file, for example `start.live`. */
@@ -135,6 +141,7 @@ export const startValueOf = (record: StartRecord, point: string, arm: string, me
  * - The limit is the worst value of the jobs plus their spread. The function rounds it up to a whole number of its unit.
  *
  * It throws an `Error` for fewer than `START_LIMIT_RUNS` jobs, and for a record of another version of the case.
+ * It throws for jobs of fewer than `START_LIMIT_BATCHES` CI runs.
  * It also throws for a record with a problem, for a child that did not fit the target, and for a job with no value.
  */
 export const startLimitsOf = (plan: Plan, jobs: readonly LawJob[], options: StartLimitsOptions = {}): StartLimits => {
@@ -159,6 +166,10 @@ export const startLimitsOf = (plan: Plan, jobs: readonly LawJob[], options: Star
   }
   read.sort((a, b) => (a.run.id < b.run.id ? -1 : a.run.id > b.run.id ? 1 : 0));
   if (read.length < START_LIMIT_RUNS) throw new Error(`The limits need the records of ${START_LIMIT_RUNS} or more CI runs, and ${read.length} runs have a record of "${value.id}".`);
+  const batches = new Set(read.map(({ run }) => run.id.split("/")[0])).size;
+  if (batches < START_LIMIT_BATCHES) {
+    throw new Error(`The limits need jobs of ${START_LIMIT_BATCHES} or more CI runs, and the ${read.length} jobs come from ${batches}. The runners of one CI run can be quieter than usual.`);
+  }
   const points = value.points.map((point): StartLimitPoint => {
     const derivations = Object.fromEntries(
       START_LIMIT_MEASURES.map((measure): [string, StartLimitDerivation] => {

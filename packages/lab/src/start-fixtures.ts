@@ -56,13 +56,19 @@ export const startRecordOf = (job: number, value: StartCase = START_GATE_CASE): 
   } as unknown as StartRecord;
 };
 
-/** This function gives `count` jobs of the plan in the CI run `run`. The function `change` changes the record of each job. */
-export const startJobsOf = (count: number = START_LIMIT_RUNS, run: number = 50, change: (record: StartRecord, job: number) => StartRecord = (record) => record): LawJob[] =>
+/**
+ * This function gives `count` jobs of the plan in the CI run `run`. The function `change` changes the record of each job.
+ * The jobs from the index `split` go in the CI run `run + 1`.
+ */
+export const startJobsOf = (count: number = START_LIMIT_RUNS, run: number = 50, change: (record: StartRecord, job: number) => StartRecord = (record) => record, split: number = count): LawJob[] =>
   Array.from({ length: count }, (_, job) => ({
-    timed: timedOf(START_GATE_PLAN.id, runOf(run), EPYC, `2026-11-24T07:${String(job).padStart(2, "0")}:00Z`),
+    timed: timedOf(START_GATE_PLAN.id, runOf(job >= split ? run + 1 : run), EPYC, `2026-11-24T07:${String(job).padStart(2, "0")}:00Z`),
     records: [],
     starts: [change(startRecordOf(job), job)],
   }));
+
+/** This function gives the jobs of a limits file: `count` jobs, the last two of them in the CI run `run + 1`. */
+export const startLimitJobsOf = (count: number = START_LIMIT_RUNS, run: number = 50): LawJob[] => startJobsOf(count, run, (record) => record, count - 2);
 
 /** This function writes the jobs into a folder, one subfolder for each job, as `gh run download` writes the artifacts of a run. */
 export const writeStartJobs = (folder: string, jobs: readonly LawJob[]): void =>

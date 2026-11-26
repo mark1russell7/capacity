@@ -7,16 +7,16 @@ import { quantity } from "@mark1russell7/quantity";
 import { escapeMarkdown } from "@mark1russell7/text";
 import { describe, expect, it } from "vitest";
 import { armCommitOf, matrixOf, planMinutes, withArmCommit } from "./plan.ts";
-import { START_GATE_CASE as CASE, START_GATE_PLAN as PLAN, startJobsOf, writeStartJobs } from "./start-fixtures.ts";
+import { START_GATE_CASE as CASE, START_GATE_PLAN as PLAN, startJobsOf, startLimitJobsOf, writeStartJobs } from "./start-fixtures.ts";
 import { startGateOf, startGateSummaryOf } from "./start-gate.ts";
 import { START_LIMIT_MEASURES, startCaseOf, startLimitsOf } from "./start-limits.ts";
 import type { StartRecord } from "./start-measure.ts";
 
-// The limits come from 5 jobs of the CI run 50 at the commit of the seeder. The gate reads jobs of the CI run 60, with
+// The limits come from 5 jobs of the CI runs 50 and 51 at the commit of the seeder. The gate reads jobs of the CI run 60, with
 // the arm main at the commit HEAD. The jobs of the run 60 have the values of the run 50, thus each value holds its limit.
 
 const HEAD = "a".repeat(40);
-const LIMITS = startLimitsOf(PLAN, startJobsOf());
+const LIMITS = startLimitsOf(PLAN, startLimitJobsOf());
 const ARMED = startCaseOf(withArmCommit(PLAN, { arm: "main", commit: HEAD }), CASE.id);
 const COMMAND = fileURLToPath(new URL("./start-gate.main.ts", import.meta.url));
 
@@ -59,7 +59,7 @@ describe("the start gate", () => {
     const worst = gate.uses.find((each) => each.run === "60/5/1" && each.point === "live-1844" && each.use.measure === "start.live");
     expect(worst?.use).toMatchObject({ value: quantity(104_002_500, "B"), amount: quantity(108_002_500, "B") });
     const summary = startGateSummaryOf(gate);
-    expect(summary).toContain("The arm main at aaaaaaa, against the limits of d23377d, in 5 runs: pass: each run holds each limit at each point.");
+    expect(summary).toContain("The arm main at aaaaaaa, against the limits of bfb3dae, in 5 runs: pass: each run holds each limit at each point.");
     expect(summary).toContain(`| ${escapeMarkdown("60/5/1")} | ${escapeMarkdown("live-1844")} | ${escapeMarkdown("start.live")} | 104002500 B | 108002500 B | 0.963 |`);
   });
 
