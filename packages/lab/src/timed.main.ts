@@ -3,9 +3,9 @@
  * it needs Docker and a quiet machine.
  *
  * ```text
- * node src/timed.main.ts plan --event <event> [--plans <id,id>] [--runs <JSON list>] [--gates true|false] [--arm <arm>=<commit>]
+ * node src/timed.main.ts plan --event <event> [--plans <id,id>] [--runs <JSON list>] [--gates true|false] [--arm <arm>=<commit>]...
  * node src/timed.main.ts gates --event <event> [--plans <id,id>] [--gates true|false]
- * node src/timed.main.ts measure --plan <id> --out <folder> [--run <number>] [--arm <arm>=<commit>]
+ * node src/timed.main.ts measure --plan <id> --out <folder> [--run <number>] [--arm <arm>=<commit>]...
  * ```
  *
  * - `plan` reads each plan file of `plans` and examines it. It writes the matrix of the workflow as
@@ -19,8 +19,9 @@
  *   run is 1. It writes the records, the raw results and the manifest into the folder. It writes a
  *   summary into `GITHUB_STEP_SUMMARY`, with a table for each start record. A verdict with a problem
  *   gives the exit code 1.
- * - `--arm` gives a new commit to one arm of each start case of the plans (`withArmCommit`). The workflow `start-gate.yml`
- *   measures the head of a pull request of an app in this way. Give the same `--arm` to `plan` and to `measure`.
+ * - `--arm` gives a new commit to one arm of each start case of the plans (`withArmCommit`). Give it one time for each arm.
+ *   The workflow `start-gate.yml` measures the head of a pull request of an app and its base in this way (CAP-105).
+ *   Give the same options `--arm` to `plan` and to `measure`.
  *   The commit changes the count of trees, and thus the time limit of a job.
  */
 import { appendFileSync, readFileSync } from "node:fs";
@@ -35,12 +36,12 @@ import { summaryOf, timePlan } from "./timed.ts";
 /** This folder holds the plan files of the lab. */
 const PLANS = fileURLToPath(new URL("../plans/", import.meta.url));
 
-const USAGE = `node src/timed.main.ts plan --event <event> [--plans <id,id>] [--runs <JSON list>] [--gates true|false] [--arm <arm>=<commit>]
+const USAGE = `node src/timed.main.ts plan --event <event> [--plans <id,id>] [--runs <JSON list>] [--gates true|false] [--arm <arm>=<commit>]...
 node src/timed.main.ts gates --event <event> [--plans <id,id>] [--gates true|false]
-node src/timed.main.ts measure --plan <id> --out <folder> [--run <number>] [--arm <arm>=<commit>]`;
+node src/timed.main.ts measure --plan <id> --out <folder> [--run <number>] [--arm <arm>=<commit>]...`;
 
-/** This function gives the plan with the commit of the option `--arm`, or the plan itself with no option. */
-const armed = (plan: Plan, arm: string | undefined): Plan => (arm === undefined ? plan : withArmCommit(plan, armCommitOf(arm)));
+/** This function gives the plan with the commit of each option `--arm`, or the plan itself with no option. */
+const armed = (plan: Plan, arms: readonly string[] | undefined): Plan => (arms ?? []).reduce((each, arm) => withArmCommit(each, armCommitOf(arm)), plan);
 
 /** This function gives the plans of the folder, or it throws with each problem of a plan file. */
 const plans = () => {
@@ -64,7 +65,7 @@ ${USAGE}`);
 };
 
 const plan = (args: readonly string[]): void => {
-  const { values } = parseArgs({ args: [...args], options: { event: { type: "string" }, plans: { type: "string", default: "" }, runs: { type: "string", default: "" }, gates: { type: "string", default: "true" }, arm: { type: "string" } } });
+  const { values } = parseArgs({ args: [...args], options: { event: { type: "string" }, plans: { type: "string", default: "" }, runs: { type: "string", default: "" }, gates: { type: "string", default: "true" }, arm: { type: "string", multiple: true } } });
   if (values.event === undefined) throw new Error(`The command needs --event.\n${USAGE}`);
   const parsed: unknown = values.runs.trim() === "" ? undefined : JSON.parse(values.runs);
   if (parsed !== undefined && !Array.isArray(parsed)) throw new Error(`--runs is not a JSON list: ${values.runs}`);
@@ -81,7 +82,7 @@ const gates = (args: readonly string[]): void => {
 };
 
 const measure = async (args: readonly string[]): Promise<void> => {
-  const { values } = parseArgs({ args: [...args], options: { plan: { type: "string" }, out: { type: "string" }, run: { type: "string", default: "1" }, arm: { type: "string" } } });
+  const { values } = parseArgs({ args: [...args], options: { plan: { type: "string" }, out: { type: "string" }, run: { type: "string", default: "1" }, arm: { type: "string", multiple: true } } });
   const { out } = values;
   if (values.plan === undefined || out === undefined) throw new Error(`The command needs --plan and --out.\n${USAGE}`);
   const run = Number(values.run);

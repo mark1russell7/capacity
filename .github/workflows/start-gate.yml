@@ -1,22 +1,31 @@
 # The start gate of an app: the runs of the start case of a limits file, with the arm of the limits at a new commit of the
-# app, against the limits of each point (CAP-98). The limits are the worst value of 5 or more CI runs plus their spread
-# (start-limits.main.ts). The gate fails when a run passes a ceiling, when a child does not fit the target, and when the
-# records cannot decide: a no read is not a pass.
+# app and the arm base at its base, against the limits of each point (CAP-98, CAP-105). The limits are the worst value of
+# 5 or more CI runs plus their spread (start-limits.main.ts). Each job starts the head and its base on the same runner.
 #
-# An app calls this workflow from the workflow of its pull requests, with the head of the pull request:
+# - The gate fails when the head passes a ceiling that its base holds, when the head passes a paired limit against its base
+#   (START_PAIRED_LIMITS of start-gate.ts), when a child does not fit the target, and when the records cannot decide.
+#   A no read is not a pass.
+# - When the base also passes a ceiling, main moved: the gate tells a drift, it does not block, and the limits need a new derivation.
+# - The input accept accepts a change of the start: a limit that the head passes does not block, and the summary tells it.
+#
+# An app calls this workflow from the workflow of its pull requests, with the head and the base of the pull request:
 #
 #     start-gate:
 #       uses: metrograph-labs/capacity/.github/workflows/start-gate.yml@<capacity commit>
 #       with:
 #         commit: ${{ github.event.pull_request.head.sha }}
+#         base: ${{ github.event.pull_request.base.sha }}
+#         accept: ${{ contains(github.event.pull_request.labels.*.name, 'start-change') }}
 #         capacity: <capacity commit>
+#
+# The job plan measures the merge base of the commit and the base: the base of the change of the head, also when main moved on.
 #
 # A called workflow runs in the context of its caller, thus github.sha is the commit of the app. The input capacity names
 # the commit of this repository that the jobs check out. Give the commit of the uses line, thus the code and the limits
 # match the workflow. A person starts the gate by hand on this repository, for example the proof run of the commit of the limits:
 #     gh workflow run start-gate.yml -R metrograph-labs/capacity --ref main -f commit=<app commit>
 #
-# The job plan gives the matrix: one job for each run, with the time limit of the plan at the new commit (timed.main.ts
+# The job plan gives the matrix: one job for each run, with the time limit of the plan at the new commits (timed.main.ts
 # plan --arm). Each job measures the plan on its own runner and uploads its records as lab-<plan>-<run>-<attempt>. The
 # job gate reads the latest try of each job (start-gate.main.ts).
 name: Start gate
@@ -28,6 +37,16 @@ on:
         description: The commit of the app, 40 hexadecimal digits. The arm of the limits starts at this commit.
         required: true
         type: string
+      base:
+        description: A commit of the base of the app, 40 hexadecimal digits. The arm base starts at its merge base with the commit. Empty keeps the commit of the plan.
+        required: false
+        type: string
+        default: ""
+      accept:
+        description: Accept a change of the start. Then a limit that the head passes does not block.
+        required: false
+        type: boolean
+        default: false
       capacity:
         description: The commit of metrograph-labs/capacity that the jobs check out. Give the commit of the uses line.
         required: true
@@ -48,6 +67,16 @@ on:
         description: The commit of the app, 40 hexadecimal digits. The arm of the limits starts at this commit.
         required: true
         type: string
+      base:
+        description: A commit of the base of the app, 40 hexadecimal digits. The arm base starts at its merge base with the commit. Empty keeps the commit of the plan.
+        required: false
+        type: string
+        default: ""
+      accept:
+        description: Accept a change of the start. Then a limit that the head passes does not block.
+        required: false
+        type: boolean
+        default: false
       runs:
         description: The count of runs, each on its own runner. The gate needs a record of each run.
         required: false
@@ -78,6 +107,7 @@ jobs:
       matrix: ${{ steps.plan.outputs.matrix }}
       plan: ${{ steps.plan.outputs.plan }}
       arm: ${{ steps.plan.outputs.arm }}
+      base: ${{ steps.plan.outputs.base }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -92,9 +122,10 @@ jobs:
       - run: pnpm install --frozen-lockfile
       # A commit of another shape, a count that is not a whole number above 0 and a plan with no such arm stop the run here.
       - id: plan
-        name: The plan at the commit of the app
+        name: The plan at the commit of the app and at its base
         env:
           COMMIT: ${{ inputs.commit }}
+          BASE: ${{ inputs.base }}
           COUNT: ${{ inputs.runs }}
           LIMITS: ${{ inputs.limits }}
         run: |
@@ -107,11 +138,26 @@ jobs:
           id=$(jq -er .plan "packages/capacity/limits/$LIMITS")
           arm=$(jq -er .arm "packages/capacity/limits/$LIMITS")
           runs="[$(seq -s, 1 "$COUNT")]"
-          matrix=$(node packages/lab/src/timed.main.ts plan --event workflow_dispatch --plans "$id" --runs "$runs" --arm "$arm=$COMMIT")
+          arms=(--arm "$arm=$COMMIT")
+          base=""
+          if [ -n "$BASE" ]; then
+            case "$COMMIT$BASE" in
+              *[!0-9a-f]*) echo "::error::The commit and the base are not 40 hexadecimal digits: $COMMIT, $BASE."; exit 1 ;;
+            esac
+            # the merge base: the base of the change of the head, also when the base branch moved on after the branch point
+            app=$(jq -er '.cases[0].app' "packages/lab/plans/$id.json")
+            git clone --quiet --filter=blob:none --no-checkout "$app" "$RUNNER_TEMP/app"
+            git -C "$RUNNER_TEMP/app" fetch --quiet --filter=blob:none origin "$COMMIT" "$BASE"
+            base=$(git -C "$RUNNER_TEMP/app" merge-base "$COMMIT" "$BASE")
+            echo "The arm base starts at $base, the merge base of $COMMIT and $BASE."
+            arms+=(--arm "base=$base")
+          fi
+          matrix=$(node packages/lab/src/timed.main.ts plan --event workflow_dispatch --plans "$id" --runs "$runs" "${arms[@]}")
           echo "$matrix"
           echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
           echo "plan=$id" >> "$GITHUB_OUTPUT"
           echo "arm=$arm" >> "$GITHUB_OUTPUT"
+          echo "base=$base" >> "$GITHUB_OUTPUT"
 
   lab:
     needs: plan
@@ -146,14 +192,18 @@ jobs:
           free -b
           swapon --show
           docker info --format 'cgroup {{.CgroupVersion}}, memory limit {{.MemoryLimit}}, swap limit {{.SwapLimit}}'
-      - name: The timed run of the plan at the commit of the app
+      - name: The timed run of the plan at the commit of the app and at its base
         env:
           PLAN: ${{ matrix.plan }}
           RUN: ${{ matrix.run }}
           OUT: ${{ runner.temp }}/lab-records
           ARM: ${{ needs.plan.outputs.arm }}
           COMMIT: ${{ inputs.commit }}
-        run: node packages/lab/src/timed.main.ts measure --plan "$PLAN" --out "$OUT" --run "$RUN" --arm "$ARM=$COMMIT"
+          BASE: ${{ needs.plan.outputs.base }}
+        run: |
+          arms=(--arm "$ARM=$COMMIT")
+          if [ -n "$BASE" ]; then arms+=(--arm "base=$BASE"); fi
+          node packages/lab/src/timed.main.ts measure --plan "$PLAN" --out "$OUT" --run "$RUN" "${arms[@]}"
       - name: The records of the run
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -189,6 +239,8 @@ jobs:
         env:
           RECORDS: ${{ runner.temp }}/start-records
           COMMIT: ${{ inputs.commit }}
+          BASE: ${{ needs.plan.outputs.base }}
           COUNT: ${{ inputs.runs }}
           LIMITS: ${{ inputs.limits }}
-        run: node packages/lab/src/start-gate.main.ts gate --limits "packages/capacity/limits/$LIMITS" --runs "$RECORDS" --commit "$COMMIT" --count "$COUNT"
+          ACCEPT: ${{ inputs.accept }}
+        run: node packages/lab/src/start-gate.main.ts gate --limits "packages/capacity/limits/$LIMITS" --runs "$RECORDS" --commit "$COMMIT" --base "$BASE" --count "$COUNT" --accept "$ACCEPT"

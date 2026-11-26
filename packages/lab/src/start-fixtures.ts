@@ -1,6 +1,8 @@
 /**
  * These fixtures are the jobs of the plan `alerts-start-gate` for the tests of the start limits and of the start gate.
- * Each job starts the arm main and its A/A copy at each point in each round. The value of a job at a point is its largest reading:
+ * Each job starts the arm main, its A/A copy and the arm base at each point in each round. The base has the readings of main.
+ * The order of the children turns each round: main, base, main~aa in an even round, and the reverse in an odd round.
+ * The value of a job at a point is its largest reading:
  *
  * - live: 100 MB + 1 MB for each job + 10 MB for each point, + 1 kB for each round, + 500 B for the A/A copy.
  * - peak: 300 MB + 2 MB for each job, + 1 B for each round.
@@ -19,9 +21,14 @@ import type { StartCase } from "./start.ts";
 
 export const START_GATE_PLAN: Plan = readPlans(fileURLToPath(new URL("../plans/", import.meta.url))).plans.find((each) => each.id === "alerts-start-gate")!;
 export const START_GATE_CASE = START_GATE_PLAN.cases[0] as StartCase;
-const ARMS = ["main", "main~aa"] as const;
+/** These children are the children of each round, in the order of an even round, with the copy of each child for its readings. */
+const CHILDREN = [
+  { arm: "main", copy: 0 },
+  { arm: "base", copy: 0 },
+  { arm: "main~aa", copy: 1 },
+] as const;
 
-/** This function gives the measures of one reading. Each measure that the fixture does not set is 1 in its unit. */
+/** This function gives the measures of one reading. Each measure that the fixture does not set is 1 in its unit. The copy 1 is the A/A copy. */
 const measuresOf = (job: number, point: number, arm: number, round: number): Readonly<Record<StartMeasure, Quantity | null>> => {
   const base = Object.fromEntries(Object.entries(START_MEASURES).map(([name, unit]) => [name, quantity(1, unit)])) as Record<StartMeasure, Quantity>;
   return {
@@ -37,18 +44,20 @@ export const startRecordOf = (job: number, value: StartCase = START_GATE_CASE): 
   const readings: StartReading[] = [];
   value.points.forEach((point, place) => {
     for (let round = 0; round < value.rounds; round += 1) {
-      ARMS.forEach((arm, index) => {
-        readings.push({ arm, point: point.id, round, position: index, measures: measuresOf(job, place, index, round), open: [], stalled: false, ballasts: [], samples: [] } as unknown as StartReading);
+      CHILDREN.forEach(({ arm, copy }, index) => {
+        const position = round % 2 === 0 ? index : CHILDREN.length - 1 - index;
+        readings.push({ arm, point: point.id, round, position, measures: measuresOf(job, place, copy, round), open: [], stalled: false, ballasts: [], samples: [] } as unknown as StartReading);
       });
     }
   });
-  const orders = value.points.flatMap((point) => Array.from({ length: value.rounds }, (_, round) => ({ case: point.id, round, arms: ["main", "main"] })));
+  const order = CHILDREN.map((each) => (each.copy === 1 ? "main" : each.arm));
+  const orders = value.points.flatMap((point) => Array.from({ length: value.rounds }, (_, round) => ({ case: point.id, round, arms: round % 2 === 0 ? order : [...order].reverse() })));
   return {
     format: START_RECORD_FORMAT,
     case: value,
     machine: { cpu: EPYC },
     job: String(job + 1),
-    pairs: ["main~aa"],
+    pairs: ["base", "main~aa"],
     readings,
     orders,
     failures: [],

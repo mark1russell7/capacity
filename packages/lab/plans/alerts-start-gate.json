@@ -1,7 +1,7 @@
 {
   "format": "capacity-plan/1",
   "id": "alerts-start-gate",
-  "title": "The start gate of alerts: the start of the main build from its contract at the live log, at the knee and at the routes limit, on the 1 GB target",
+  "title": "The start gate of alerts: the start of the head and its base from the contract at the live log, at the knee and at the routes limit, on the 1 GB target",
   "check": null,
   "triggers": [],
   "jobs": 5,
@@ -9,12 +9,16 @@
     {
       "format": "capacity-start/1",
       "id": "alerts-start-gate/main",
-      "title": "The start of alerts main from capacity-app.json at the log of the live store, at the knee of the log law and at the limit of 40000 routes",
+      "title": "The start of the alerts head in the arm main and of its base in the arm base, from capacity-app.json, at the log of the live store, at the knee of the log law and at the limit of 40000 routes",
       "subject": "alerts-runtime",
       "app": "https://github.com/metrograph-labs/alerts.git",
       "arms": [
         {
           "id": "main",
+          "commit": "4615e746e0ac7bca88deb499d0a92d4a6d7252ef"
+        },
+        {
+          "id": "base",
           "commit": "4615e746e0ac7bca88deb499d0a92d4a6d7252ef"
         }
       ],

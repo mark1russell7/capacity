@@ -1,14 +1,17 @@
 /**
  * The command of the start gate. It compares the records of the runs of a start case with the limits of the case.
+ * It also compares the head with its base in the same runs (CAP-105).
  *
  * ```text
- * node src/start-gate.main.ts gate --limits <file> --runs <folder> [--runs <folder>] --commit <commit> [--count <number>]
+ * node src/start-gate.main.ts gate --limits <file> --runs <folder> [--runs <folder>] --commit <commit> [--base <commit>] [--count <number>] [--accept true|false]
  * ```
  *
  * - `--limits` is a start limits file of the package `capacity`, for example `limits/alerts-start-gate.limits.json`.
  * - Each folder `--runs` holds the artifacts of the jobs, as `gh run download <run>` writes them. The command reads them with `readJobs`.
  *   It reads the latest try of each job, as the gate of the laws does. Thus a rerun of a lost runner gives a read.
- * - `--commit` is the commit of the arm of the limits that the runs measured. `--count` is the fewest runs. The default is 5.
+ * - `--commit` is the commit of the arm of the limits that the runs measured: the head. `--count` is the fewest runs. The default is 5.
+ * - `--base` is the commit of the arm `base` that the runs measured. The default is the commit of the arm in the plan.
+ * - `--accept true` accepts a change of the start: a limit that the head passes does not block. The default is false.
  * - The command writes the summary into `GITHUB_STEP_SUMMARY`. A block, a no read or a problem gives the exit code 1.
  */
 import { appendFileSync } from "node:fs";
@@ -23,12 +26,12 @@ import { readStartLimits } from "./start-limits.ts";
 /** This folder holds the plan files of the lab. */
 const PLANS = fileURLToPath(new URL("../plans/", import.meta.url));
 
-const USAGE = "node src/start-gate.main.ts gate --limits <file> --runs <folder> [--runs <folder>] --commit <commit> [--count <number>]";
+const USAGE = "node src/start-gate.main.ts gate --limits <file> --runs <folder> [--runs <folder>] --commit <commit> [--base <commit>] [--count <number>] [--accept true|false]";
 
 const gate = (args: readonly string[]): void => {
   const { values } = parseArgs({
     args: [...args],
-    options: { limits: { type: "string" }, runs: { type: "string", multiple: true }, commit: { type: "string" }, count: { type: "string" } },
+    options: { limits: { type: "string" }, runs: { type: "string", multiple: true }, commit: { type: "string" }, base: { type: "string" }, count: { type: "string" }, accept: { type: "string", default: "false" } },
   });
   const { limits: file, runs: folders, commit } = values;
   if (file === undefined || folders === undefined || folders.length === 0 || commit === undefined) {
@@ -40,8 +43,14 @@ const gate = (args: readonly string[]): void => {
   if (problems.length > 0) throw new Error(`The plan files have problems:\n${problems.map((each) => `  ${each.path}: ${each.message}`).join("\n")}`);
   const plan = plans.find((each) => each.id === limits.plan);
   if (plan === undefined) throw new Error(`The plan "${limits.plan}" of the limits has no plan file.`);
-  const count = values.count === undefined ? undefined : Number(values.count);
-  const result = startGateOf(limits, plan, folders.flatMap((folder) => readJobs(folder, { latest: true })), count === undefined ? { commit } : { commit, runs: count });
+  if (values.accept !== "true" && values.accept !== "false") throw new Error(`--accept is not true or false: ${values.accept}\n${USAGE}`);
+  const options = {
+    commit,
+    accept: values.accept === "true",
+    ...(values.base === undefined || values.base === "" ? {} : { base: values.base }),
+    ...(values.count === undefined ? {} : { runs: Number(values.count) }),
+  };
+  const result = startGateOf(limits, plan, folders.flatMap((folder) => readJobs(folder, { latest: true })), options);
   const summary = startGateSummaryOf(result);
   process.stdout.write(summary);
   const out = process.env["GITHUB_STEP_SUMMARY"];
