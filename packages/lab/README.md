@@ -315,6 +315,19 @@ The check `idle` (`idleCheck`) gives these values. The measures are the measures
 - No law reads the base yet. A later fit subtracts the base of the same job or of the same CPU model from the totals of each point.
 - The plan has no trigger: a person starts it. Its time limit is 38 minutes.
 
+#### The first values
+
+The first Lab run of the plan (2026-11-26, 5 jobs) gave a base for each job, with no problem. Each job had a different CPU model. Each value is the median of the 5 jobs, and the range is the lowest and the highest job.
+
+| Measure | `idle/bare` | `idle/service` | The overhead of the service runner |
+| --- | --- | --- | --- |
+| `cpu.rate` | 0.0061 core (0.0041 to 0.0093) | 0.0063 core (0.0042 to 0.0092) | +0.0003 core |
+| `memory` | 31.95 MB (31.87 to 31.99) | 30.39 MB (30.15 to 30.48) | −1.56 MB |
+| `memory.high` | 32.42 MB (32.39 to 32.49) | 31.43 MB (31.24 to 31.47) | −0.99 MB |
+
+- **The CPU time.** An idle subject uses less than 1 % of one core. The CPU model changes the value more than the service runner does.
+- **The memory.** The service subject uses approximately 1.5 MB less memory than the bare subject, in each of the 5 jobs. The fit of the base (CAP-83) explains the difference before a law reads it.
+
 ## The timed runs
 
 A timed run is one job of the workflow `lab.yml`: it measures one plan on one runner of GitHub. Only CI starts a timed run, because the lab needs Docker and a machine with no other load.
