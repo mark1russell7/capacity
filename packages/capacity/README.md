@@ -330,49 +330,92 @@ The Laws run 45069050798 gives the laws of the plan `overhead` on the Intel Xeon
 
 A test of the lab reads these files with the plan `overhead`. Each law names the subject of its base side, and its residual is absolute. Its held-out error is less than its largest value at an end of its range.
 
+### The laws of alerts after AL-172
+
+The Laws run 45865927867 gives the laws of six plans of alerts on the Intel Xeon 6975P-C (CAP-37 and CAP-101). It fits the Lab runs 45768940420, 45824688099 and 45824722253, at alerts `a1709b9`.
+
+- AL-172 of alerts decreased the live heap of the start (`start.live`) from 177 MB to 81 MB. Thus the laws of the earlier builds do not hold, and these laws replace them.
+- Each law is of the arm `main` at the first start. Its folder is `laws/alerts-runtime/<plan>/xeon-6975p-c/main/first`.
+- A law needs 40 points or more on one CPU model. The jobs on the AMD EPYC models and the Xeon 6973P-C gave fewer points, thus no law.
+- The routes laws of the AMD EPYC 9V74 came from an earlier build. Thus this change removes them.
+- A start that reaches the heap limit of V8 gives no reading. Thus a law sees only the starts that fit. CAP-103 adds the failed starts to the fit.
+- The compositions of alerts add these laws as terms, in [The compositions of alerts](#the-compositions-of-alerts).
+
 ### The laws of the events of alerts
 
-The Laws run 45479208486 gives the laws of the plan `alerts-start-event` on the Intel Xeon 6975P-C (CAP-36 and CAP-86). Their folder is `laws/alerts-runtime/alerts-start-event/xeon-6975p-c/main/first`: the arm `main` at the first start. The variable of each law is `event`, the events each second from 0 to 55. The README of the lab has the table of the laws, in [The load ladder of events](../lab/README.md#the-load-ladder-of-events).
+The plan is `alerts-start-event`. The variable is `event`, the events each second from 0 to 70.
+
+| The measure | 0 events each second | 16 events each second | 70 events each second |
+| --- | --- | --- | --- |
+| `ready` | 5.6 s | 5.6 s | 5.6 s |
+| `watch-peak` | 289 MB | 508 MB | 868 MB |
+| `watch-heap-peak` | 124 MB | 248 MB | 464 MB |
+| `watch-cores` | 0.022 core | 0.076 core | 0.197 core |
+
+- 5 starts of the 2 Lab runs reached the heap limit of V8, at the rungs 60 and 70.
+- The law `watch-heap-peak` bends at 43 events each second. Part of the bend comes from the starts that failed, because they have no reading.
 
 ### The laws of the persons and the feeds of alerts
 
-The Laws run 45485195729 gives the laws of the plans `alerts-start-persons` and `alerts-start-feeds` on the Intel Xeon 6975P-C (CAP-36). Their folders are `laws/alerts-runtime/alerts-start-persons` and `laws/alerts-runtime/alerts-start-feeds`. The variables are `persons`, from 1 to 3000, and `feeds`, from 1 to 10000. The README of the lab has the table of the laws, in [The laws of the persons and the feeds](../lab/README.md#the-laws-of-the-persons-and-the-feeds).
+The plans are `alerts-start-persons` and `alerts-start-feeds`. The variables are `persons`, from 1 to 3000, and `feeds`, from 1 to 10000.
 
-- Alerts cannot start with 10000 persons on the 1 GB target: each job reached the heap limit of V8.
-- The compositions of alerts add these laws as terms with a base, in [The compositions of alerts](#the-compositions-of-alerts).
-- The Laws run 45493330469 adds the laws `watch-heap-peak` and `watch-cores` of the two plans (CAP-37).
+| The measure | 1 person | 3000 persons | 1 feed | 10000 feeds |
+| --- | --- | --- | --- | --- |
+| `ready` | 5.2 s | 15.7 s | 5.6 s | 16.0 s |
+| `peak` | 262 MB | 511 MB | 271 MB | 689 MB |
+| `watch-peak` | 269 MB | 794 MB | 284 MB | 677 MB |
+| `watch-heap-peak` | 104 MB | 475 MB | 117 MB | 374 MB |
+| `watch-cores` | 0.003 core | 0.948 core | 0.021 core | 0.201 core |
+
+- Alerts cannot start with 10000 persons on the 1 GB target. Each start at that rung reached the heap limit of V8.
+- The CPU of the watch grows as a power of the persons, with the exponent 0.74.
 
 ### The laws of the routes of alerts
 
-The Laws run 45616232960 gives the laws of the plan `alerts-start-routes` on the AMD EPYC 9V74 and the Intel Xeon 6975P-C (CAP-67). Their folder is `laws/alerts-runtime/alerts-start-routes`. The variable is `routes`, from 1 to 11000. Alerts gives it in the line `amounts` of its run. The run fits the records of the Lab runs 45473162785 and 45562204832.
+The plan is `alerts-start-routes`. The variable is `routes`, from 8 to 18000. Alerts gives it in the line `amounts` of its run.
 
-| The measure | EPYC 9V74 at 1 route | EPYC 9V74 at 11000 routes | Xeon 6975P-C at 1 route | Xeon 6975P-C at 11000 routes |
-| --- | --- | --- | --- | --- |
-| `ready` | 4.8 s | 7.1 s | 4.7 s | 6.3 s |
-| `heap` | 198 MB | 254 MB | 205 MB | 262 MB |
-| `heap-peak` | 210 MB | 267 MB | 220 MB | 265 MB |
-| `peak` | 369 MB | 437 MB | 366 MB | 432 MB |
-| `watch-peak` | 373 MB | 549 MB | 387 MB | 560 MB |
+| The measure | 8 routes | 11000 routes | 18000 routes |
+| --- | --- | --- | --- |
+| `ready` | 5.6 s | 7.3 s | 8.5 s |
+| `heap` | 103 MB | 142 MB | 166 MB |
+| `heap-peak` | 114 MB | 159 MB | 176 MB |
+| `peak` | 257 MB | 326 MB | 358 MB |
+| `watch-peak` | 259 MB | 421 MB | 506 MB |
 
-- Alerts cannot start with 100000 routes on the 1 GB target. Each start of 100 persons with 1000 incidents, and of 1000 persons with 100 incidents, reached the heap limit of V8 (556 MB). That is 76 of 76 tries on 5 CPU models.
-- The exponent of the law `heap` on the Xeon 6975P-C is at its upper bound of 4, and its interval is from 1.1 to 4. The noise floor of the law (50 MB) is almost as large as its change over the range (57 MB). Thus this law does not tell where the heap reaches its limit.
-- The limit of the routes between 11000 and 100000 comes from a grid at 20000, 40000 and 70000 routes (CAP-99). Then the scale rule of alerts uses the laws and the limit.
-- The job on an Intel Xeon 6973P-C gave no law: one job is less than the 5 jobs of a law. The Xeon 8370C (26 points) and the Xeon 8573C (13 points) have less than 40 points.
+- Alerts cannot start with 100000 routes on the 1 GB target. At alerts `a1709b9`, each of the 52 starts at that rung reached the heap limit of V8 (556 MB), in both shapes.
+- The limit of the routes is 40000 routes, from a grid at 20000, 40000, 70000 and 100000 routes (CAP-99).
+
 ### The laws of the log of alerts
 
-The Laws run 45507817272 gives the laws of the plan `alerts-start-log` on the Intel Xeon 6975P-C (CAP-49). Their folder is `laws/alerts-runtime/alerts-start-log/xeon-6975p-c/main/first`. The variable is `log`, from 2 MiB to 382 MiB, the range of the contract of alerts. The run fits the records of the Lab runs 45073979241 and 45080303535 again, with the measure `watchHeapPeak`.
+The plan is `alerts-start-log`. The variable is `log`, from 2 MiB to 382 MiB, the range of the contract of alerts.
 
-| The measure | The median reading at 16 MiB | The median reading at 188 MiB | The median reading at 382 MiB |
+| The measure | 16 MiB | 188 MiB | 382 MiB |
 | --- | --- | --- | --- |
-| `ready` | 5.8 s | Between 7.2 s and 12.9 s | 21.0 s |
-| `heapPeak` | 218 MB | Between 293 MB and 302 MB | 317 MB |
-| `watchPeak` | 371 MB | Between 449 MB and 465 MB | 497 MB |
-| `watchHeapPeak` | 188 MB | Between 188 MB and 193 MB | 206 MB |
+| `ready` | 5.7 s | 9.8 s | 19.0 s |
+| `heap-peak` | 119 MB | 166 MB | 185 MB |
+| `peak` | 272 MB | 330 MB | 357 MB |
+| `watch-peak` | 291 MB | 333 MB | 345 MB |
+| `watch-heap-peak` | 116 MB | 121 MB | 126 MB |
 
 - The log does not stop a start on the 1 GB target: each start of each rung was ready.
-- The memory of the process in the watch grows with the log, but the used heap stays almost level. Thus the memory of the log is outside the heap.
+- The memory of the process in the watch grows as the logarithm of the log, but the used heap stays almost level. Thus the memory of the log is outside the heap.
 - The compositions of alerts add the laws `watch-peak` and `watch-heap-peak` as terms with a base of 16 MiB.
-- The Lab runs of the log are older than the reading `watchCores`. Thus the CPU has no law of the log. CAP-96 adds it.
+- The plan of the log has no measure `watchCores`, thus the CPU has no law of the log. CAP-96 adds it.
+
+### The laws of the open incidents of alerts
+
+The plan is `alerts-start-incidents` (CAP-101). The variable is `incidents`, the open incidents from 0 to 1000, at 10 persons.
+
+| The measure | 0 incidents | 10 incidents | 1000 incidents |
+| --- | --- | --- | --- |
+| `ready` | 5.7 s | 5.7 s | 6.2 s |
+| `peak` | 271 MB | 271 MB | 319 MB |
+| `watch-peak` | 281 MB | 286 MB | 370 MB |
+| `watch-heap-peak` | 103 MB | 115 MB | 194 MB |
+| `watch-cores` | 0.020 core | 0.021 core | 0.085 core |
+
+- Each start of each rung was ready.
+- The compositions of alerts add the laws `watch-peak`, `watch-heap-peak` and `watch-cores` as terms with a base of 10 incidents. The other plans have 10 incidents.
 
 ## The gate of the laws
 
@@ -949,39 +992,39 @@ Tests hold the scale rule and the reach against each other on generated demands:
 
 ### The scale rule of alerts
 
-The test `src/scale-files.test.ts` reads the laws, the compositions, the instance files and the limits of alerts (CAP-37). The query `countReach` gives the highest rate of events that one copy holds.
+The test `src/scale-files.test.ts` reads the laws, the compositions, the instance files and the limits of alerts (CAP-37). The query `countReach` gives the highest rate of events that one copy holds. The laws are of alerts `a1709b9`, after AL-172.
 
 | Instance type | Limits | The rate of one copy, events each second | The limit that binds first | The next limits |
 | --- | --- | --- | --- | --- |
-| `small-cloud-1gb` | The limits file | 7.86 [7.18, 8.64] | `memory` | `cpu` at 28.9, `heap` at 33.9 |
-| `small-cloud-1gb` | No headroom | 15.4 [14.1, 20.0] | `memory` | `cpu` at 42.1, `heap` at 64.0 |
-| `lab-target-1gb` | The limits file | 33.9 [24.9, 35.7] | `heap` | `memory` at 46.8, `cpu` at 63.6 |
-| `lab-target-1gb` | No headroom | 64.0 [50.2, 73.0] | `heap` | `cpu` at 72.1, `memory` at 115 |
+| `small-cloud-1gb` | The limits file | 18.4 [16.1, 21.4] | `memory` | `heap` at 41.6, `cpu` at 45.1 |
+| `small-cloud-1gb` | No headroom | 28.2 [24.6, 33.0] | `memory` | `cpu` at 166, `heap` at 362 |
+| `lab-target-1gb` | The limits file | 41.6 [37.1, 52.6] | `heap` | `memory` at 51.6 |
+| `lab-target-1gb` | No headroom | 115 [87.8, past the search] | `memory` | `heap` at 362 |
 
-- On the small cloud machine, the memory binds first, at less than a third of the rate where the CPU binds.
-- On the lab target, the heap binds first. With no headroom, it binds at 64 [50, 73] events each second. Each job of the lab reached the heap limit at the rung 60.
-- With no headroom on the lab target, the CPU binds first in 9 % of the replicates. Near the heap limit, the law of the cores bends up.
+- On the small cloud machine, the memory binds first, at less than half of the rate where the heap binds.
+- On the lab target with the limits file, the heap binds first in 84 % of the replicates, and the memory in 16 %.
+- The laws of the events end at 70 events each second. Thus each reach past 70 is an extrapolation.
+- The lab target with no headroom is not correct past 70. 5 starts reached the heap limit of V8 at the rungs 60 and 70, but a failed start gives no reading. Thus the heap laws see only the starts that fit. CAP-103 adds the failed starts to the fit.
 - Each law is of the Intel Xeon 6975P-C. The CPU of the cloud machine is a different model, thus its CPU reach is a forecast.
 - Each law is at the base point of the ladder: 16 MiB of log, 10 feeds, 10 persons and 10 incidents.
-- A reach past 55 events each second is outside the range of the laws. The rungs 60 and 70 gave no points, because each start reached the heap limit.
 
-The persons and the feeds are levels too. A query scales one level, and the option `given` holds the others.
+The persons, the feeds, the incidents and the log are levels too. A query scales one level, and the option `given` holds the others.
 
 | Instance type | Limits | The load of the query | The reach of one copy | The limit that binds first | The next limits |
 | --- | --- | --- | --- | --- | --- |
-| `small-cloud-1gb` | The limits file | The events, with 2 persons and 5 feeds | 8.57 [7.76, 9.54] events each second | `memory` | `cpu` at 30.7, `heap` at 37.1 |
-| `small-cloud-1gb` | The limits file | The persons, with 0 events | 469 [391, 563] persons | `cpu` | `memory` at 704, `heap` at 2308 |
-| `small-cloud-1gb` | The limits file | The feeds, with 0 events | 3103 [2858, 3352] feeds | `memory` | `cpu` at 9071, `heap` at 9651 |
-| `small-cloud-1gb` | No headroom | The persons, with 0 events | 818 [723, 959] persons | `cpu` | `memory` at 2544, `heap` at 5016 |
-| `lab-target-1gb` | The limits file | The persons, with 0 events | 2308 [1962, 2533] persons | `heap` | `memory` at 5569 |
-| `lab-target-1gb` | No headroom | The persons, with 0 events | 5016 [4629, 5309] persons | `heap` | `memory` at 12583 |
+| `small-cloud-1gb` | The limits file | The events, with 2 persons and 5 feeds | 18.9 [16.5, 22.0] events each second | `memory` | `heap` at 42.5, `cpu` at 48.0 |
+| `small-cloud-1gb` | The limits file | The persons, with 0 events | 287 [281, 296] persons | `cpu` | `memory` at 1080, `heap` at 2477 |
+| `small-cloud-1gb` | The limits file | The feeds, with 0 events | 5668 [4415, 6271] feeds | `memory` | `cpu` at 8490, `heap` at 12468 |
+| `small-cloud-1gb` | The limits file | The open incidents, with 0 events at the live setup | 2790 [2602, 2979] incidents | `cpu` | `memory` at 4150, `heap` at 19478 |
+| `small-cloud-1gb` | No headroom | The persons, with 0 events | 474 [466, 485] persons | `cpu` | `memory` at 1988, `heap` at 3924 |
+| `lab-target-1gb` | The limits file | The persons, with 0 events | 2477 [2401, 2568] persons | `heap` | `memory` at 3038, `cpu` at 5049 |
+| `lab-target-1gb` | No headroom | The persons, with 0 events | 3924 [3717, 4167] persons | `heap` | `memory` at 4881, `cpu` at 8199 |
 
-- At the base log of 16 MiB, 2 persons and 5 feeds hold more events than the base point of 10 and 10: 8.57, not 7.86.
-- The live store has a larger log. [The log](#the-log) gives the reach at the live log.
-- On the small cloud machine, the CPU of the persons binds first. The CPU of the watch grows as a power of the persons, with the exponent 0.63.
-- The CPU reach on the small cloud machine is a forecast, because the laws are of the Intel Xeon 6975P-C.
-- With no headroom on the lab target, the heap binds at 5016 [4629, 5309] persons. Each job of the lab started with 3000 persons and stopped on the heap with 10000.
-- The range of the law of the persons ends at 3000. Thus a reach past 3000 persons is an extrapolation.
+- At the base log of 16 MiB, 2 persons and 5 feeds hold more events than the base point of 10 and 10: 18.9, not 18.4.
+- On the small cloud machine, the CPU of the persons binds first. The CPU of the watch grows as a power of the persons, with the exponent 0.74.
+- With no headroom on the lab target, the heap binds at 3924 [3717, 4167] persons. Each job of the lab started with 3000 persons and stopped on the heap with 10000.
+- The law of the persons ends at 3000, and the law of the incidents ends at 1000. Thus a reach past these values is an extrapolation.
+- At the live setup with 1000 open incidents, the memory is 408 MB, below the limit of 541 MB. Thus each count of incidents of the law fits.
 
 #### The log
 
@@ -989,34 +1032,43 @@ The log is a level too. Each query has 2 persons and 5 feeds in `given`, and the
 
 | The log | `small-cloud-1gb`, the limits file | `small-cloud-1gb`, no headroom | `lab-target-1gb`, the limits file | `lab-target-1gb`, no headroom |
 | --- | --- | --- | --- | --- |
-| 16 MiB, the base point | 8.57 [7.76, 9.54], `memory` | 16.2 [14.7, 21.7], `memory` | 37.1 [30.8, 40.1], `heap` | 67.2 [52.3, 73.2], `heap` |
-| 64 MiB | 5.93 [5.34, 6.68], `memory` | 13.5 [12.3, 16.1], `memory` | 35.2 [28.5, 37.8], `memory` | 65.8 [51.3, 73.1], `heap` |
-| 128 MiB | 4.47 [3.83, 5.25], `memory` | 12.1 [10.9, 13.7], `memory` | 26.4 [20.3, 31.4], `memory` | 65.1 [50.3, 73.1], `heap` |
-| 188 MiB, the live store | 3.82 [3.24, 4.51], `memory` | 11.4 [10.3, 12.8], `memory` | 22.4 [18.3, 28.1], `memory` | 64.7 [49.7, 73.1], `heap` |
-| 256 MiB | 3.08 [2.52, 3.72], `memory` | 10.7 [9.60, 12.0], `memory` | 18.1 [16.8, 26.0], `memory` | 64.4 [49.2, 73.1], `heap` |
-| 382 MiB, the largest log of the contract | 1.70 [1.13, 2.35], `memory` | 9.29 [8.34, 10.4], `memory` | 16.8 [15.2, 22.8], `memory` | 64.0 [47.1, 73.1], `heap` |
+| 16 MiB, the base point | 18.9 [16.5, 22.0], `memory` | 28.8 [25.1, 33.7], `memory` | 42.5 [37.9, 57.5], `heap` | 117 [89.3, past], `memory` |
+| 64 MiB | 17.2 [15.0, 19.9], `memory` | 27.0 [23.6, 31.5], `memory` | 42.3 [33.7, 54.9], `heap` | 110 [85.1, past], `memory` |
+| 128 MiB | 16.3 [14.3, 18.9], `memory` | 26.1 [22.8, 30.4], `memory` | 42.1 [32.6, 51.1], `heap` | 106 [82.8, past], `memory` |
+| 188 MiB, the live store | 15.8 [13.8, 18.4], `memory` | 25.7 [22.3, 29.9], `memory` | 40.6 [32.0, 49.4], `memory` | 104 [81.6, past], `memory` |
+| 256 MiB | 15.4 [13.5, 17.9], `memory` | 25.3 [22.0, 29.4], `memory` | 38.9 [31.6, 47.9], `memory` | 102 [80.7, past], `memory` |
+| 382 MiB, the largest log of the contract | 14.9 [13.0, 17.3], `memory` | 24.8 [21.6, 28.8], `memory` | 36.8 [31.1, 46.0], `memory` | 100 [79.4, past], `memory` |
 
 Each cell is the events each second of one copy and the limit that binds first.
 
-- The live store had a log of 197,156,864 B (188 MiB) on 2026-11-22. At that log, one copy on the small cloud machine holds 3.82 events each second, not 8.57.
-- With no events, each log of the contract fits on the small cloud machine. The memory binds at 538 [479, 628] MiB, past the range of the law.
-- On the lab target, the log moves the first limit from the heap to the memory at approximately 64 MiB.
-- The heap binds at almost the same rate at each log, because the used heap of the watch is almost level over the log.
+- The live store had a log of 197,156,864 B (188 MiB) on 2026-11-22. At that log, one copy on the small cloud machine holds 15.8 events each second, not 18.9.
+- The memory of the watch grows as the logarithm of the log. Thus the reach falls slowly over the log.
+- With no events, each log of the contract fits on the small cloud machine. At 382 MiB, the memory is 336 [328, 343] MB, below the limit of 541 MB.
+- On the lab target with the limits file, the log moves the first limit from the heap to the memory between 128 MiB and 188 MiB.
+- The cells with no headroom on the lab target are past 70 events each second, thus they are extrapolations (CAP-103).
 
-#### The prediction for the cloud copy
+#### The check against the cloud copy
 
 The live setup has 2 persons, 5 feeds and the live log. At 0.01 event each second, the compositions give these values. The test `src/scale-files.test.ts` holds them.
 
 | Measure | Value | Interval |
 | --- | --- | --- |
-| `memory`, the highest memory of the process | 473 MB | [462, 484] MB |
-| `heap`, the highest used heap | 203 MB | [193, 214] MB |
+| `memory`, the highest memory of the process | 324 MB | [316, 331] MB |
+| `heap`, the highest used heap | 122 MB | [117, 136] MB |
 
-- The small cloud machine gives 676 MB to the app. With 20 % of headroom, the limit is 541 MB.
-- Thus one copy holds 3.82 events each second at the live log. Above that rate, alerts needs a second copy.
-- A note of alerts gives a different value for its old config. The free memory was 676 MB before the start and 110 MB after it. Thus the start used approximately 566 MB, more than the limit of 541 MB.
-- The two values are not the same measure. The free memory of the host includes each process and the page cache.
-- The 24 h series of the cloud memory tells which value is correct. The laws come from the lab target, not from the cloud machine.
+A 24 h series of the cloud copy measured its resident set each 5 minutes (AL-190, from 2026-11-25). The first 10 minutes of each child are not in this table.
+
+| The child of the series | The build of alerts | Hours | The resident set |
+| --- | --- | --- | --- |
+| 1 to 3 | Before AL-172 | 9 | 323 MB to 486 MB |
+| 4 | After AL-172 | 12.3 | 312 MB to 406 MB, median 368 MB |
+| 5 | After AL-172 | 0.3 | 344 MB to 392 MB |
+
+- The rule before AL-172 gave 473 [462, 484] MB. The highest value of the children 1 to 3 was 486 MB.
+- The rule after AL-172 gives 324 MB. The median of the child 4 is 368 MB, and its highest value is 406 MB. Thus the rule is low by approximately 44 MB.
+- The laws come from a start and its watch in the lab. The cloud copy operates for hours, with its live incidents, routes and config. The rule does not explain the gap yet. CAP-104 finds its cause.
+- The small cloud machine gives 676 MB to the app. With 20 % of headroom, the limit is 541 MB. The highest value of the child 4 is below it.
+- 44 MB is approximately 3.2 events each second of the memory law. Thus at the live log, one copy holds approximately 12.6 events each second until CAP-104 ends.
 
 #### The start of the new config
 
@@ -1031,13 +1083,14 @@ The plan `alerts-start-config` measures the start of alerts at the live log, at 
 | `all` | 80.15 MB | 345.8 MB | 10.48 s |
 
 - **The levels.** The three levels add 0.5 MB of live heap and approximately 10 MB of resident set at the start. They do not change the readiness.
-- **The heap of the start.** AL-172 of alerts decreased the live heap at ready from 177 MB to 80 MB. The runs of the laws of alerts are older than AL-172. Thus the values of the compositions are too high. New runs of the laws give the new values.
+- **The heap of the start.** AL-172 of alerts decreased the live heap at ready from 177 MB to 80 MB. The laws of [The laws of alerts after AL-172](#the-laws-of-alerts-after-al-172) have this change.
 
 The rule does not tell these parts yet. CAP-37 adds them:
 
 - The test that the levels add: the events, the persons and the feeds together (CAP-67).
-- The laws of the polls, the routes, the incidents and the bursts, and the lag of the event loop (CAP-36 and CAP-68).
-- The laws of alerts after AL-172.
+- The laws of the polls and the bursts, and the lag of the event loop (CAP-36 and CAP-68).
+- The cause of the gap of 44 MB between the rule and the cloud copy (CAP-104).
+- The failed starts in the fit of the laws (CAP-103).
 - The live load of the cloud copy, and the smallest instance type that holds it.
 - What stops a second copy of alerts. Until then, the count of copies is 1.
 

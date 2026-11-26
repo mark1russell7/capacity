@@ -1,7 +1,7 @@
 {
   "format": "capacity-composition/1",
   "id": "alerts-runtime/xeon-6975p-c/cpu",
-  "title": "The CPU of the alerts process under the load of the events, the persons and the feeds on the Intel Xeon 6975P-C",
+  "title": "The CPU of the alerts process under the load of the events, the persons, the feeds and the open incidents on the Intel Xeon 6975P-C",
   "subject": "alerts-runtime",
   "measure": {
     "id": "cpu",
@@ -29,6 +29,16 @@
         "feeds": {
           "value": 10,
           "unit": "{feed}"
+        }
+      }
+    },
+    {
+      "law": "alerts-runtime/alerts-start-incidents/xeon-6975p-c/main/first/watch-cores",
+      "over": "instance",
+      "base": {
+        "incidents": {
+          "value": 10,
+          "unit": "{incident}"
         }
       }
     }

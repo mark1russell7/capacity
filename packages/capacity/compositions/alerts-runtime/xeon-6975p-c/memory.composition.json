@@ -1,7 +1,7 @@
 {
   "format": "capacity-composition/1",
   "id": "alerts-runtime/xeon-6975p-c/memory",
-  "title": "The highest memory of the alerts process under the load of the events, the persons, the feeds and the log on the Intel Xeon 6975P-C",
+  "title": "The highest memory of the alerts process under the load of the events, the persons, the feeds, the log and the open incidents on the Intel Xeon 6975P-C",
   "subject": "alerts-runtime",
   "measure": {
     "id": "memory",
@@ -39,6 +39,16 @@
         "log": {
           "value": 16,
           "unit": "MiB"
+        }
+      }
+    },
+    {
+      "law": "alerts-runtime/alerts-start-incidents/xeon-6975p-c/main/first/watch-peak",
+      "over": "instance",
+      "base": {
+        "incidents": {
+          "value": 10,
+          "unit": "{incident}"
         }
       }
     }
