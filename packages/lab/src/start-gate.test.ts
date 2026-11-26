@@ -60,7 +60,7 @@ describe("the start gate", () => {
     const worst = gate.uses.find((each) => each.run === "60/5/1" && each.point === "live-1844" && each.use.measure === "start.live");
     expect(worst?.use).toMatchObject({ value: quantity(104_002_500, "B"), amount: quantity(108_002_500, "B") });
     const summary = startGateSummaryOf(gate);
-    expect(summary).toContain("The arm main at aaaaaaa, against the limits of a1709b9, in 5 runs: pass: each run holds each limit at each point.");
+    expect(summary).toContain("The arm main at aaaaaaa, against the limits of 4615e74, in 5 runs: pass: each run holds each limit at each point.");
     expect(summary).toContain(`| ${escapeMarkdown("60/5/1")} | ${escapeMarkdown("live-1844")} | ${escapeMarkdown("start.live")} | 104002500 B | 108002500 B | 0.963 |`);
   });
 
