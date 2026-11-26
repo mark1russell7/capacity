@@ -16,9 +16,10 @@ import type { StartCase } from "./start.ts";
 // linear, and the noise floor is small.
 
 const PLANS = fileURLToPath(new URL("../plans/", import.meta.url));
-// The case is the log ladder of the plans, with two arms of its own. Thus a law of each arm and the A/A pair of the base are in the tests.
+// The case is the first starts of the log ladder of the plans, with two arms of its own. Thus a law of each arm and the A/A pair of the base are in the tests.
+// The second starts of the ladder (CAP-107) have their own test below.
 const LADDER = readPlans(PLANS).plans.find((each) => each.id === "alerts-start-log")!.cases[0] as StartCase;
-const CASE: StartCase = { ...LADDER, arms: [{ id: "cloud", commit: "1".repeat(40) }, { id: "new", commit: "2".repeat(40) }], rounds: 2 };
+const CASE: StartCase = { ...LADDER, arms: [{ id: "cloud", commit: "1".repeat(40) }, { id: "new", commit: "2".repeat(40) }], rounds: 2, points: LADDER.points.filter((each) => each.after === undefined) };
 const SET: StartLawSet = {
   variable: { id: "log", unit: "MiB", scale: "log" },
   measures: [{ id: "ready", law: "ready", title: "The time to ready", residual: "absolute", forms: ["constant", "linear"] }],
@@ -35,9 +36,9 @@ const readyOf = (mib: number, job: number, arm: number, round: number): number =
  * This function gives the start record of one job. The record has only the fields that the fit of the laws reads, thus the
  * cast. The other fields are the fields of the run, and the tests of `start-measure.ts` examine them.
  */
-const recordOf = (job: number, cpu: string, drop: (reading: StartReading) => boolean = () => false): StartRecord => {
+const recordOf = (job: number, cpu: string, drop: (reading: StartReading) => boolean = () => false, value: StartCase = CASE): StartRecord => {
   const readings: StartReading[] = [];
-  CASE.points.forEach((point, place) => {
+  value.points.forEach((point, place) => {
     const mib = (point.at["log"]?.value ?? 0) / 2 ** 20;
     for (let round = 0; round < CASE.rounds; round += 1) {
       ARMS.forEach((arm, index) => {
@@ -56,8 +57,8 @@ const recordOf = (job: number, cpu: string, drop: (reading: StartReading) => boo
       });
     }
   });
-  const points = CASE.points.map((point) => ({ id: point.id, sizes: { log: point.at["log"] }, events: 0, time: { value: 1, unit: "s" }, args: [] }));
-  return { format: START_RECORD_FORMAT, case: CASE, machine: { cpu }, readings, points, failures: [] } as unknown as StartRecord;
+  const points = value.points.map((point) => ({ id: point.id, sizes: { log: point.at["log"] }, events: 0, time: { value: 1, unit: "s" }, args: [] }));
+  return { format: START_RECORD_FORMAT, case: value, machine: { cpu }, readings, points, failures: [] } as unknown as StartRecord;
 };
 
 /** This function gives `count` jobs of the plan, each in its own CI run, with one start record. */
@@ -85,6 +86,18 @@ describe("the laws of the start records", () => {
       expect(law.points).toHaveLength(law.fit.residuals.length);
       expect(law.points?.every((point) => point.run >= 0 && point.load["log"] !== undefined)).toBe(true);
     }
+  });
+
+  it("gives the laws of the second starts of the ladder (CAP-107): each second start reads the home of a first start with the same amounts", () => {
+    const seconds = LADDER.points.filter((each) => each.after !== undefined);
+    expect(seconds).toHaveLength(9);
+    for (const point of seconds) expect(LADDER.points.find((each) => each.id === point.after)?.at).toEqual(point.at);
+    const full: StartCase = { ...CASE, points: LADDER.points };
+    const result = startLawsOf(PLAN, jobsOf(5, EPYC, (_record, job) => recordOf(job, EPYC, undefined, full)), OPTIONS);
+    expect(result.problems).toEqual([]);
+    const ids = result.laws.map(({ law }) => law.id);
+    expect([...ids].sort()).toEqual(["cloud/first", "cloud/second", "new/first", "new/second"].map((each) => `alerts-runtime/alerts-start-log/${MODEL}/${each}/ready`));
+    for (const { law } of result.laws) expect(law.conditions["start"]).toBe(law.id.includes("/second/") ? "second" : "first");
   });
 
   it("gives a problem for a plan with no start law set, and no law for too few jobs", () => {
@@ -198,9 +211,12 @@ describe("the plans of the levels of alerts", () => {
       expect(plan?.startLaws?.variable.id).toBe(level);
       expect(plan?.cases).toHaveLength(1);
       const value = plan?.cases[0] as StartCase;
-      expect(value.points).toHaveLength(9);
-      expect(new Set(value.points.map((each) => valueIn(each.at[level]!, plan!.startLaws!.variable.unit))).size).toBe(9);
-      return value.points.find((each) => each.id === base);
+      // A rung is a first start. The log ladder also has a second start after each rung (CAP-107).
+      const rungs = value.points.filter((each) => each.after === undefined);
+      expect(rungs).toHaveLength(9);
+      expect(value.points.length - rungs.length).toBe(level === "log" ? 9 : 0);
+      expect(new Set(rungs.map((each) => valueIn(each.at[level]!, plan!.startLaws!.variable.unit))).size).toBe(9);
+      return rungs.find((each) => each.id === base);
     });
     // the four ladders meet at one base point, thus their readings there can be compared
     expect(bases.every((each) => each !== undefined)).toBe(true);
