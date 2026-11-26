@@ -23,7 +23,7 @@ describe("the plan of the start gate of alerts", () => {
   it("starts alerts main from its contract at the live log, at the knee and at the routes limit, on the 1 GB target, in 5 jobs", () => {
     expect(PLAN.jobs).toBe(5);
     expect(CASE.app).toBe("https://github.com/metrograph-labs/alerts.git");
-    expect(CASE.arms).toEqual([{ id: "main", commit: "a1709b91426c85281ac10c8086627ee8213ada27" }]);
+    expect(CASE.arms).toEqual([{ id: "main", commit: "4615e746e0ac7bca88deb499d0a92d4a6d7252ef" }]);
     expect(ARM).not.toBe(CASE.seeder);
     expect(CASE.points.map((each) => [each.id, each.at["log"]?.value])).toEqual([["live-1844", 197_156_864], ["knee-192", 192 * 2 ** 20], ["routes-40000", 16 * 2 ** 20]]);
     // The point routes-40000 has 1000 persons and 40 incidents: the limit of CAP-99 in the shape with the larger heap.
@@ -125,7 +125,7 @@ describe("the command of the start limits", () => {
       const result = spawnSync(process.execPath, [COMMAND, "limits", "--runs", join(folder, "runs"), "--out", out], { encoding: "utf8", env: { ...process.env, GITHUB_STEP_SUMMARY: "" } });
       expect(result.stderr).toBe("");
       expect(result.status).toBe(0);
-      expect(result.stdout).toContain("The limits of alerts-start-gate/main on a1709b9 come from 5 runs.");
+      expect(result.stdout).toContain("The limits of alerts-start-gate/main on 4615e74 come from 5 runs.");
       const written = readStartLimits(out);
       expect(written).toEqual(JSON.parse(JSON.stringify(startLimitsOf(PLAN, limitJobsOf()))));
       expect(readStartLimits(join(folder, "none.json"))).toBeUndefined();
