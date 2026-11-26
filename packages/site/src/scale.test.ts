@@ -11,7 +11,7 @@ const CATALOG = { laws: LAWS.map((each) => lawFile(each.path)), compositions: CO
 const CPU = LAWS.find((law) => law.subject === "node-http")!.cpu;
 const SUBJECTS = scaleSubjects(COMPOSITIONS, LAWS, CPU);
 
-/** One copy of alerts needs approximately 400 MB with no load, thus its tests use an instance of 1 GiB. */
+/** One copy of alerts needs approximately 300 MB at 1 event each second, thus its tests use an instance of 1 GiB. */
 const settingOf = (subject: string): InstanceSetting => (subject === "alerts-runtime" ? { ...DEFAULT_SETTING, memory: 1024 } : DEFAULT_SETTING);
 
 /** These positions of the slider are the loads of the tests of each subject. */
@@ -53,19 +53,24 @@ describe("the slider on the real compositions", () => {
   it("moves the events each second of alerts, from the measures to 10 times the power of 10 over them", () => {
     const alerts = SUBJECTS.find((each) => each.subject === "alerts-runtime")!;
     const slider = sliderFor(alerts.compositions, settingOf("alerts-runtime"));
-    expect(slider.load).toMatchObject({ id: "event", unit: "{event}/s", min: 1, max: 1000, start: 55 });
-    expect(slider.measured).toMatchObject({ min: 0, max: 55 });
+    expect(slider.load).toMatchObject({ id: "event", unit: "{event}/s", min: 1, max: 1000, start: 70 });
+    expect(slider.measured).toMatchObject({ min: 0, max: 70 });
     expect(slider.load.demandAt(4)).toEqual({ classes: [], levels: { event: { value: 4, unit: "{event}/s" } } });
   }, 120_000);
 
-  it("tells that an instance of 512 MiB is too small for alerts, not a count past the search", () => {
-    // The memory law of alerts gives 382 MiB with no load. 512 MiB less 30 % of headroom is 358 MiB.
+  it("tells that an instance of 384 MiB is too small for alerts, not a count past the search", () => {
+    // The memory of alerts is approximately 288 MiB at 1 event each second. 384 MiB less 30 % of headroom is 269 MiB.
     const alerts = SUBJECTS.find((each) => each.subject === "alerts-runtime")!;
-    expect(sliderOf(alerts.compositions, DEFAULT_SETTING, CATALOG)).toBe(
+    expect(sliderOf(alerts.compositions, { ...DEFAULT_SETTING, memory: 384 }, CATALOG)).toBe(
       "At the lowest load of the slider, 1 event/s, the subject needs more than 256 instances of this size. Choose a larger instance.",
     );
     // The page shows the ends of this load with the text: events each second, not requests each second.
-    expect(sliderLoadOf(alerts.compositions, DEFAULT_SETTING, CATALOG)).toMatchObject({ id: "event", unit: "{event}/s", min: 1, max: 1000 });
+    expect(sliderLoadOf(alerts.compositions, { ...DEFAULT_SETTING, memory: 384 }, CATALOG)).toMatchObject({ id: "event", unit: "{event}/s", min: 1, max: 1000 });
+    // After AL-172, one copy fits in 512 MiB: at 1 event each second, it uses 0.80 of the memory limit.
+    const fits = sliderFor(alerts.compositions);
+    const point = pointAt(fits, 1);
+    expect(point.count.value).toBe(1);
+    expect(point.fills.find((each) => each.limit === "memory")!.use).toBeCloseTo(0.8, 1);
   }, 120_000);
 
   it("gives no subject on a CPU model with no laws, and the laws of each composition of a subject", () => {
