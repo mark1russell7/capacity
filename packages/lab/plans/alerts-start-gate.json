@@ -1,7 +1,7 @@
 {
   "format": "capacity-plan/1",
   "id": "alerts-start-gate",
-  "title": "The start gate of alerts: the start of the main build from its contract at the live log and at the knee, on the 1 GB target",
+  "title": "The start gate of alerts: the start of the main build from its contract at the live log, at the knee and at the routes limit, on the 1 GB target",
   "check": null,
   "triggers": [],
   "jobs": 5,
@@ -9,17 +9,17 @@
     {
       "format": "capacity-start/1",
       "id": "alerts-start-gate/main",
-      "title": "The start of alerts main from capacity-app.json at the log of the live store and at the knee of the log law",
+      "title": "The start of alerts main from capacity-app.json at the log of the live store, at the knee of the log law and at the limit of 40000 routes",
       "subject": "alerts-runtime",
       "app": "https://github.com/metrograph-labs/alerts.git",
       "arms": [
         {
           "id": "main",
-          "commit": "bfb3dae8b119b0f815e342a50a4592830263b098"
+          "commit": "a1709b91426c85281ac10c8086627ee8213ada27"
         }
       ],
-      "seeder": "d23377dd00cca6b70fae23ef6dd6fd06f2d52b91",
-      "seed": "al124",
+      "seeder": "3195eba112180267f72b34cfbeb035cd411ded4b",
+      "seed": "al126",
       "rounds": 3,
       "watch": {
         "value": 60,
@@ -108,6 +108,39 @@
             },
             "incidents": {
               "value": 10,
+              "unit": "{incident}"
+            },
+            "gdelt": {
+              "value": 0,
+              "unit": "{place}"
+            },
+            "score": {
+              "value": 0,
+              "unit": "{person}"
+            },
+            "chain": {
+              "value": 0,
+              "unit": "{stack}"
+            }
+          }
+        },
+        {
+          "id": "routes-40000",
+          "at": {
+            "log": {
+              "value": 16777216,
+              "unit": "B"
+            },
+            "feeds": {
+              "value": 10,
+              "unit": "{feed}"
+            },
+            "persons": {
+              "value": 1000,
+              "unit": "{person}"
+            },
+            "incidents": {
+              "value": 40,
               "unit": "{incident}"
             },
             "gdelt": {
