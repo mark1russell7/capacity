@@ -66,8 +66,8 @@ describe("the reader of the law files", () => {
     const ids = readLaws(LAWS).map((law) => law.id);
     expect(ids).toContain("node-http/rate/xeon-6975p-c/cpu.request");
     expect(ids).toContain("node-http-service/overhead/xeon-6975p-c/cpu.request.overhead");
-    // Each id is in the folder `<subject>/<plan>` of a plan with a law set: the plan `rate` of the bare server, the plan `overhead` of the runner, or the events, the feeds, the log, the persons and the routes of alerts.
-    const folders = ["node-http/rate/", "node-http-service/overhead/", "alerts-runtime/alerts-start-event/", "alerts-runtime/alerts-start-feeds/", "alerts-runtime/alerts-start-log/", "alerts-runtime/alerts-start-persons/", "alerts-runtime/alerts-start-routes/"];
+    // Each id is in the folder `<subject>/<plan>` of a plan with a law set: the plan `rate` of the bare server, the plan `overhead` of the runner, or the events, the feeds, the incidents, the log, the persons and the routes of alerts.
+    const folders = ["node-http/rate/", "node-http-service/overhead/", "alerts-runtime/alerts-start-event/", "alerts-runtime/alerts-start-feeds/", "alerts-runtime/alerts-start-incidents/", "alerts-runtime/alerts-start-log/", "alerts-runtime/alerts-start-persons/", "alerts-runtime/alerts-start-routes/"];
     expect(ids.filter((id) => !folders.some((folder) => id.startsWith(folder)))).toEqual([]);
   });
 
