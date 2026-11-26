@@ -92,6 +92,18 @@
             "eventBytes": {
               "value": 2000,
               "unit": "B"
+            },
+            "gdelt": {
+              "value": 0,
+              "unit": "{place}"
+            },
+            "score": {
+              "value": 0,
+              "unit": "{person}"
+            },
+            "chain": {
+              "value": 0,
+              "unit": "{stack}"
             }
           }
         },
@@ -125,6 +137,18 @@
             "eventBytes": {
               "value": 2000,
               "unit": "B"
+            },
+            "gdelt": {
+              "value": 0,
+              "unit": "{place}"
+            },
+            "score": {
+              "value": 0,
+              "unit": "{person}"
+            },
+            "chain": {
+              "value": 0,
+              "unit": "{stack}"
             }
           }
         },
@@ -158,6 +182,18 @@
             "eventBytes": {
               "value": 2000,
               "unit": "B"
+            },
+            "gdelt": {
+              "value": 0,
+              "unit": "{place}"
+            },
+            "score": {
+              "value": 0,
+              "unit": "{person}"
+            },
+            "chain": {
+              "value": 0,
+              "unit": "{stack}"
             }
           }
         },
@@ -191,6 +227,18 @@
             "eventBytes": {
               "value": 2000,
               "unit": "B"
+            },
+            "gdelt": {
+              "value": 0,
+              "unit": "{place}"
+            },
+            "score": {
+              "value": 0,
+              "unit": "{person}"
+            },
+            "chain": {
+              "value": 0,
+              "unit": "{stack}"
             }
           }
         },
@@ -224,6 +272,18 @@
             "eventBytes": {
               "value": 2000,
               "unit": "B"
+            },
+            "gdelt": {
+              "value": 0,
+              "unit": "{place}"
+            },
+            "score": {
+              "value": 0,
+              "unit": "{person}"
+            },
+            "chain": {
+              "value": 0,
+              "unit": "{stack}"
             }
           }
         },
@@ -257,6 +317,18 @@
             "eventBytes": {
               "value": 2000,
               "unit": "B"
+            },
+            "gdelt": {
+              "value": 0,
+              "unit": "{place}"
+            },
+            "score": {
+              "value": 0,
+              "unit": "{person}"
+            },
+            "chain": {
+              "value": 0,
+              "unit": "{stack}"
             }
           }
         },
@@ -290,6 +362,18 @@
             "eventBytes": {
               "value": 2000,
               "unit": "B"
+            },
+            "gdelt": {
+              "value": 0,
+              "unit": "{place}"
+            },
+            "score": {
+              "value": 0,
+              "unit": "{person}"
+            },
+            "chain": {
+              "value": 0,
+              "unit": "{stack}"
             }
           }
         },
@@ -323,6 +407,18 @@
             "eventBytes": {
               "value": 2000,
               "unit": "B"
+            },
+            "gdelt": {
+              "value": 0,
+              "unit": "{place}"
+            },
+            "score": {
+              "value": 0,
+              "unit": "{person}"
+            },
+            "chain": {
+              "value": 0,
+              "unit": "{stack}"
             }
           }
         },
@@ -356,6 +452,18 @@
             "eventBytes": {
               "value": 2000,
               "unit": "B"
+            },
+            "gdelt": {
+              "value": 0,
+              "unit": "{place}"
+            },
+            "score": {
+              "value": 0,
+              "unit": "{person}"
+            },
+            "chain": {
+              "value": 0,
+              "unit": "{stack}"
             }
           }
         },
@@ -389,6 +497,18 @@
             "eventBytes": {
               "value": 2000,
               "unit": "B"
+            },
+            "gdelt": {
+              "value": 0,
+              "unit": "{place}"
+            },
+            "score": {
+              "value": 0,
+              "unit": "{person}"
+            },
+            "chain": {
+              "value": 0,
+              "unit": "{stack}"
             }
           }
         },
@@ -422,6 +542,18 @@
             "eventBytes": {
               "value": 2000,
               "unit": "B"
+            },
+            "gdelt": {
+              "value": 0,
+              "unit": "{place}"
+            },
+            "score": {
+              "value": 0,
+              "unit": "{person}"
+            },
+            "chain": {
+              "value": 0,
+              "unit": "{stack}"
             }
           }
         }
