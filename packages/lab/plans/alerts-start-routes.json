@@ -76,6 +76,18 @@
             "incidents": {
               "value": 0,
               "unit": "{incident}"
+            },
+            "gdelt": {
+              "value": 0,
+              "unit": "{place}"
+            },
+            "score": {
+              "value": 0,
+              "unit": "{person}"
+            },
+            "chain": {
+              "value": 0,
+              "unit": "{stack}"
             }
           }
         },
@@ -97,6 +109,18 @@
             "incidents": {
               "value": 10,
               "unit": "{incident}"
+            },
+            "gdelt": {
+              "value": 0,
+              "unit": "{place}"
+            },
+            "score": {
+              "value": 0,
+              "unit": "{person}"
+            },
+            "chain": {
+              "value": 0,
+              "unit": "{stack}"
             }
           }
         },
@@ -118,6 +142,18 @@
             "incidents": {
               "value": 100,
               "unit": "{incident}"
+            },
+            "gdelt": {
+              "value": 0,
+              "unit": "{place}"
+            },
+            "score": {
+              "value": 0,
+              "unit": "{person}"
+            },
+            "chain": {
+              "value": 0,
+              "unit": "{stack}"
             }
           }
         },
@@ -139,6 +175,18 @@
             "incidents": {
               "value": 1000,
               "unit": "{incident}"
+            },
+            "gdelt": {
+              "value": 0,
+              "unit": "{place}"
+            },
+            "score": {
+              "value": 0,
+              "unit": "{person}"
+            },
+            "chain": {
+              "value": 0,
+              "unit": "{stack}"
             }
           }
         },
@@ -160,6 +208,18 @@
             "incidents": {
               "value": 0,
               "unit": "{incident}"
+            },
+            "gdelt": {
+              "value": 0,
+              "unit": "{place}"
+            },
+            "score": {
+              "value": 0,
+              "unit": "{person}"
+            },
+            "chain": {
+              "value": 0,
+              "unit": "{stack}"
             }
           }
         },
@@ -181,6 +241,18 @@
             "incidents": {
               "value": 10,
               "unit": "{incident}"
+            },
+            "gdelt": {
+              "value": 0,
+              "unit": "{place}"
+            },
+            "score": {
+              "value": 0,
+              "unit": "{person}"
+            },
+            "chain": {
+              "value": 0,
+              "unit": "{stack}"
             }
           }
         },
@@ -202,6 +274,18 @@
             "incidents": {
               "value": 100,
               "unit": "{incident}"
+            },
+            "gdelt": {
+              "value": 0,
+              "unit": "{place}"
+            },
+            "score": {
+              "value": 0,
+              "unit": "{person}"
+            },
+            "chain": {
+              "value": 0,
+              "unit": "{stack}"
             }
           }
         },
@@ -223,6 +307,18 @@
             "incidents": {
               "value": 1000,
               "unit": "{incident}"
+            },
+            "gdelt": {
+              "value": 0,
+              "unit": "{place}"
+            },
+            "score": {
+              "value": 0,
+              "unit": "{person}"
+            },
+            "chain": {
+              "value": 0,
+              "unit": "{stack}"
             }
           }
         },
@@ -244,6 +340,18 @@
             "incidents": {
               "value": 0,
               "unit": "{incident}"
+            },
+            "gdelt": {
+              "value": 0,
+              "unit": "{place}"
+            },
+            "score": {
+              "value": 0,
+              "unit": "{person}"
+            },
+            "chain": {
+              "value": 0,
+              "unit": "{stack}"
             }
           }
         },
@@ -265,6 +373,18 @@
             "incidents": {
               "value": 10,
               "unit": "{incident}"
+            },
+            "gdelt": {
+              "value": 0,
+              "unit": "{place}"
+            },
+            "score": {
+              "value": 0,
+              "unit": "{person}"
+            },
+            "chain": {
+              "value": 0,
+              "unit": "{stack}"
             }
           }
         },
@@ -286,6 +406,18 @@
             "incidents": {
               "value": 100,
               "unit": "{incident}"
+            },
+            "gdelt": {
+              "value": 0,
+              "unit": "{place}"
+            },
+            "score": {
+              "value": 0,
+              "unit": "{person}"
+            },
+            "chain": {
+              "value": 0,
+              "unit": "{stack}"
             }
           }
         },
@@ -307,6 +439,18 @@
             "incidents": {
               "value": 1000,
               "unit": "{incident}"
+            },
+            "gdelt": {
+              "value": 0,
+              "unit": "{place}"
+            },
+            "score": {
+              "value": 0,
+              "unit": "{person}"
+            },
+            "chain": {
+              "value": 0,
+              "unit": "{stack}"
             }
           }
         },
@@ -328,6 +472,18 @@
             "incidents": {
               "value": 0,
               "unit": "{incident}"
+            },
+            "gdelt": {
+              "value": 0,
+              "unit": "{place}"
+            },
+            "score": {
+              "value": 0,
+              "unit": "{person}"
+            },
+            "chain": {
+              "value": 0,
+              "unit": "{stack}"
             }
           }
         },
@@ -349,6 +505,18 @@
             "incidents": {
               "value": 10,
               "unit": "{incident}"
+            },
+            "gdelt": {
+              "value": 0,
+              "unit": "{place}"
+            },
+            "score": {
+              "value": 0,
+              "unit": "{person}"
+            },
+            "chain": {
+              "value": 0,
+              "unit": "{stack}"
             }
           }
         },
@@ -370,6 +538,18 @@
             "incidents": {
               "value": 100,
               "unit": "{incident}"
+            },
+            "gdelt": {
+              "value": 0,
+              "unit": "{place}"
+            },
+            "score": {
+              "value": 0,
+              "unit": "{person}"
+            },
+            "chain": {
+              "value": 0,
+              "unit": "{stack}"
             }
           }
         }
