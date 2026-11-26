@@ -92,6 +92,40 @@
           }
         },
         {
+          "id": "log-2-again",
+          "at": {
+            "log": {
+              "value": 2097152,
+              "unit": "B"
+            },
+            "feeds": {
+              "value": 10,
+              "unit": "{feed}"
+            },
+            "persons": {
+              "value": 10,
+              "unit": "{person}"
+            },
+            "incidents": {
+              "value": 10,
+              "unit": "{incident}"
+            },
+            "gdelt": {
+              "value": 0,
+              "unit": "{place}"
+            },
+            "score": {
+              "value": 0,
+              "unit": "{person}"
+            },
+            "chain": {
+              "value": 0,
+              "unit": "{stack}"
+            }
+          },
+          "after": "log-2"
+        },
+        {
           "id": "log-4",
           "at": {
             "log": {
@@ -123,6 +157,40 @@
               "unit": "{stack}"
             }
           }
+        },
+        {
+          "id": "log-4-again",
+          "at": {
+            "log": {
+              "value": 4194304,
+              "unit": "B"
+            },
+            "feeds": {
+              "value": 10,
+              "unit": "{feed}"
+            },
+            "persons": {
+              "value": 10,
+              "unit": "{person}"
+            },
+            "incidents": {
+              "value": 10,
+              "unit": "{incident}"
+            },
+            "gdelt": {
+              "value": 0,
+              "unit": "{place}"
+            },
+            "score": {
+              "value": 0,
+              "unit": "{person}"
+            },
+            "chain": {
+              "value": 0,
+              "unit": "{stack}"
+            }
+          },
+          "after": "log-4"
         },
         {
           "id": "log-8",
@@ -158,6 +226,40 @@
           }
         },
         {
+          "id": "log-8-again",
+          "at": {
+            "log": {
+              "value": 8388608,
+              "unit": "B"
+            },
+            "feeds": {
+              "value": 10,
+              "unit": "{feed}"
+            },
+            "persons": {
+              "value": 10,
+              "unit": "{person}"
+            },
+            "incidents": {
+              "value": 10,
+              "unit": "{incident}"
+            },
+            "gdelt": {
+              "value": 0,
+              "unit": "{place}"
+            },
+            "score": {
+              "value": 0,
+              "unit": "{person}"
+            },
+            "chain": {
+              "value": 0,
+              "unit": "{stack}"
+            }
+          },
+          "after": "log-8"
+        },
+        {
           "id": "log-16",
           "at": {
             "log": {
@@ -189,6 +291,40 @@
               "unit": "{stack}"
             }
           }
+        },
+        {
+          "id": "log-16-again",
+          "at": {
+            "log": {
+              "value": 16777216,
+              "unit": "B"
+            },
+            "feeds": {
+              "value": 10,
+              "unit": "{feed}"
+            },
+            "persons": {
+              "value": 10,
+              "unit": "{person}"
+            },
+            "incidents": {
+              "value": 10,
+              "unit": "{incident}"
+            },
+            "gdelt": {
+              "value": 0,
+              "unit": "{place}"
+            },
+            "score": {
+              "value": 0,
+              "unit": "{person}"
+            },
+            "chain": {
+              "value": 0,
+              "unit": "{stack}"
+            }
+          },
+          "after": "log-16"
         },
         {
           "id": "log-32",
@@ -224,6 +360,40 @@
           }
         },
         {
+          "id": "log-32-again",
+          "at": {
+            "log": {
+              "value": 33554432,
+              "unit": "B"
+            },
+            "feeds": {
+              "value": 10,
+              "unit": "{feed}"
+            },
+            "persons": {
+              "value": 10,
+              "unit": "{person}"
+            },
+            "incidents": {
+              "value": 10,
+              "unit": "{incident}"
+            },
+            "gdelt": {
+              "value": 0,
+              "unit": "{place}"
+            },
+            "score": {
+              "value": 0,
+              "unit": "{person}"
+            },
+            "chain": {
+              "value": 0,
+              "unit": "{stack}"
+            }
+          },
+          "after": "log-32"
+        },
+        {
           "id": "log-64",
           "at": {
             "log": {
@@ -255,6 +425,40 @@
               "unit": "{stack}"
             }
           }
+        },
+        {
+          "id": "log-64-again",
+          "at": {
+            "log": {
+              "value": 67108864,
+              "unit": "B"
+            },
+            "feeds": {
+              "value": 10,
+              "unit": "{feed}"
+            },
+            "persons": {
+              "value": 10,
+              "unit": "{person}"
+            },
+            "incidents": {
+              "value": 10,
+              "unit": "{incident}"
+            },
+            "gdelt": {
+              "value": 0,
+              "unit": "{place}"
+            },
+            "score": {
+              "value": 0,
+              "unit": "{person}"
+            },
+            "chain": {
+              "value": 0,
+              "unit": "{stack}"
+            }
+          },
+          "after": "log-64"
         },
         {
           "id": "log-128",
@@ -290,6 +494,40 @@
           }
         },
         {
+          "id": "log-128-again",
+          "at": {
+            "log": {
+              "value": 134217728,
+              "unit": "B"
+            },
+            "feeds": {
+              "value": 10,
+              "unit": "{feed}"
+            },
+            "persons": {
+              "value": 10,
+              "unit": "{person}"
+            },
+            "incidents": {
+              "value": 10,
+              "unit": "{incident}"
+            },
+            "gdelt": {
+              "value": 0,
+              "unit": "{place}"
+            },
+            "score": {
+              "value": 0,
+              "unit": "{person}"
+            },
+            "chain": {
+              "value": 0,
+              "unit": "{stack}"
+            }
+          },
+          "after": "log-128"
+        },
+        {
           "id": "log-256",
           "at": {
             "log": {
@@ -323,6 +561,40 @@
           }
         },
         {
+          "id": "log-256-again",
+          "at": {
+            "log": {
+              "value": 268435456,
+              "unit": "B"
+            },
+            "feeds": {
+              "value": 10,
+              "unit": "{feed}"
+            },
+            "persons": {
+              "value": 10,
+              "unit": "{person}"
+            },
+            "incidents": {
+              "value": 10,
+              "unit": "{incident}"
+            },
+            "gdelt": {
+              "value": 0,
+              "unit": "{place}"
+            },
+            "score": {
+              "value": 0,
+              "unit": "{person}"
+            },
+            "chain": {
+              "value": 0,
+              "unit": "{stack}"
+            }
+          },
+          "after": "log-256"
+        },
+        {
           "id": "log-max",
           "at": {
             "log": {
@@ -354,6 +626,40 @@
               "unit": "{stack}"
             }
           }
+        },
+        {
+          "id": "log-max-again",
+          "at": {
+            "log": {
+              "value": 400000000,
+              "unit": "B"
+            },
+            "feeds": {
+              "value": 10,
+              "unit": "{feed}"
+            },
+            "persons": {
+              "value": 10,
+              "unit": "{person}"
+            },
+            "incidents": {
+              "value": 10,
+              "unit": "{incident}"
+            },
+            "gdelt": {
+              "value": 0,
+              "unit": "{place}"
+            },
+            "score": {
+              "value": 0,
+              "unit": "{person}"
+            },
+            "chain": {
+              "value": 0,
+              "unit": "{stack}"
+            }
+          },
+          "after": "log-max"
         }
       ]
     }
