@@ -145,6 +145,27 @@ describe("the scale rule of alerts", () => {
     expect(memory.value.interval.high / 1e6).toBeLessThan(345);
   }, QUERY_TIME);
 
+  it("keeps the log term of a first start, which holds 42 MB more than a start from the snapshot at the live log", () => {
+    // The plan alerts-start-log starts the same store a second time after each rung (CAP-107). That start reads the keyed snapshot.
+    // A key change folds the whole log, and the process keeps that memory until its next start. Thus the rule keeps the first start.
+    const watch = (start: "first" | "second", base?: Amounts) => {
+      const law = `alerts-runtime/alerts-start-log/xeon-6975p-c/main/${start}/watch-peak`;
+      const one: Composition = { format: "capacity-composition/1", id: `log-${start}`, title: law, subject: "alerts-runtime", measure: { id: "memory", unit: "B" }, terms: [{ law, over: "instance", base }] };
+      const value = compositionValue(one, { laws }, { classes: [], levels: {} }, { given: { log: { value: 197_156_864, unit: "B" } } });
+      if (value.tag !== "ok") throw new Error(value.error.message);
+      return value.value.value / 1e6;
+    };
+    const base: Amounts = { log: { value: 16, unit: "MiB" } };
+    // The change from 16 MiB of log to the live log: 43 MB for a first start and 20 MB for a start from the snapshot.
+    expect(watch("first", base)).toBeGreaterThan(39);
+    expect(watch("first", base)).toBeLessThan(46);
+    expect(watch("second", base)).toBeGreaterThan(17);
+    expect(watch("second", base)).toBeLessThan(23);
+    // At the live log, the first start holds 333 MB, and the start from the snapshot holds 291 MB.
+    expect(watch("first") - watch("second")).toBeGreaterThan(36);
+    expect(watch("first") - watch("second")).toBeLessThan(48);
+  }, QUERY_TIME);
+
   it("holds 1000 open incidents at the live setup with no events on the small cloud machine", () => {
     // The incidents law ends at 1000. The memory there is 408 MB. The CPU of the watch binds first, past the end of the law.
     const live: Amounts = { persons: { value: 2, unit: "{person}" }, feeds: { value: 5, unit: "{feed}" }, log: { value: 197_156_864, unit: "B" }, event: { value: 0, unit: "{event}/s" } };
