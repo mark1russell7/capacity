@@ -731,7 +731,7 @@ The plans `alerts-start-feeds`, `alerts-start-persons` and `alerts-start-inciden
 | The arm | One arm: alerts at the commit of its levels, with its A/A copy | A ladder gives a law, not a comparison. The A/A copy gives the noise floor of each measure. |
 | The limit | 240 s for each start | A start at the base is ready in approximately 6 s. A start that passes the limit has no reading, and the result tells it. |
 | The measures | `ready`, `peak`, `heap`, `heapPeak` and `watchPeak` | The time to ready and the memory of a start are inputs of the scale rule. `heapPeak` gives the reach of each level to the heap limit of V8. |
-| The second starts | `alerts-start-log` has a point `<rung>-again` after each rung (CAP-107). It opens the home of a first start on that rung. | The cloud copy reads the snapshot of the fold at each start with the same key. Thus a full fold is the start after a change of the key only. The laws `second` give the log term of the rule for the other starts. |
+| The second starts | `alerts-start-log` has a point `<rung>-again` after each rung (CAP-107). It opens the home of a first start on that rung. | The cloud copy reads the snapshot of the fold at each start with the same key. Thus a full fold is the start after a change of the key only. The laws `second` measure the other starts. The rule keeps the first start, because the process keeps the memory of a fold until its next start. |
 
 - The target is the target of the plan `alerts-start-app`.
 - A start law set refuses a case with points that move a second variable. Otherwise a law of one variable also holds the effect of another variable.
