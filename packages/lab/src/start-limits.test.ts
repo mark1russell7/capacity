@@ -20,17 +20,22 @@ const COMMAND = fileURLToPath(new URL("./start-limits.main.ts", import.meta.url)
 const ARM = CASE.arms[0]!.commit;
 
 describe("the plan of the start gate of alerts", () => {
-  it("starts alerts main from its contract at the live log, at the knee and at the routes limit, on the 1 GB target, in 5 jobs", () => {
+  it("starts the head and its base from the contract at the live log, at the knee and at the routes limit, on the 1 GB target, in 5 jobs", () => {
     expect(PLAN.jobs).toBe(5);
     expect(CASE.app).toBe("https://github.com/metrograph-labs/alerts.git");
-    expect(CASE.arms).toEqual([{ id: "main", commit: "4615e746e0ac7bca88deb499d0a92d4a6d7252ef" }]);
+    // The arm base has the commit of the limits. The gate gives it the base of a pull request, and the limits do not read it (CAP-105).
+    expect(CASE.arms).toEqual([
+      { id: "main", commit: "4615e746e0ac7bca88deb499d0a92d4a6d7252ef" },
+      { id: "base", commit: "4615e746e0ac7bca88deb499d0a92d4a6d7252ef" },
+    ]);
     expect(ARM).not.toBe(CASE.seeder);
     expect(CASE.points.map((each) => [each.id, each.at["log"]?.value])).toEqual([["live-1844", 197_156_864], ["knee-192", 192 * 2 ** 20], ["routes-40000", 16 * 2 ** 20]]);
     // The point routes-40000 has 1000 persons and 40 incidents: the limit of CAP-99 in the shape with the larger heap.
     expect(CASE.points[2]?.at["persons"]?.value).toBe(1000);
     expect(CASE.points[2]?.at["incidents"]?.value).toBe(40);
     expect(CASE.target.memory).toEqual({ value: 1_011_425_280, unit: "B" });
-    expect(planMinutes(PLAN)).toBeLessThanOrEqual(180);
+    // The time limit of a job is 219 minutes with the base. A job of two children ran in 18 to 20 minutes, thus a job of three runs in about 30.
+    expect(planMinutes(PLAN)).toBeLessThanOrEqual(240);
   });
 });
 

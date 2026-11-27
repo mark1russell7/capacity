@@ -772,10 +772,10 @@ The plan `alerts-start-gate` gives the limits of the start of alerts (CAP-49). T
 
 | Part | The value | Why |
 | --- | --- | --- |
-| The arm | One arm `main`: alerts main at one commit, with its A/A copy | The gate holds the start of the current build. The A/A copy adds readings of the same build. |
+| The arms | The arm `main`: alerts main at one commit, with its A/A copy. The arm `base`, at the same commit. | The limits read `main` and its A/A copy. The gate gives `main` the head of a pull request and `base` its merge base (CAP-105). |
 | The points | `live-1844` at 197,156,864 B of log, and `knee-192` at 192 MiB of log. Each of the two has 10 feeds, 10 persons and 10 incidents. `routes-40000` has 16 MiB of log, 10 feeds, 1000 persons and 40 open incidents. | `live-1844` is the log of the live store when its starts stopped. `knee-192` is the knee of `ready` over the log. `routes-40000` is the limit of the routes (CAP-99). |
 | The target | The 1 GB target of the plan `alerts-start-app` | This is the machine of the observations. |
-| The rounds | 3 rounds, in 5 jobs | Each job starts 18 children. The time limit of each job is 160 minutes. |
+| The rounds | 3 rounds, in 5 jobs | Each job starts 27 children. The time limit of each job is 219 minutes. A job of 18 children ran in 18 to 20 minutes. |
 
 `startLimitsOf(plan, jobs)` gives the limits from the jobs of 5 or more CI runs. Each job is one run. The command writes them:
 
@@ -784,7 +784,7 @@ gh run download <run> -R metrograph-labs/capacity -D runs
 node src/start-limits.main.ts limits --runs runs --out ../capacity/limits/alerts-start-gate.limits.json
 ```
 
-- **The value of a run.** At a point, it is the largest reading of `main` and `main~aa`, over the rounds of the run.
+- **The value of a run.** At a point, it is the largest reading of `main` and `main~aa`, over the rounds of the run. The limits do not read the arm `base`.
 - **The limit.** It is `runLimit` of `@mark1russell7/rigor-bench`: the worst value of the runs plus their spread, rounded up to a whole unit.
 - **The refusals.** The command refuses fewer than 5 runs, a record of another version of the case, and a record with a problem.
 - **Two CI runs or more.** The command also refuses runs that all come from one CI run. The runners of one CI run can be quieter than usual. On 2026-11-25, one CI run of 10 runs gave a readiness SD of 0.4 s, and three others gave 0.8 to 1.6 s.
@@ -815,7 +815,7 @@ The estimate uses the t law of the runs at one commit. The chance that one more 
 - **The 30 runs.** The limits come from 3 CI runs of 10 runs each (45883174945, 45883204132 and 45883223392), at alerts `4615e74` with the seeder `3195eba`. Each of the 540 starts was ready. The limits before them came from 30 runs at alerts `a1709b9` (45826996960, 45843984727 and 45861568833). The limits before those came from 30 runs at alerts `bfb3dae`.
 - **The step of AL-184.** AL-184 of alerts (client and peer 0.68.12, service 0.12.4) increased `start.live` by approximately 0.9 MB. The heads before it have a job mean of 81.2 to 81.5 MB, and the heads after it have 82.1 to 82.9 MB. The limits from `a1709b9` blocked 3 PRs of alerts that did not change the start. Thus the limits came again from runs after AL-184.
 - **The check against the gate runs of alerts.** The 16 gate runs of alerts on 2026-11-26 use 0.990 of a new limit at most. The run 45866774641 of a branch with more growth uses 0.991.
-- **A limit at one commit.** An accepted change of the app moves the limits. CAP-105 compares the head with its base in the same job. CAP-106 fits the limits again after the lock file update of alerts.
+- **A limit at one commit.** An accepted change of the app moves the limits. Thus the gate compares the head with its base in the same job (CAP-105). CAP-106 fits the limits again after the lock file update of alerts.
 - **The runners of one CI run.** The spread of `start.readiness` changes between the CI runs: 0.4 s, 0.9 s and 1.5 s at `live-1844`. A limit from the quiet CI run alone blocks 4 of 16 PR gates of alerts. Thus the limits command refuses runs of fewer than 2 CI runs.
 - **The direct count.** The 16 PR gates of alerts at the commits from `8230423` to `18f3086` reached 15.5 s and 82.2 MB at most. Each one is below the new limits.
 - **The gate of the margin.** A test puts each limit above the t bound of one more run, at the tail 0.005. A limit from 5 runs does not pass it.
@@ -841,13 +841,15 @@ A gate reads `points[].limits` with `readLimits` of `@mark1russell7/capacity`. A
 
 ##### The workflow of the start gate
 
-The workflow `start-gate.yml` measures a new commit of the app against the limits file (CAP-98). An app calls it from the workflow of its pull requests:
+The workflow `start-gate.yml` measures a new commit of the app and its base against the limits file (CAP-98, CAP-105). An app calls it from the workflow of its pull requests:
 
 ```yaml
 start-gate:
   uses: metrograph-labs/capacity/.github/workflows/start-gate.yml@<capacity commit>
   with:
     commit: ${{ github.event.pull_request.head.sha }}
+    base: ${{ github.event.pull_request.base.sha }}
+    accept: ${{ contains(github.event.pull_request.labels.*.name, 'start-change') }}
     capacity: <capacity commit>
 ```
 
@@ -856,14 +858,24 @@ start-gate:
 - **The levels of AL-160.** The points give `gdelt`, `score` and `chain` the value 0. That is the old config of alerts, the config of the limits.
 - **The commit of capacity.** A called workflow runs in the context of its caller. Thus the input `capacity` names the commit that the jobs check out. Give the commit of the `uses` line.
 - **The runs.** The job plan gives one job for each run (the input `runs`, 5 by default). The option `--arm` of `timed.main.ts plan` adds the tree of the new commit to the time limit of a job.
-- **The value of a run.** It is the value of the limits: `startValueOf`, the largest reading of the arm and its A/A copy at the point.
-- **The verdict.** `startGateOf` calls `limitUses` of `@mark1russell7/capacity` for each run at each point. `start-gate.main.ts` writes the use of each limit into the summary.
+- **The value of a run.** It is the value of the limits: `startValueOf`, the largest reading of the arm and its A/A copy at the point. The base has the value of its own readings.
+- **The verdict.** `startGateOf` calls `limitUses` of `@mark1russell7/capacity` for each arm of each run at each point. `start-gate.main.ts` writes the use of each limit into the summary.
+
+The gate compares the head with its base in the same job (CAP-105). The limits came from one commit of the app. After AL-184 added 0.9 MB of `start.live`, the limits from `a1709b9` blocked 3 PRs of alerts that did not change the start. A base on the same runner shows if the change comes from the head.
+
+- **The base.** The input `base` is a commit of the base branch. The job plan finds the merge base of it and the head, with a clone of the app with no files. The arm `base` starts at that merge base. Thus a head that is behind main does not get the changes of main. With no input `base`, the arm keeps the commit of the plan.
+- **The paired claim.** `START_PAIRED_LIMITS` gives the limit 1.02 for `start.live`. `pooledLimitVerdict` of `@mark1russell7/rigor-bench` compares the head with its base in each round of each run. The A/A pairs of the head give the noise. A claim that is `beyond` blocks, and a claim that cannot decide gives no read.
+- **The data of the limit.** In the 30 runs at alerts `4615e74`, the ratio of two equal builds has an SD of 0.24 to 0.66 % for `start.live`. In 1000 draws of 5 runs, the claim at 1.02 is `within` in each draw. At 1.01, it is `within` in 54 % of the draws.
+- **No paired claim of peak and readiness.** Their ratio has an SD of 3.7 to 6.1 %. At each limit up to 1.1, 5 runs cannot decide. Thus they stay on their ceilings.
+- **The ceilings are the budget.** A head above a ceiling blocks when its base holds that ceiling in each run. When the base also passes it, main moved. Then the gate gives a drift, which does not block, and the limits need a new derivation at the new main.
+- **An accepted change.** The input `accept` changes each block of a ceiling or of a paired limit into the finding `accepted`. The gate then passes, and the summary tells it. A child that did not fit the target still blocks.
+- **The time.** The base adds 9 children to the 18 children of a job. A gate of 5 jobs, 3 at a time, takes approximately one hour.
 
 | Outcome | When | The job |
 | --- | --- | --- |
-| `pass` | Each run holds each limit at each point. | It passes. |
-| `block` | A value is above its ceiling, or a child did not fit the target. | It fails. |
-| `no-read` | A run measured another commit or another version of the case, a record has a problem, a point has no value, or fewer runs have a record than the input `runs`. | It fails. A no read is not a pass. |
+| `pass` | The head holds each ceiling that its base holds, and each paired claim is `within`. A drift and an accepted change also pass. | It passes. |
+| `block` | The head is above a ceiling that its base holds, the head is `beyond` a paired limit, or a child did not fit the target. | It fails. |
+| `no-read` | A run measured another commit or another version of the case, a record has a problem, a point has no value, a paired claim cannot decide, or fewer runs have a record than the input `runs`. | It fails. A no read is not a pass. |
 
 The job gate reads the latest try of each job. Thus a rerun of a lost runner gives a read. A person starts the gate by hand, for example the proof run at the commit of the limits:
 
