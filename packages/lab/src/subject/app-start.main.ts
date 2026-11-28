@@ -24,6 +24,11 @@
 // - `startHeap` and `watchHeap` are the heap peaks of the start and of the watch.
 // - `watchCpu` is the CPU time of the process over the watch, in milliseconds, and `watchMs` is the time of the watch. The
 //   CPU time has the load of the fakes on the app, and the small work of the watch of the memory.
+// - `startCpu` is the CPU time of the process from the import of the app to the ready signal, in milliseconds.
+// - `startLoop` and `watchLoop` are the blocks of the event loop from the import to ready, and over the watch. Each has
+//   `longestMs`, the longest gap between two ticks of the timer of the watch of the loop, and `blockCount`, the count of
+//   gaps over `LOOP_BLOCK_MS`. `longestAt` is the start of the longest block from the start of the process, or null
+//   when no gap is over the limit. The full GC of the program at ready is in neither of the two.
 // - `peakRss` is VmHWM at ready. `ready` and `watch` are the memory at ready and the peak over the watch.
 // - `io` is the reads and the faults of the process at ready. `live` is the used heap after a full GC at ready.
 // - `limit` is the heap size limit of V8. `copyMs` and `ballastMs` are the times of the copy and of the ballasts of the
@@ -49,11 +54,21 @@ import { pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
 import { getHeapStatistics } from "node:v8";
 import { heapAfterGc, processIo, processMemory, startBallast, watchHeap, watchIo, watchMemory, type Ballast, type IoWatch } from "@mark1russell7/rigor-bench/fresh";
+import { watchEventLoop, type LoopSpan } from "@mark1russell7/lag/node";
 import { errorMessage } from "@mark1russell7/text";
 import type { AppRunFile } from "../start-app.ts";
 import { READY_POLL_MS, httpProbe, lineRecorder, runLineFields, textWatch, type LineRecorder } from "./ready.ts";
 /** This time is the longest close, in milliseconds. It is in the margin of the time limit of a child. */
 const CLOSE_GRACE_MS = 10_000;
+
+/** A gap of the event loop over this time, in milliseconds, is a block in the fields `startLoop` and `watchLoop`. */
+const LOOP_BLOCK_MS = 50;
+
+/** This function gives the fields of the blocks of one span of the watch of the event loop. */
+const blocksOf = (span: LoopSpan): { readonly longestMs: number; readonly blockCount: number; readonly longestAt: number | null } => {
+  const longest = span.blocks.reduce<LoopSpan["blocks"][number] | undefined>((top, each) => (top === undefined || each.durationMs > top.durationMs ? each : top), undefined);
+  return { longestMs: span.longestMs, blockCount: span.blockCount, longestAt: longest?.startedAt ?? null };
+};
 
 const { values } = parseArgs({
   options: {
@@ -176,6 +191,9 @@ process.argv = [process.argv[0] ?? process.execPath, run.script, ...run.args.map
 for (const [name, text] of Object.entries(run.env)) process.env[name] = filled(text);
 
 const startHeap = watchHeap();
+// The watch of the loop starts before the import, thus its first span has each block of the start of the app.
+const loop = watchEventLoop({ limitMs: LOOP_BLOCK_MS });
+const cpuOfImport = process.cpuUsage();
 const started = performance.now();
 void import(pathToFileURL(run.script).href).catch((error: unknown) => {
   fail(`The import of the app "${run.app}" failed: ${error instanceof Error && error.stack !== undefined ? error.stack : errorMessage(error)}`);
@@ -190,6 +208,9 @@ if (http !== undefined && ready.kind === "http") {
 }
 await signalled;
 const at = readyAt ?? performance.now();
+const startLoop = blocksOf(loop.span());
+const cpuToReady = process.cpuUsage(cpuOfImport);
+const startCpu = (cpuToReady.user + cpuToReady.system) / 1000;
 const ms = at - started;
 const readiness = at - copyMs - ballastMs;
 const heapOfStart = startHeap.stop();
@@ -200,6 +221,8 @@ const live = heapAfterGc();
 // The ballasts of the moment `ready` start at the ready signal. The watch does not wait for them.
 for (const flag of flags.filter((each) => each.at === "ready")) ballasts.push({ flag, ballast: startBallast(flag.bytes) });
 
+// This span holds the full GC of the program at ready. It is not a block of the app, thus the program drops it.
+loop.span();
 const watch = watchMemory();
 const heapOfWatch = watchHeap();
 const cpuOfReady = process.cpuUsage();
@@ -207,6 +230,8 @@ const watchStarted = performance.now();
 await sleep(watchMs);
 const cpuOfWatch = process.cpuUsage(cpuOfReady);
 const watchCpu = (cpuOfWatch.user + cpuOfWatch.system) / 1000;
+const watchLoop = blocksOf(loop.span());
+loop.stop();
 const watchEnd = performance.now();
 const watchedMs = watchEnd - watchStarted;
 const recorded = runLineFields(kinds, recorders.flatMap((each) => each.lines()), at, watchEnd, run.units);
@@ -236,6 +261,9 @@ const line = {
   watchHeap: watchedHeap,
   watchCpu,
   watchMs: watchedMs,
+  startCpu,
+  startLoop,
+  watchLoop,
   passes: recorded.passes,
   stalled: false,
   limit: getHeapStatistics().heap_size_limit,

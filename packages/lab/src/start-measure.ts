@@ -84,6 +84,9 @@ export const START_RECORD_FORMAT = "capacity-start-record/1";
  * - The measures `watch...` are the peaks over the watch after ready, and `passes` is the count of passes in the watch.
  * - `watchCpu` is the CPU time of the process over the watch, and `watchCores` is that time over the time of the watch.
  *   At a point with a load, the law of `watchCores` over the rate of a class gives the CPU time of one request.
+ * - `startCpu` is the CPU time of the process from the import of the app to ready.
+ * - `startLongest` and `watchLongest` are the longest blocks of the event loop from the import to ready, and over the watch.
+ *   `startBlocks` and `watchBlocks` are their counts of blocks over 50 ms. A liveness probe fails in such a block.
  * - `limit` is the heap size limit of V8 in the child.
  * - `writes` is the count of the writes of the snapshot of the start, in the start and the watch.
  * - `writeLongest` is the longest block of the event loop in one write: the longest time between two pauses of the write.
@@ -120,6 +123,11 @@ export const START_MEASURES = {
   watchGc: "ms",
   watchCpu: "ms",
   watchCores: "{core}",
+  startCpu: "ms",
+  startLongest: "ms",
+  startBlocks: "{block}",
+  watchLongest: "ms",
+  watchBlocks: "{block}",
   passes: "{pass}",
   limit: "B",
   writes: "{write}",
@@ -535,6 +543,20 @@ const watchCpuMeasures = (extra: Readonly<Record<string, unknown>>): Record<"wat
   return { watchCpu: amount("watchCpu", cpu), watchCores: amount("watchCores", cpu === null || ms === null || !(ms > 0) ? null : cpu / ms) };
 };
 
+/** The measures of the blocks of the event loop: the longest block and the count of blocks, of the start and of the watch. */
+type LoopMeasure = "startLongest" | "startBlocks" | "watchLongest" | "watchBlocks";
+
+/**
+ * This function gives the measures of the blocks of the event loop from the fields `startLoop` and `watchLoop` of a child.
+ * A child with no such field, or with a field of a wrong type, gives null for its measures.
+ */
+export const loopMeasures = (extra: Readonly<Record<string, unknown>>): Record<LoopMeasure, Quantity | null> => ({
+  startLongest: amount("startLongest", numberIn(extra["startLoop"], "longestMs")),
+  startBlocks: amount("startBlocks", numberIn(extra["startLoop"], "blockCount")),
+  watchLongest: amount("watchLongest", numberIn(extra["watchLoop"], "longestMs")),
+  watchBlocks: amount("watchBlocks", numberIn(extra["watchLoop"], "blockCount")),
+});
+
 /** This function gives the measures of one child from its time to ready and its fields. */
 export const startMeasures = (ms: number, fields: ChildFields): Measures<StartMeasure> => {
   const extra = fields.extra ?? {};
@@ -571,6 +593,8 @@ export const startMeasures = (ms: number, fields: ChildFields): Measures<StartMe
     watchLive: amount("watchLive", numberIn(watchHeap, "live")),
     watchGc: amount("watchGc", numberIn(watchHeap, "gcMs")),
     ...watchCpuMeasures(extra),
+    startCpu: amount("startCpu", numberIn(extra, "startCpu")),
+    ...loopMeasures(extra),
     passes: amount("passes", numberIn(extra, "passes")),
     limit: amount("limit", numberIn(extra, "limit")),
     ...writeMeasures(fields),

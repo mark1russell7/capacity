@@ -32,9 +32,9 @@ interface End {
 
 /**
  * This function writes the run file of a tree and a store of one file, and it starts the program as the lab does. With
- * `home`, the app opens the store in place. Else the program copies the store first.
+ * `home`, the app opens the store in place. Else the program copies the store first. `watch` is the time of the watch in milliseconds.
  */
-const launch = (tree: TreeApp, home = false): End => {
+const launch = (tree: TreeApp, home = false, watch = 100): End => {
   const work = mkdtempSync(join(tmpdir(), "capacity-app-start-"));
   folders.push(work);
   const store = join(work, "store");
@@ -43,7 +43,7 @@ const launch = (tree: TreeApp, home = false): End => {
   const { file, options } = appRunOf(tree, FIXTURE);
   const run = join(work, "run.json");
   writeFileSync(run, JSON.stringify(file));
-  const args = ["--expose-gc", ...options, PROGRAM, "--run", run, "--case", "small", home ? "--home" : "--seeded", store, "--watch", "100"];
+  const args = ["--expose-gc", ...options, PROGRAM, "--run", run, "--case", "small", home ? "--home" : "--seeded", store, "--watch", String(watch)];
   const child = spawnSync(process.execPath, args, { encoding: "utf8", timeout: 60_000 });
   const last = child.stdout.trim().split("\n").at(-1) ?? "";
   return { code: child.status, stdout: child.stdout, stderr: child.stderr, line: last.startsWith("{") ? (JSON.parse(last) as Record<string, unknown>) : undefined };
@@ -61,6 +61,26 @@ describe("the program app-start", () => {
     expect(end.line?.["readiness"]).toBeGreaterThanOrEqual(end.line?.["ms"] as number);
     expect(end.line?.["copyMs"]).toBeGreaterThan(0);
     expect(end.line?.["limit"]).toBeGreaterThan(0);
+    expect(end.line?.["startCpu"]).toBeGreaterThan(0);
+    for (const span of ["startLoop", "watchLoop"]) expect(end.line?.[span]).toMatchObject({ longestMs: expect.any(Number), blockCount: expect.any(Number) });
+  });
+
+  it("records the longest block of the event loop of the start and of the watch, with the start of the block", () => {
+    const end = launch(treeWith({ env: { FIXTURE_STORE: "{store}", FIXTURE_MODE: "block" } }), false, 1000);
+    expect(end.stderr).toBe("");
+    expect(end.code).toBe(0);
+    const start = end.line?.["startLoop"] as { longestMs: number; blockCount: number; longestAt: number };
+    const watch = end.line?.["watchLoop"] as { longestMs: number; blockCount: number; longestAt: number };
+    // The block of 150 ms at the import is in the start, and the block of 300 ms after ready is in the watch.
+    expect(start.longestMs).toBeGreaterThanOrEqual(150);
+    expect(start.blockCount).toBeGreaterThanOrEqual(1);
+    expect(watch.longestMs).toBeGreaterThanOrEqual(300);
+    expect(watch.blockCount).toBeGreaterThanOrEqual(1);
+    // The start of each block is a time from the start of the process: the block of the watch starts after ready.
+    expect(start.longestAt).toBeLessThan(end.line?.["readiness"] as number);
+    expect(watch.longestAt).toBeGreaterThan(start.longestAt);
+    // The CPU time of the start has the busy loop of 150 ms.
+    expect(end.line?.["startCpu"]).toBeGreaterThanOrEqual(100);
   });
 
   it("records the lines of the run that the contract names: the passes in the watch, and each write with its times", () => {
