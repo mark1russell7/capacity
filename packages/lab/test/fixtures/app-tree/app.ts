@@ -6,8 +6,10 @@
  * - `exit`: the app ends with the code 3 before the end of the watch.
  * - `fail`: the app fails at its import.
  * - `lines`: the app writes a line `fixture-write` before its ready line, and one more in two chunks after it. Then it
- *   writes a line `fixture-pass` each 10 milliseconds. It also writes a line that is not JSON, a line of another event and
- *   one line `fixture-readings` with one reading and one item that is not a reading.
+ *   writes a line `fixture-pass` each 10 milliseconds. It also writes a line that is not JSON and a line of another event.
+ *   Its line `fixture-readings` has one reading and one item that is not a reading.
+ * - `block`: the app blocks its event loop for 150 milliseconds at its import. It writes its ready line, and 300
+ *   milliseconds later it blocks its event loop for 300 milliseconds.
  * - With no mode, the app writes its ready line, and it has no listener of `SIGTERM`.
  */
 import { readdirSync } from "node:fs";
@@ -27,6 +29,18 @@ if (mode === "server") {
   });
   server.listen(Number(values.port), "127.0.0.1");
   process.once("SIGTERM", () => server.close());
+} else if (mode === "block") {
+  /** This function keeps the event loop busy for a time in milliseconds, as a long synchronous task does. */
+  const block = (ms: number): void => {
+    const until = performance.now() + ms;
+    while (performance.now() < until) {
+      // The loop does no other work until the time ends.
+    }
+  };
+  block(150);
+  console.log(`fixture ready with ${files} files`);
+  setTimeout(() => block(300), 300);
+  setInterval(() => undefined, 1000);
 } else if (mode === "lines") {
   console.log(JSON.stringify({ ev: "fixture-write", longestMs: 3, writeMs: 2, rowsMs: 1, wallMs: 4, cpuMs: 2 }));
   console.log(`fixture ready with ${files} files`);

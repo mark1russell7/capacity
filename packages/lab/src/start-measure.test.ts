@@ -14,6 +14,7 @@ import {
   amountsOf,
   ballastsOf,
   childLimitOf,
+  loopMeasures,
   measureStart,
   metricsOf,
   observationReads,
@@ -633,6 +634,20 @@ describe("startMeasures", () => {
     });
     expect(startMeasures(1, { extra: { ballastMs: 300, io: { readBytes: 7, majorFaults: 2 } } })).toMatchObject({ ballast: { value: 300, unit: "ms" }, read: { value: 7, unit: "B" }, faults: { value: 2, unit: "{fault}" } });
     expect(startMeasures(1, { extra: { ready: { peakRss: 80 } } }).peak).toEqual({ value: 80, unit: "B" });
+  });
+
+  it("gives the CPU time of the start and the longest block of the event loop of the start and of the watch, and null for a child with no read", () => {
+    const extra = { startCpu: 900, startLoop: { longestMs: 160, blockCount: 2, longestAt: 40 }, watchLoop: { longestMs: 16_500, blockCount: 1, longestAt: 31_000 } };
+    expect(startMeasures(1, { extra })).toMatchObject({
+      startCpu: { value: 900, unit: "ms" },
+      startLongest: { value: 160, unit: "ms" },
+      startBlocks: { value: 2, unit: "{block}" },
+      watchLongest: { value: 16_500, unit: "ms" },
+      watchBlocks: { value: 1, unit: "{block}" },
+    });
+    // An older child has no such field, and a field of a wrong type gives no value.
+    for (const old of [{}, { startLoop: null, watchLoop: "x" }, { startLoop: { longestMs: "9" }, watchLoop: {} }]) expect(Object.values(loopMeasures(old))).toEqual(Array<null>(4).fill(null));
+    expect(startMeasures(1, { extra: {} }).startCpu).toBeNull();
   });
 
   it("gives the count of the writes of the snapshot and the longest time of each kind, and null for a tree with no record", () => {

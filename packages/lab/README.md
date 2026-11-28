@@ -587,6 +587,13 @@ The lines of the run in the contract give the passes and the writes of the snaps
 - `amounts` comes from the last line `amounts` to the end of the watch. Each reading of the record keeps the run variables in `amounts`, with their units.
 - A run with no line of a kind gives null for its field. The recorder keeps at most 100,000 lines of each kind.
 
+`app-start` also watches the event loop of the app, with `watchEventLoop` of `@mark1russell7/lag/node`. A liveness probe fails when the loop is blocked, thus a long block stops a start on the target.
+
+- The watch starts before the import of the app. Its first span ends at the ready signal, and its second span is the watch after ready.
+- `startLoop` and `watchLoop` give the longest gap of each span, its count of blocks over 50 ms, and the start of the longest block.
+- The full GC of `app-start` at ready is in neither span, because it is not work of the app.
+- `startCpu` is the CPU time of the process from the import of the app to the ready signal.
+
 The lab examines the contract of each tree before the seed, with `appCaseProblems`:
 
 - Each point names each store variable of the contract and each level variable of its seed, in the range of the contract.
@@ -932,6 +939,9 @@ A start case can also model the disk, the page cache and the other processes of 
 | `watchPeak`, `watchRss`, `watchAnon`, `watchHeap` | The peaks of the memory over the watch. |
 | `watchHeapPeak`, `watchLive`, `watchGc` | The heap peaks and the GC time of the watch, from the GC profiler. |
 | `watchCpu`, `watchCores` | The CPU time of the process over the watch, and that time over the time of the watch. Only the program `app-start` gives them. |
+| `startCpu` | The CPU time of the process from the import of the app to the ready signal. |
+| `startLongest`, `startBlocks` | The longest block of the event loop from the import of the app to ready, and the count of blocks over 50 ms. |
+| `watchLongest`, `watchBlocks` | The longest block of the event loop over the watch, and the count of blocks over 50 ms. |
 | `passes` | The count of passes in the watch. |
 | `limit` | The heap size limit of V8 in the child. |
 | `writes`, `writeLongest` | The count of the writes of the snapshot, and the longest block of the event loop in one write. |
