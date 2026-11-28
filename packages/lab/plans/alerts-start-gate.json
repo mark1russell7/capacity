@@ -15,11 +15,11 @@
       "arms": [
         {
           "id": "main",
-          "commit": "4615e746e0ac7bca88deb499d0a92d4a6d7252ef"
+          "commit": "aabc4344837084dfd4f3bc13bfc4748d3fc02a60"
         },
         {
           "id": "base",
-          "commit": "4615e746e0ac7bca88deb499d0a92d4a6d7252ef"
+          "commit": "aabc4344837084dfd4f3bc13bfc4748d3fc02a60"
         }
       ],
       "seeder": "3195eba112180267f72b34cfbeb035cd411ded4b",

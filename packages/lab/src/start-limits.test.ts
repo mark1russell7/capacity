@@ -25,8 +25,8 @@ describe("the plan of the start gate of alerts", () => {
     expect(CASE.app).toBe("https://github.com/metrograph-labs/alerts.git");
     // The arm base has the commit of the limits. The gate gives it the base of a pull request, and the limits do not read it (CAP-105).
     expect(CASE.arms).toEqual([
-      { id: "main", commit: "4615e746e0ac7bca88deb499d0a92d4a6d7252ef" },
-      { id: "base", commit: "4615e746e0ac7bca88deb499d0a92d4a6d7252ef" },
+      { id: "main", commit: "aabc4344837084dfd4f3bc13bfc4748d3fc02a60" },
+      { id: "base", commit: "aabc4344837084dfd4f3bc13bfc4748d3fc02a60" },
     ]);
     expect(ARM).not.toBe(CASE.seeder);
     expect(CASE.points.map((each) => [each.id, each.at["log"]?.value])).toEqual([["live-1844", 197_156_864], ["knee-192", 192 * 2 ** 20], ["routes-40000", 16 * 2 ** 20]]);
