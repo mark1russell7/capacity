@@ -748,6 +748,19 @@
           "logarithm",
           "hinge"
         ]
+      },
+      {
+        "id": "watchCores",
+        "law": "watch-cores",
+        "title": "The CPU time of the process in the watch after ready, over the time of the watch",
+        "residual": "absolute",
+        "forms": [
+          "constant",
+          "linear",
+          "power",
+          "logarithm",
+          "hinge"
+        ]
       }
     ]
   }
